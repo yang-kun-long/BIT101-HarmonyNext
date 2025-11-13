@@ -107,7 +107,6 @@ export class TokenStore {
 
   async getWebvpnCookie(): Promise<string | null> {
     const pref = await this.getPref();
-    console.info(KEY_WEBVPN_COOKIE);
     return (await pref.get(KEY_WEBVPN_COOKIE, null)) as (string | null);
   }
 

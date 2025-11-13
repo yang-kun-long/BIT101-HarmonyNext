@@ -1,9 +1,8 @@
+// src/main/ets/services/jw/periodTimesStore.ts
 import fileIo from '@ohos.file.fs'
-import { __setPeriodTimesInMemory, getDefaultPeriodTimes, PeriodTime } from './periodTimes'
 import util from '@ohos.util'
+import { __setPeriodTimesInMemory, getDefaultPeriodTimes, PeriodTime } from './periodTimes'
 
-
-// 与其它仓库一致的文件上下文（filesDir 来自 EntryAbility 注入）
 export interface TimesFilesCtx { filesDir: string }
 
 const PERIOD_TIMES_FILENAME = 'period_times.json';
@@ -12,63 +11,93 @@ export class PeriodTimesStore {
   constructor(private ctx: TimesFilesCtx) {}
 
   private filePath(): string {
-    const base = this.ctx.filesDir || '';
+    const base = this.ctx.filesDir || ''
     return base.endsWith('/') ? (base + PERIOD_TIMES_FILENAME) : (base + '/' + PERIOD_TIMES_FILENAME);
   }
 
-  // 读取：文件不存在或不合法时落回默认
   load(): PeriodTime[] {
+    const p = this.filePath()
     try {
-      const p = this.filePath();
-      if (!p) return getDefaultPeriodTimes();
-      if (!fileIo.accessSync(p)) {
-        const def = getDefaultPeriodTimes();
-        this.save(def);          // 首次落盘
-        __setPeriodTimesInMemory(def);
-        return def;
-      }
-      const fd = fileIo.openSync(p, fileIo.OpenMode.READ_ONLY);
+      console.info('[PTS] load.path =', p)
+      const parent = p.slice(0, Math.max(0, p.lastIndexOf('/')))
       try {
-        const stat = fileIo.statSync(p);
-        const buf = new ArrayBuffer(stat.size);
-        fileIo.readSync(fd.fd, buf, { offset: 0 });
-        const txt = String.fromCharCode.apply(null, Array.from(new Uint8Array(buf)) as unknown as number[]);
-        const obj = JSON.parse(txt);
-        if (Array.isArray(obj) && obj.length === 13) {
-          const list: PeriodTime[] = obj.map((it: any) => ({ start: String(it.start || ''), end: String(it.end || '') }));
-          __setPeriodTimesInMemory(list);
-          return list;
-        }
-        const def = getDefaultPeriodTimes();
-        __setPeriodTimesInMemory(def);
-        return def;
-      } finally {
-        fileIo.closeSync(fd);
+        const parentOk = parent ? fileIo.accessSync(parent) : false
+        console.info('[PTS] parent.exists =', parentOk, ' parent =', parent)
+      } catch (pe) {
+        console.error('[PTS] parent.access error =', (pe as Error).message, ' parent =', parent)
       }
-    } catch (_e) {
-      const def = getDefaultPeriodTimes();
-      __setPeriodTimesInMemory(def);
-      return def;
+
+      let exists = false
+      try {
+        exists = fileIo.accessSync(p)
+        console.info('[PTS] file.exists =', exists)
+      } catch (ae) {
+        console.error('[PTS] file.access error =', (ae as Error).message)
+      }
+
+      if (!exists) {
+        const def = getDefaultPeriodTimes()
+        console.info('[PTS] file not exist -> save default')
+        this.save(def)          // 首次落盘
+        __setPeriodTimesInMemory(def)
+        return def
+      }
+
+      const fd = fileIo.openSync(p, fileIo.OpenMode.READ_ONLY)
+      try {
+        const stat = fileIo.statSync(p)
+        console.info('[PTS] file.size =', stat.size)
+        const buf = new ArrayBuffer(stat.size)
+        fileIo.readSync(fd.fd, buf, { offset: 0 })
+        const txt = String.fromCharCode.apply(null, Array.from(new Uint8Array(buf)) as unknown as number[])
+        const obj = JSON.parse(txt)
+        const okArr = Array.isArray(obj) && obj.length === 13
+        console.info('[PTS] json.okArr =', okArr)
+        if (okArr) {
+          const list: PeriodTime[] = obj.map((it: any) => ({ start: String(it.start || ''), end: String(it.end || '') }))
+          __setPeriodTimesInMemory(list)
+          return list
+        }
+        const def = getDefaultPeriodTimes()
+        __setPeriodTimesInMemory(def)
+        return def
+      } finally {
+        try { fileIo.closeSync(fd) } catch {}
+      }
+    } catch (e) {
+      console.error('[PTS] load.failed =', (e as Error).message, ' path =', p)
+      const def = getDefaultPeriodTimes()
+      __setPeriodTimesInMemory(def)
+      return def
     }
   }
 
-  // 保存（后续你开放“调整作息时间”的接口时会调用）
   save(list: PeriodTime[]): void {
+    const p = this.filePath()
     try {
-      const p = this.filePath();
-      if (!p) return;
-      const json = JSON.stringify(list, null, 2);
-      const fd = fileIo.openSync(p, fileIo.OpenMode.CREATE | fileIo.OpenMode.TRUNC | fileIo.OpenMode.WRITE_ONLY);
+      console.info('[PTS] save.path =', p)
+      const parent = p.slice(0, Math.max(0, p.lastIndexOf('/')))
       try {
-        const encoder = new util.TextEncoder();
-        const bytes = encoder.encode(json);            // Uint8Array
-        fileIo.writeSync(fd.fd, bytes.buffer);         // 写入 ArrayBuffer
-      } finally {
-        fileIo.closeSync(fd);
+        const parentOk = parent ? fileIo.accessSync(parent) : false
+        console.info('[PTS] save.parent.exists =', parentOk, ' parent =', parent)
+      } catch (pe) {
+        console.error('[PTS] save.parent.access error =', (pe as Error).message, ' parent =', parent)
       }
-      __setPeriodTimesInMemory(list);
-    } catch (_e) {
-      // 忽略写入错误；必要时可上报日志
+
+      const json = JSON.stringify(list, null, 2)
+      const fd = fileIo.openSync(p, fileIo.OpenMode.CREATE | fileIo.OpenMode.TRUNC | fileIo.OpenMode.WRITE_ONLY)
+      try {
+        const encoder = new util.TextEncoder()
+        const bytes = encoder.encode(json)
+        console.info('[PTS] save.bytes =', bytes.byteLength)
+        fileIo.writeSync(fd.fd, bytes.buffer)
+      } finally {
+        try { fileIo.closeSync(fd) } catch {}
+      }
+      __setPeriodTimesInMemory(list)
+      console.info('[PTS] save.ok')
+    } catch (e) {
+      console.error('[PTS] save.failed =', (e as Error).message, ' path =', p)
     }
   }
 }

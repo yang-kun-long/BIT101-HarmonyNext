@@ -1,5 +1,6 @@
 // entry/src/main/ets/services/storage/semesterStore.ts
 import fs from '@ohos.file.fs'
+import util from '@ohos.util'
 
 /** ICS 属性（含参数） */
 export interface IcsProp {
@@ -128,7 +129,10 @@ export class SemesterStore {
 
   constructor(ctx: FilesCtx) {
     // <filesDir>/bit101/timetable
-    this.rootDir = this.join(ctx.filesDir, 'bit101/timetable');
+    this.rootDir = ctx.filesDir;
+    console.info('[SEMFS] ctor.rootDir =', this.rootDir);
+    this.ensureDirRecursive(this.rootDir); // 仍然留着，幂等
+    console.info('[SEMFS] ctor.rootDir =', this.rootDir);
     this.ensureDirRecursive(this.rootDir);
   }
 
@@ -147,22 +151,27 @@ export class SemesterStore {
   }
 
   private ensureDirRecursive(dir: string): void {
-    // 逐级创建，兼容没有 recursive 选项的设备
-    const parts = dir.split('/').filter(p => p.length > 0);
-    let cur = dir.startsWith('/') ? '/' : '';
+    const norm: string = dir.replace(/\/+/g, '/');
+    const parts: string[] = norm.split('/').filter(p => p.length > 0);
+    let cur: string = norm.startsWith('/') ? '/' : '';
     for (let i = 0; i < parts.length; i++) {
-      cur = this.join(cur || '', parts[i]);
-      if (!this.exists(cur)) {
+      const next = parts[i];
+      cur = this.join(cur || '', next);
+      const exists: boolean = this.exists(cur);
+      console.info('[SEMFS] ensureDir step=', i, ' dir=', cur, ' exists=', exists);
+      if (!exists) {
         try {
           fs.mkdirSync(cur);
-        } catch (e: any) {
-          if (e && e.code && e.code !== 'EEXIST') {
-            throw e;
-          }
+          console.info('[SEMFS] mkdir ok dir=', cur);
+        } catch (e) {
+          const msg: string = (e instanceof Error) ? e.message : String(e);
+          console.error('[SEMFS] mkdir failed dir=', cur, ' msg=', msg);
+          // 不修改行为：交给后续 openSync 抛错
         }
       }
     }
   }
+
 
   private ensureParentDir(filePath: string): void {
     const idx = filePath.lastIndexOf('/');
@@ -171,30 +180,129 @@ export class SemesterStore {
   }
 
   private readJson<T>(path: string): T | null {
-    if (!this.exists(path)) return null;
+    if (!this.exists(path)) {
+      console.info('[SEMFS] readJson.miss path =', path);
+      return null;
+    }
     try {
+      console.info('[SEMFS] readJson.path =', path);
       const text = fs.readTextSync(path);
-      return JSON.parse(text) as T;
-    } catch {
+      const obj = JSON.parse(text) as T;
+      console.info('[SEMFS] readJson.ok size =', text.length);
+      return obj;
+    } catch (e) {
+      const msg: string = (e instanceof Error) ? e.message : String(e);
+      console.error('[SEMFS] readJson.failed path =', path, ' msg =', msg);
       return null;
     }
   }
 
   // 用 openSync + writeSync + closeSync 写文本，避免部分设备 writeTextSync 不落盘
-  private writeJson(path: string, obj: unknown): void {
-    this.ensureParentDir(path);
-    const json = JSON.stringify(obj);
-    const fd = fs.openSync(path, fs.OpenMode.CREATE | fs.OpenMode.TRUNC | fs.OpenMode.WRITE_ONLY);
+  private writeJson(path: string, obj: object): void {
+    const parentIdx: number = path.lastIndexOf('/');
+    const parent: string = parentIdx >= 0 ? path.slice(0, parentIdx) : '';
+    console.info('[SEMFS] writeJson.path =', path, ' parent =', parent);
+
+    // 父目录存在性/类型日志
     try {
-      fs.writeSync(fd.fd, json);
-      fs.fsyncSync(fd.fd);
-    } finally {
-      fs.closeSync(fd);
+      const exists: boolean = parent.length > 0 ? this.exists(parent) : false;
+      console.info('[SEMFS] writeJson.parent.exists =', exists);
+      if (exists) {
+        try {
+          const st = fs.statSync(parent);
+          let isDir = false;
+          let isFile = false;
+          try { isDir = st.isDirectory(); } catch { isDir = false; }
+          try { isFile = st.isFile(); } catch { isFile = false; }
+          console.info('[SEMFS] writeJson.parent.kind isDir=', isDir, ' isFile=', isFile, ' size=', st.size);
+        } catch (se) {
+          const msg: string = (se instanceof Error) ? se.message : String(se);
+          console.error('[SEMFS] writeJson.parent.stat.error =', msg);
+        }
+      }
+    } catch (pe) {
+      const msg: string = (pe instanceof Error) ? pe.message : String(pe);
+      console.error('[SEMFS] writeJson.parent.check.error =', msg, ' parent =', parent);
+    }
+
+    // 仍确保父目录
+    this.ensureParentDir(path);
+
+    // 实际写入：先尝试 open+write；失败则触发“touch -> reopen”兜底
+    let stage: string = 'encode';
+    try {
+      const json = JSON.stringify(obj);
+      const enc = new util.TextEncoder();
+      const bytes = enc.encode(json);
+      console.info('[SEMFS] writeJson.bytes =', bytes.byteLength);
+
+      stage = 'open';
+      let fd = fs.openSync(path, fs.OpenMode.CREATE | fs.OpenMode.TRUNC | fs.OpenMode.READ_WRITE);
+      console.info('[SEMFS] writeJson.open.ok fd=', fd.fd);
+
+      try {
+        stage = 'write';
+        const written = fs.writeSync(fd.fd, bytes.buffer);
+        console.info('[SEMFS] writeJson.write.ok bytes=', written);
+
+        stage = 'fsync';
+        fs.fsyncSync(fd.fd);
+        console.info('[SEMFS] writeJson.fsync.ok');
+      } finally {
+        try { stage = 'close'; fs.closeSync(fd); console.info('[SEMFS] writeJson.close.ok'); } catch { /* ignore */ }
+      }
+
+      console.info('[SEMFS] writeJson.done path =', path);
+    } catch (e) {
+      const firstMsg: string = (e instanceof Error) ? e.message : String(e);
+      console.error('[SEMFS] writeJson.failed stage=', stage, ' path =', path, ' msg =', firstMsg);
+
+      // 仅在 open 阶段 ENOENT/找不到时，执行兜底：用 openSync(create+read_only) 触发“touch”，再 reopen
+      const needFallback: boolean = (stage === 'open') && (firstMsg.indexOf('No such file or directory') >= 0);
+      if (!needFallback) throw e;
+
+      console.info('[SEMFS] writeJson.fallback.touch+reopen path =', path);
+      try {
+        // 1) touch：不 TRUNC，只 CREATE + READ_ONLY 打开并马上关闭，生成一个空文件
+        const fdTouch = fs.openSync(path, fs.OpenMode.CREATE | fs.OpenMode.READ_ONLY);
+        try {
+          console.info('[SEMFS] writeJson.fallback.touch.open.ok fd=', fdTouch.fd);
+        } finally {
+          try { fs.closeSync(fdTouch); } catch { /* ignore */ }
+        }
+
+        // 2) 重新以 READ_WRITE + TRUNC 打开并写入
+        const json2 = JSON.stringify(obj);
+        const enc2 = new util.TextEncoder();
+        const bytes2 = enc2.encode(json2);
+
+        const fd2 = fs.openSync(path, fs.OpenMode.READ_WRITE | fs.OpenMode.TRUNC);
+        try {
+          const written2 = fs.writeSync(fd2.fd, bytes2.buffer);
+          console.info('[SEMFS] writeJson.fallback.write.ok bytes=', written2);
+          fs.fsyncSync(fd2.fd);
+          console.info('[SEMFS] writeJson.fallback.fsync.ok');
+        } finally {
+          try { fs.closeSync(fd2); } catch { /* ignore */ }
+        }
+        console.info('[SEMFS] writeJson.fallback.done path =', path);
+      } catch (e2) {
+        const msg2: string = (e2 instanceof Error) ? e2.message : String(e2);
+        console.error('[SEMFS] writeJson.fallback.failed path =', path, ' msg =', msg2);
+        throw e2; // 保持原抛错
+      }
     }
   }
 
+
+
   private fileSize(path: string): number {
-    try { return fs.statSync(path).size; } catch { return 0; }
+    try {
+      const size = fs.statSync(path).size;
+      return size;
+    } catch {
+      return 0;
+    }
   }
 
   private semesterPath(semesterId: string): string {
@@ -202,7 +310,7 @@ export class SemesterStore {
   }
 
   private indexPath(): string {
-    return this.join(this.rootDir, 'index.json');
+    return this.join(this.rootDir, 'semester-index.json');
   }
 
   // ---------- 迁移/补齐逻辑 ----------
@@ -268,7 +376,7 @@ export class SemesterStore {
     const existing = data.courseColors || {};
     const merged: Record<string, string> = { ...existing };
     for (const ci of data.instances) {
-      const key = ci.courseKey!;
+      const key = ci.courseKey ? ci.courseKey : makeCourseKey(ci);
       if (!merged[key]) {
         merged[key] = colorForKey(key);
       }
@@ -285,24 +393,46 @@ export class SemesterStore {
     };
 
     const p = this.semesterPath(data.semesterId);
+    console.info('[SEMFS] saveSemester.path =', p, ' semId =', data.semesterId);
+    const parentIdx = p.lastIndexOf('/');
+    const parent = parentIdx >= 0 ? p.slice(0, parentIdx) : '';
+    try {
+      const parentOk = parent.length > 0 ? this.exists(parent) : false;
+      console.info('[SEMFS] saveSemester.parent.exists =', parentOk, ' parent =', parent);
+    } catch (pe) {
+      const msg: string = (pe instanceof Error) ? pe.message : String(pe);
+      console.error('[SEMFS] saveSemester.parent.check.error =', msg, ' parent =', parent);
+    }
+
     this.writeJson(p, payload);
-    await this.upsertIndexItem(data.semesterId, payload.updatedAt, this.fileSize(p));
+    const sizeAfter = this.fileSize(p);
+    console.info('[SEMFS] saveSemester.after.size =', sizeAfter, ' path =', p);
+
+    await this.upsertIndexItem(data.semesterId, payload.updatedAt, sizeAfter);
   }
 
   async loadSemester(semesterId: string): Promise<SemesterSnapshot | null> {
     const p = this.semesterPath(semesterId);
     const obj = this.readJson<SemesterSnapshot>(p);
-    if (!obj) return null;
+    if (!obj) {
+      console.info('[SEMFS] loadSemester.miss path =', p);
+      return null;
+    }
 
     // 惰性迁移：读取后补齐并回写
     const migrated = this.migrateSnapshot(obj);
-    if (migrated && (migrated.version !== obj.version ||
-      JSON.stringify(migrated.courseColors || {}) !== JSON.stringify(obj.courseColors || {}) ||
-      // 粗略判断 instances 是否有回填（避免重写频繁，可根据需要细化）
-    migrated.instances.some((ci, i) =>
-    ci.courseKey !== obj.instances[i]?.courseKey || ci.teacher !== obj.instances[i]?.teacher
-    )
-    )) {
+    const needRewrite =
+      !!migrated &&
+        (
+          migrated.version !== obj.version ||
+            JSON.stringify(migrated.courseColors || {}) !== JSON.stringify(obj.courseColors || {}) ||
+          migrated.instances.some((ci, i) =>
+          ci.courseKey !== obj.instances[i]?.courseKey || ci.teacher !== obj.instances[i]?.teacher
+          )
+        );
+
+    if (needRewrite && migrated) {
+      console.info('[SEMFS] loadSemester.migrate.rewrite path =', p);
       this.writeJson(p, migrated);
       await this.upsertIndexItem(semesterId, migrated.updatedAt || Date.now(), this.fileSize(p));
       return migrated;
@@ -313,15 +443,26 @@ export class SemesterStore {
   async removeSemester(semesterId: string): Promise<void> {
     const p = this.semesterPath(semesterId);
     if (this.exists(p)) {
-      try { fs.unlinkSync(p); } catch {}
+      try {
+        fs.unlinkSync(p);
+        console.info('[SEMFS] removeSemester.unlink path =', p);
+      } catch (e) {
+        const msg: string = (e instanceof Error) ? e.message : String(e);
+        console.error('[SEMFS] removeSemester.unlink.failed path =', p, ' msg =', msg);
+      }
     }
     await this.removeIndexItem(semesterId);
   }
 
   // ---------- 索引读写 ----------
   async listIndex(): Promise<SemesterIndex> {
-    const obj = this.readJson<SemesterIndex>(this.indexPath());
-    return obj && obj.items ? obj : { version: VERSION, items: [] };
+    const idxPath = this.indexPath();
+    const obj = this.readJson<SemesterIndex>(idxPath);
+    if (obj && obj.items) {
+      return obj;
+    }
+    console.info('[SEMFS] listIndex.default path =', idxPath);
+    return { version: VERSION, items: [] };
   }
 
   private async upsertIndexItem(semesterId: string, updatedAt: number, size: number): Promise<void> {
@@ -338,7 +479,10 @@ export class SemesterStore {
       }
     }
     if (!replaced) out.items.push({ semesterId, updatedAt, size });
-    this.writeJson(this.indexPath(), out);
+
+    const ip = this.indexPath();
+    console.info('[SEMFS] upsertIndexItem.path =', ip, ' semId =', semesterId, ' size =', size);
+    this.writeJson(ip, out);
   }
 
   private async removeIndexItem(semesterId: string): Promise<void> {
@@ -347,6 +491,8 @@ export class SemesterStore {
     for (let i = 0; i < idx.items.length; i++) {
       if (idx.items[i].semesterId !== semesterId) out.items.push(idx.items[i]);
     }
-    this.writeJson(this.indexPath(), out);
+    const ip = this.indexPath();
+    console.info('[SEMFS] removeIndexItem.path =', ip, ' semId =', semesterId);
+    this.writeJson(ip, out);
   }
 }

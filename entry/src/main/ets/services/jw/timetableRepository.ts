@@ -50,7 +50,7 @@ export class TimetableRepository {
   private store = new TokenStore()
   private debug: boolean
 
-  constructor(baseUrl: string = 'https://bit101.flwfdd.xyz', debug = true) {
+  constructor(baseUrl: string = 'https://bit101.flwfdd.xyz', debug = false) {
     this.baseUrl = baseUrl.replace(/\/$/, '')
     this.debug = debug
   }
@@ -58,9 +58,7 @@ export class TimetableRepository {
   // 1) 请求 /courses/schedule 拿 .ics 下载链接
   async getScheduleLink(): Promise<ScheduleLinkResp> {
     const cookie = await this.store.getWebvpnCookie()
-    console.info(cookie)
     if (!cookie) {
-      console.info(cookie)
       throw new Error('缺少 WebVPN 会话，请先完成教务登录,webvpn-cookie=$\{redact(cookie)}')
     }
 

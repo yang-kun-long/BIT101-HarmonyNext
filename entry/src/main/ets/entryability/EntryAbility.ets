@@ -7,9 +7,9 @@ const DOMAIN = 0x0000;
 
 export default class EntryAbility extends UIAbility {
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
-    AppStorage.SetOrCreate<string>('filesDir', this.context.filesDir);
-    AppStorage.SetOrCreate<string>('cacheDir', this.context.cacheDir);
-    AppStorage.SetOrCreate<string>('tempDir', this.context.tempDir);
+    AppStorage.SetOrCreate('filesDir', this.context.filesDir)   // 必须
+    AppStorage.SetOrCreate('cacheDir', this.context.cacheDir)   // 建议
+    AppStorage.SetOrCreate('tempDir',  this.context.tempDir)    // 建议
     initTokenStore(this.context);  // 从 '../services/storage/tokenStore' 引入
     try {
       this.context.getApplicationContext().setColorMode(ConfigurationConstant.ColorMode.COLOR_MODE_NOT_SET);

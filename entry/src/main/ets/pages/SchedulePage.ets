@@ -1,5 +1,7 @@
 // entry/src/main/ets/pages/SchedulePage.ets
 
+import fileIo from '@ohos.file.fs'
+
 import { TimetableRepository, CalendarEvent } from '../services/jw/timetableRepository'
 import { TokenStore } from '../services/storage/tokenStore'
 
@@ -42,28 +44,6 @@ interface AbsoluteItem {
 }
 
 
-
-// 固定 13 节课开始时间（分钟）
-const PERIOD_STARTS_MIN = [
-  8 * 60 + 0,   // 1
-  8 * 60 + 50,  // 2
-  9 * 60 + 55,  // 3
-  10 * 60 + 45, // 4
-  11 * 60 + 35, // 5
-  13 * 60 + 20, // 6
-  14 * 60 + 10, // 7
-  15 * 60 + 15, // 8
-  16 * 60 + 5,  // 9
-  16 * 60 + 55, // 10
-  18 * 60 + 30, // 11
-  19 * 60 + 20, // 12
-  20 * 60 + 10, // 13
-]
-function periodEndMin(index1: number): number {
-  const i = index1 - 1
-  if (i < 12) return PERIOD_STARTS_MIN[i + 1]
-  return PERIOD_STARTS_MIN[12] + 50
-}
 @Component
 export default struct SchedulePage {
   @State loading: boolean = true
@@ -110,6 +90,32 @@ export default struct SchedulePage {
 
   private repo = new TimetableRepository()
   private store = new TokenStore()
+  private parseHHMMToMin(hhmm?: string): number | null {
+    if (!hhmm || typeof hhmm !== 'string') return null
+    const m = /^(\d{1,2}):(\d{2})$/.exec(hhmm.trim())
+    if (!m) return null
+    const h = parseInt(m[1], 10), mm = parseInt(m[2], 10)
+    if (h < 0 || h > 23 || mm < 0 || mm > 59) return null
+    return h * 60 + mm
+  }
+  private startMinOf(i1: number): number {
+    const idx = i1 - 1
+    const t = (this.periodTimes && this.periodTimes.length === 13) ? this.periodTimes[idx] : null
+    const m = t ? this.parseHHMMToMin(t.start) : null
+    // 兜底：若读不到，按默认 08:00 起每节 50 分钟估算
+    if (m == null) return 8 * 60 + (idx * 50)
+    return m
+  }
+  private endMinOf(i1: number): number {
+    const idx = i1 - 1
+    const t = (this.periodTimes && this.periodTimes.length === 13) ? this.periodTimes[idx] : null
+    const mEnd = t ? this.parseHHMMToMin(t.end) : null
+    if (mEnd != null) return mEnd
+    // 若某节没有写结束时间：优先用下一节的开始时间作为结束，否则用开始+50兜底
+    const nextStart = (idx < 12) ? this.startMinOf(i1 + 1) : null
+    if (nextStart != null) return nextStart
+    return this.startMinOf(i1) + 50
+  }
 
 
 
@@ -140,6 +146,64 @@ export default struct SchedulePage {
       this.leftColWidth = l;
     }
   }
+  // 放在 SchedulePage 类里，直接替换原有两个方法
+
+  private fsChk(label: string, p: string): void {
+    try {
+      const ok: boolean = fileIo.accessSync(p);
+      console.info(`[FS] ${label}.access =`, ok, ' path =', p);
+      if (ok) {
+        try {
+          const st: fileIo.Stat = fileIo.statSync(p);
+          const size: number = st.size;
+          let isFile = false;
+          let isDir = false;
+          try { isFile = st.isFile(); } catch { isFile = false; }
+          try { isDir = st.isDirectory(); } catch { isDir = false; }
+          console.info(`[FS] ${label}.stat size=`, size, ' isFile=', isFile, ' isDir=', isDir);
+        } catch (se) {
+          const msg: string = (se instanceof Error) ? se.message : String(se);
+          console.error(`[FS] ${label}.stat.error =`, msg);
+        }
+      }
+    } catch (e) {
+      const msg: string = (e instanceof Error) ? e.message : String(e);
+      console.error(`[FS] ${label}.access.error =`, msg, ' path =', p);
+    }
+  }
+
+  private logErr(where: string, e: Error | string): void {
+    const msg: string = (typeof e === 'string') ? e : e.message;
+    const stack: string = (typeof e === 'string') ? '' : (e.stack ?? '');
+    console.error(`[ERR] ${where}:`, msg, '\nstack:', stack);
+  }
+  private logFsIo(label: string, path: string): void {
+    try {
+      const ok: boolean = fileIo.accessSync(path);
+      let kind = 'unknown';
+      if (ok) {
+        try {
+          const st: fileIo.Stat = fileIo.statSync(path);
+          const isFile: boolean = (st as fileIo.Stat).isFile();
+          const isDir: boolean = (st as fileIo.Stat).isDirectory();
+          kind = isFile ? 'file' : (isDir ? 'dir' : 'other');
+          console.info(`[FSIO] ${label} ok path=${path} kind=${kind} size=${st.size}`);
+        } catch (_e) {
+          console.info(`[FSIO] ${label} ok path=${path} (stat failed)`);
+        }
+      } else {
+        console.info(`[FSIO] ${label} missing path=${path}`);
+      }
+    } catch (e) {
+      const msg: string = (e instanceof Error) ? e.message : String(e);
+      console.error(`[FSIO] ${label} access error path=${path} msg=${msg}`);
+    }
+  }
+
+
+
+
+
 
 
   // 根据容器高度自适应计算每节高度 & 字号
@@ -237,7 +301,8 @@ export default struct SchedulePage {
         ? this.cacheDirFromApp
         : (this.tempDirFromApp || ''));
 
-    console.info('[SchedulePage] pick dir =', pick);
+    console.info('[SchedulePage] pick dir =', pick)
+    this.fsChk('filesDir.pick', pick)   // ← 新增
 
     if (!pick || pick.length === 0) {
       this.err = '无法获取应用文件目录（filesDir/cacheDir/tempDir 均为空）。请确认 EntryAbility.onCreate 已写入 AppStorage。'
@@ -261,10 +326,13 @@ export default struct SchedulePage {
     }
 
     const filesDir: string = this.getFilesDir()
+    this.fsChk('init.filesDir', filesDir)
     const filesCtx: FilesCtx = { filesDir }   // ← 先赋值给显式接口
+    console.info('[Init] new SemesterRepository with filesDir =', filesDir)
     this.semRepo = new SemesterRepository(this.repo, filesCtx, deps)
     this.timesStore = new PeriodTimesStore({ filesDir })
     this.periodTimes = this.timesStore.load()
+    console.info('[Init] periodTimes.loaded =', JSON.stringify(this.periodTimes)) // ← 新增
 
   }
   private weekNoText(): string {
@@ -348,27 +416,28 @@ export default struct SchedulePage {
   private minutesOfDay(dt: Date): number { return dt.getHours() * 60 + dt.getMinutes() }
   private periodIndexByStart(dt: Date): number {
     const m = this.minutesOfDay(dt)
-    let i = 0
-    while (i < PERIOD_STARTS_MIN.length) {
-      const st = PERIOD_STARTS_MIN[i]; const ed = periodEndMin(i + 1)
-      if (m >= st && m < ed) return i + 1
-      i++
+    // 在 1..13 范围内找第一个 [start, end) 区间
+    for (let i1 = 1; i1 <= 13; i1++) {
+      const st = this.startMinOf(i1)
+      const ed = this.endMinOf(i1)
+      if (m >= st && m < ed) return i1
     }
+    // 若不在任何区间内：小于第一节 -> 1；大于最后一节 -> 13
+    if (m < this.startMinOf(1)) return 1
     return 13
   }
   private periodSpanByStartEnd(start: Date, end: Date): number {
     const sIdx = this.periodIndexByStart(start)
     const endMin = this.minutesOfDay(end)
+
+    // 从起始节往后探测，找到“覆盖到哪个节的结束边界”
     let eIdx = sIdx
-    // 如果结束时间正好落在某节的起始点（比如下一节 08:50），视作上一节结束
-    // 避免把“边界结束”多算进跨节
-    let probe = sIdx
-    while (probe <= 13) {
-      const e = periodEndMin(probe)
-      if (endMin < e) { eIdx = probe; break }     // 严格小于
-      if (endMin === e) { eIdx = probe; break }   // 等于边界也停在当前 probe
-      probe++
+    for (let probe = sIdx; probe <= 13; probe++) {
+      const e = this.endMinOf(probe)
+      if (endMin <= e) { eIdx = probe; break } // 注意：等于边界也算当前 probe 结束
+      eIdx = probe
     }
+
     const span = eIdx - sIdx + 1
     return span < 1 ? 1 : span
   }
@@ -410,36 +479,55 @@ export default struct SchedulePage {
     }
 
     try {
-      const semIdStr: string = this.currentSemesterId()
-      const sem: SemesterId = { id: semIdStr } // 你也可以换成后端返回的学期ID
-      const result = await this.semRepo.getSemester(sem, forceRefresh)
+      const semIdStr: string = this.currentSemesterId();
+      const sem: SemesterId = { id: semIdStr };
+      console.info('[SEM] getSemester.begin id=', semIdStr, ' weekStartISO=', this.weekStartISO, ' filesDir=', this.getFilesDir());
+
+      const result = await this.semRepo.getSemester(sem, forceRefresh);
+      console.info('[SEM] getSemester.ok id=', semIdStr);
+
       // 取本周实例
-      const weekInstances: CourseInstance[] = this.semRepo.filterWeekInstances(result.semester, this.weekStartISO)
-      this.courseColors = (result.semester && result.semester.courseColors) ? result.semester.courseColors : {}
-      // 🔽 计算本学期的第一周（按最小 weekStartISO 取）
+      const weekInstances: CourseInstance[] = this.semRepo.filterWeekInstances(result.semester, this.weekStartISO);
+      console.info('[SEM] filterWeekInstances.ok count=', weekInstances.length);
+
+      // 课程颜色
+      this.courseColors = (result.semester && result.semester.courseColors) ? result.semester.courseColors : {};
+
+      // 计算本学期的第一周（按最小 weekStartISO 取）
       if (result && result.semester && result.semester.instances && result.semester.instances.length > 0) {
         const insts: CourseInstance[] = result.semester.instances;
         let minISO: string = insts[0].weekStartISO;
         for (let i = 1; i < insts.length; i++) {
-          const iso = insts[i].weekStartISO;
+          const iso: string = insts[i].weekStartISO;
           if (iso < minISO) minISO = iso;
         }
-        this.firstWeekISO = minISO;       // 保存到状态
+        this.firstWeekISO = minISO;
+        console.info('[SEM] firstWeekISO.computed =', this.firstWeekISO);
       } else {
-        // 没数据时，至少用当前周一作为基准，避免空字符串参与计算
         this.firstWeekISO = this.weekStartISO;
+        console.info('[SEM] firstWeekISO.fallback =', this.firstWeekISO);
       }
 
       // 转布局（跨行卡片）
-      const layouts = layoutsFromInstances(this.weekStartISO, weekInstances)
+      const layouts = layoutsFromInstances(this.weekStartISO, weekInstances);
+      console.info('[SEM] layoutsFromInstances.ok days=', layouts.length);
+
       // 回填到页面
-      this.weekLayouts = this.mapLayoutsWithDate(layouts)
+      this.weekLayouts = this.mapLayoutsWithDate(layouts);
+      console.info('[SEM] weekLayouts.set days=', this.weekLayouts.length);
     } catch (e) {
-      const m: string = (e as Error).message || String(e)
-      this.err = m
+      const msg: string = (e instanceof Error) ? e.message : String(e);
+      this.err = msg;
+      console.error('[ERR] getSemester:', msg);
+      const stack: string = (e instanceof Error && e.stack) ? e.stack : '';
+      if (stack.length > 0) {
+        console.error('[ERR] getSemester.stack:', stack);
+      }
+      console.error('[CTX] filesDir=', this.getFilesDir(), ' weekStartISO=', this.weekStartISO, ' semId=', this.currentSemesterId());
     } finally {
-      this.loading = false
+      this.loading = false;
     }
+
   }
 
   // 给 DayLayout 补充 Date 类型日期，方便顶部 DayHeader 使用
@@ -807,7 +895,10 @@ export default struct SchedulePage {
           Text(`（${this.weekTitle}）`).fontSize(12).fontColor('#6B7280').margin({ left: 6 })
           Blank()
           // ⬇️ “刷新”按钮改为强制重拉，并写整学期本地
-          Button('刷新').type(ButtonType.Capsule).onClick(() => { this.loadLocalFirst(true) })
+          Button('刷新').type(ButtonType.Capsule).onClick(async () => {
+            await this.loadLocalFirst(true)              // 第一次：强制刷新
+            setTimeout(() => { this.loadLocalFirst(false) }, 16) // 第二次：轻刷，给一帧时间
+          })
         }.width('100%').margin({ top: 0 })
 
         // this.Status(this.hasWebvpn, this.hasWebvpn ? '教务会话可用' : '未登录教务（WebVPN）')

@@ -11,6 +11,22 @@
     {
       "name": "EntryAbility_label",
       "value": "label"
+    },
+    {
+      "name": "EntryFormAbility_label",
+      "value": "今日课程卡片扩展"
+    },
+    {
+      "name": "EntryFormAbility_desc",
+      "value": "提供今日课程服务卡片"
+    },
+    {
+      "name": "widget_desc",
+      "value": "This is a service widget."
+    },
+    {
+      "name": "widget_display_name",
+      "value": "widget"
     }
   ]
 }

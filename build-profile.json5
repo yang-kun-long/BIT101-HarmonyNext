@@ -1,12 +1,26 @@
 {
   "app": {
-    "signingConfigs": [],
+    "signingConfigs": [
+      {
+        "name": "default",
+        "type": "HarmonyOS",
+        "material": {
+          "certpath": "C:\\Users\\21440\\.ohos\\config\\default_BIT101HarmonyOS_bOeN4DQCq3gh6YdPwADIqtHAmkY63wS67IzZY2U4zDA=.cer",
+          "keyAlias": "debugKey",
+          "keyPassword": "0000001B73FC470A2B0C4DC85C4199563662E0BC5814B7B83FC3FB795AC4E91EF0756673E626293009BC4A",
+          "profile": "C:\\Users\\21440\\.ohos\\config\\default_BIT101HarmonyOS_bOeN4DQCq3gh6YdPwADIqtHAmkY63wS67IzZY2U4zDA=.p7b",
+          "signAlg": "SHA256withECDSA",
+          "storeFile": "C:\\Users\\21440\\.ohos\\config\\default_BIT101HarmonyOS_bOeN4DQCq3gh6YdPwADIqtHAmkY63wS67IzZY2U4zDA=.p12",
+          "storePassword": "0000001BC43BD0F3ABBB7A666FB5331449B59852DDFE5C630ACFE8D4C00403992EF00B529B9E5E3906114A"
+        }
+      }
+    ],
     "products": [
       {
         "name": "default",
         "signingConfig": "default",
         "targetSdkVersion": "6.0.0(20)",
-        "compatibleSdkVersion": "5.1.1(19)",
+        "compatibleSdkVersion": "5.0.0(12)",
         "runtimeOS": "HarmonyOS",
         "buildOption": {
           "strictMode": {

@@ -1,21 +1,22 @@
+//src/main/ets/services/jw/periodTimes.ts
 // 上课时间配置（默认值 + 导出函数）
 export interface PeriodTime { start: string; end: string }
 
 // 默认 13 节（按你之前的时间：可随时改）
 const DEFAULT_TIMES: PeriodTime[] = [
-  { start: '08:00', end: '08:50' }, // 1
-  { start: '08:50', end: '09:40' }, // 2
-  { start: '09:55', end: '10:45' }, // 3
-  { start: '10:45', end: '11:35' }, // 4
-  { start: '11:35', end: '12:25' }, // 5
-  { start: '13:20', end: '14:10' }, // 6
-  { start: '14:10', end: '15:00' }, // 7
-  { start: '15:15', end: '16:05' }, // 8
-  { start: '16:05', end: '16:55' }, // 9
-  { start: '16:55', end: '17:45' }, // 10
-  { start: '18:30', end: '19:20' }, // 11
-  { start: '19:20', end: '20:10' }, // 12
-  { start: '20:10', end: '21:00' }, // 13
+  { start: '08:00', end: '08:45' }, // 1
+  { start: '08:50', end: '09:35' }, // 2
+  { start: '09:55', end: '10:40' }, // 3
+  { start: '10:45', end: '11:30' }, // 4
+  { start: '11:35', end: '12:20' }, // 5
+  { start: '13:20', end: '14:05' }, // 6
+  { start: '14:10', end: '14:55' }, // 7
+  { start: '15:15', end: '16:00' }, // 8
+  { start: '16:05', end: '16:50' }, // 9
+  { start: '16:55', end: '17:40' }, // 10
+  { start: '18:30', end: '19:15' }, // 11
+  { start: '19:20', end: '20:05' }, // 12
+  { start: '20:10', end: '20:55' }, // 13
 ];
 
 let cachedTimes: PeriodTime[] | null = null;
