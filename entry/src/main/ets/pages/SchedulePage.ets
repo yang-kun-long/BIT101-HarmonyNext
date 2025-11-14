@@ -45,6 +45,7 @@ export interface AbsoluteItem {
 
 @Component
 export default struct SchedulePage {
+  onCourseClick?: (ev: CalendarEvent, raw?: RawIcsEvent | null, baseFont?: number, periodTimes?: PeriodTime[]) => void
   // --- 状态管理 ---
   @State loading: boolean = true
   @State err: string = ''
@@ -172,7 +173,7 @@ export default struct SchedulePage {
       return;
     }
 
-    const c = Math.floor(usable / 7.5);
+    const c = Math.floor(usable / 7.7);
     const l = Math.floor(c * 0.7);
 
     // 3. 只有当状态【真正改变时】才设置
@@ -225,6 +226,14 @@ export default struct SchedulePage {
 
   // --- 事件处理器 (保留) ---
   private onTapEvent(ev: CalendarEvent, raw?: RawIcsEvent): void {
+    console.info('[SchedulePage] onTapEvent fired, summary=',
+      ev ? ev.summary : 'null',
+      ', hasCallback=', this.onCourseClick ? 'yes' : 'no')
+
+    if (this.onCourseClick) {
+      this.onCourseClick(ev, raw ? raw : null, this.getBaseFont(), this.periodTimes)
+      return
+    }
     this.dlgEv = ev
     this.dlgRaw = raw ? raw : null
     this.showCourseDlg = true
@@ -442,6 +451,10 @@ export default struct SchedulePage {
     }
     return name
   }
+  private async refreshWeek(): Promise<void> {
+    await this.loadLocalFirst(true)
+    setTimeout(() => { this.loadLocalFirst(false) }, 16)
+  }
 
 
 
@@ -451,15 +464,7 @@ export default struct SchedulePage {
     Stack() {
       Column() {
         // --- 顶部标题栏 ---
-        Row() {
-          Text('课表').fontSize(20).fontWeight(FontWeight.Bold)
-          Text(`（${this.weekTitle}）`).fontSize(12).fontColor('#6B7280').margin({ left: 6 })
-          Blank()
-          Button('刷新').type(ButtonType.Capsule).onClick(async () => {
-            await this.loadLocalFirst(true)
-            setTimeout(() => { this.loadLocalFirst(false) }, 16)
-          })
-        }.width('100%').margin({ top: 0 })
+
 
         // --- 加载/错误状态 ---
         if (this.loading) {
@@ -533,17 +538,10 @@ export default struct SchedulePage {
       WeekNavigator({
         onNext: () => this.onNextWeek(),
         onPrev: () => this.onPrevWeek(),
-        onSettings: () => this.onSettings()
-      })
-
-      // --- 课程详情弹窗 ---
-      CourseDetailDialog({
-        show: this.showCourseDlg, // ✅ 修复：去掉 $ 符号
-        ev: this.dlgEv,
-        raw: this.dlgRaw,
-        baseFont: this.getBaseFont(),
-        periodTimes: this.periodTimes,
-        onClose: () => this.closeCourseDlg()
+        onSettings: () => this.onSettings(),
+        onRefresh: () => {
+          this.refreshWeek()   // 异步函数直接调用即可
+        }
       })
     }
     .height('100%')

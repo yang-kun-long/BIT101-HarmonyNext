@@ -1,4 +1,5 @@
-import SchedulePage from './SchedulePage'
+// entry/src/main/ets/pages/Index.ets
+import ScheduleShellPage from './ScheduleShellPage'
 import MapPage from './MapPage'
 import ForumPage from './ForumPage'
 import PostPage from './PostPage'
@@ -62,7 +63,7 @@ struct Index {
       // 内容区（根据当前 Tab 切换）
       Stack() {
         if (this.current === TabKey.Schedule) {
-          SchedulePage()
+          ScheduleShellPage()
         } else if (this.current === TabKey.Map) {
           MapPage()
         } else if (this.current === TabKey.Forum) {

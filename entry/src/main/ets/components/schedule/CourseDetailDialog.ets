@@ -123,11 +123,11 @@ export struct CourseDetailDialog {
   }
 
   build() {
+
     if (this.show && this.ev) {
       Stack() {
         Row() { }
         .width('100%').height('100%')
-        .backgroundColor('#00000066')
         .onClick(() => this.onClose())
 
         Column() {
@@ -184,6 +184,10 @@ export struct CourseDetailDialog {
       }
       .width('100%')
       .height('100%')
+      .onAppear(() => {
+        console.info('[Dialog] appear. show=', this.show,
+          ', evTitle=', this.evTitle())
+      })
     }
   }
 }
