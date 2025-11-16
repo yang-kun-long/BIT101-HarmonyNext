@@ -4,6 +4,7 @@ import RcpSession, { RcpResponseData } from '../../core/network/rcpSession';
 import SimpleCookieJar from '../../core/network/cookieJar';
 import { encryptPassword } from '../auth/encryptPassword';
 import { LexueCookieStore } from '../storage/LexueCookieStore';
+import { loginViaWebvpn } from './BitSsoWebvpn';
 
 const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36';
@@ -14,6 +15,7 @@ const LEXUE_BASE = 'https://lexue.bit.edu.cn';
 export interface BitSsoSessionOptions {
   useWebvpn?: boolean;
   debug?: boolean;
+  webvpnLexueBase?: string;
 }
 
 function isLoginPage(html: string): boolean {
@@ -101,14 +103,15 @@ export class BitSsoSession {
   private loggedInSso = false;
   private loggedInLexue = false;
   private readonly cookieStore: LexueCookieStore;
+  private readonly webvpnLexueBase?: string;
 
   constructor(options?: BitSsoSessionOptions) {
     this.useWebvpn = !!options?.useWebvpn;
     this.debug = !!options?.debug;
+    this.webvpnLexueBase = options?.webvpnLexueBase;
 
-    if (this.useWebvpn) {
-      // 目前 WebVPN 分支未实现，统一走直连 SSO
-      console.warn('[BitSsoSession] useWebvpn = true 目前未实现，将退回直连 SSO');
+    if (this.useWebvpn && this.debug) {
+      console.log('[BitSsoSession] useWebvpn = true，将通过 WebVPN 登录 SSO');
     }
 
     this.jar = new SimpleCookieJar();
@@ -120,8 +123,11 @@ export class BitSsoSession {
       },
       cookieJar: this.jar,
     });
-    this.cookieStore = new LexueCookieStore();
+    this.cookieStore = new LexueCookieStore(
+      this.useWebvpn ? 'webvpn' : 'inner',
+    );
   }
+
 
   getHttpClient(): RcpSession {
     return this.client;
@@ -132,10 +138,13 @@ export class BitSsoSession {
   }
 
   async loginToLexue(username: string, password: string): Promise<void> {
-    await this.loginSso(username, password);
+    if (!this.loggedInSso) {
+      await this.loginSso(username, password);
+    }
     await this.ensureLexueSession();
     this.loggedInLexue = true;
   }
+
   /**
    * 从本地持久化存储中恢复 cookie：
    * - 把 LexueCookieStore 里保存的 dump 填回 SimpleCookieJar
@@ -160,14 +169,38 @@ export class BitSsoSession {
 
       this.jar.restoreFromDump(dump);
 
-      const hasMoodle = this.hasMoodleSession();
-      this.loggedInSso = hasMoodle;
-      this.loggedInLexue = hasMoodle;
+      let hasSso = false;
+      let hasLexue = false;
+
+      if (this.useWebvpn) {
+        // WebVPN 模式：看有没有 WebVPN ticket
+        const all = this.jar.dump() as any[];
+        const hasVpnTicket = all.some(
+          (c) =>
+          c &&
+            c.name === 'wengine_vpn_ticketwebvpn_bit_edu_cn' &&
+            typeof c.value === 'string' &&
+            c.value.length > 0,
+        );
+        hasSso = hasVpnTicket;
+        // Lexue 会话交给 ensureLexueSession 再跑一遍，不在这里强行认为已登录
+        hasLexue = false;
+      } else {
+        // 内网模式：沿用原逻辑，用 MoodleSession 判定
+        const hasMoodle = this.hasMoodleSession();
+        hasSso = hasMoodle;
+        hasLexue = hasMoodle;
+      }
+
+      this.loggedInSso = hasSso;
+      this.loggedInLexue = hasLexue;
 
       if (this.debug) {
         console.log(
-          '[BitSsoSession] restoreFromStorage: 已恢复 cookie, hasMoodle =',
-          hasMoodle,
+          '[BitSsoSession] restoreFromStorage: 已恢复 cookie, hasSso =',
+          hasSso,
+          ', hasLexue =',
+          hasLexue,
         );
       }
     } catch (e) {
@@ -183,7 +216,7 @@ export class BitSsoSession {
    * - 不再因为“看起来像登录页”就立刻失败
    * - 最终成功与否交给 ensureLexueSession 判定
    */
-  private async loginSso(username: string, password: string): Promise<void> {
+  private async loginSsoInner(username: string, password: string): Promise<void> {
     const loginPage: RcpResponseData = await this.client.get(SSO_INNER_URL, {
       autoRedirect: true,
       collectTimeInfo: false,
@@ -247,7 +280,14 @@ export class BitSsoSession {
       throw new Error(`[BitSsoSession] 登录提交失败：HTTP ${loginResp.statusCode}`);
     }
 
-    // 不在这里因为“像登录页”就直接失败，后面交给 ensureLexueSession 兜底
+
+  }
+  private async loginSso(username: string, password: string): Promise<void> {
+    if (this.useWebvpn) {
+      await loginViaWebvpn(this.client, username, password, { debug: this.debug });
+    } else {
+      await this.loginSsoInner(username, password);
+    }
     this.loggedInSso = true;
   }
 
@@ -320,10 +360,27 @@ export class BitSsoSession {
    * - 手动完成重定向链，拿到最终页面
    * - 要求 HTTP 200
    * - 最终不能是统一身份认证登录页
-   * - Cookie 中必须包含 MoodleSession
+   * - 内网模式：Cookie 中必须包含 MoodleSession
+   * - WebVPN 模式：对齐 Python 脚本，访问 webvpnLexueBase + /calendar/export.php
    */
   private async ensureLexueSession(): Promise<void> {
-    const resp: RcpResponseData = await this.getWithManualRedirects(`${LEXUE_BASE}/`, 20);
+    let targetUrl: string;
+
+    if (this.useWebvpn) {
+      if (!this.webvpnLexueBase) {
+        throw new Error(
+          '[BitSsoSession] WebVPN 模式需要提供 webvpnLexueBase（例如 Python 输出里的 base）',
+        );
+      }
+      // 去掉尾部多余的 /，再拼 /calendar/export.php
+      const base = this.webvpnLexueBase.replace(/\/+$/, '');
+      targetUrl = `${base}/calendar/export.php`;
+    } else {
+      targetUrl = `${LEXUE_BASE}/`;
+    }
+
+    const resp: RcpResponseData =
+      await this.getWithManualRedirects(targetUrl, 20);
 
     if (this.debug) {
       console.log(
@@ -332,11 +389,16 @@ export class BitSsoSession {
         'effectiveUrl =',
         resp.effectiveUrl,
       );
-      console.log('[BitSsoSession] cookies snapshot =', JSON.stringify(this.jar.dump()));
+      console.log(
+        '[BitSsoSession] cookies snapshot =',
+        JSON.stringify(this.jar.dump()),
+      );
     }
 
     if (resp.statusCode !== 200) {
-      throw new Error(`[BitSsoSession] 访问乐学首页失败：HTTP ${resp.statusCode}`);
+      throw new Error(
+        `[BitSsoSession] 访问乐学入口失败：HTTP ${resp.statusCode}`,
+      );
     }
 
     // 如果最终又被重定向回统一身份认证登录页，说明 SSO 实际未生效
@@ -346,12 +408,17 @@ export class BitSsoSession {
       );
     }
 
-    const hasMoodle = this.hasMoodleSession();
-    if (!hasMoodle) {
-      throw new Error(
-        '[BitSsoSession] 未找到 MoodleSession，乐学单点登录可能失败（账号错误或需要验证码）',
-      );
+    // 内网：必须要有 MoodleSession
+    // WebVPN：此时还未访问 export_execute.php，一般拿不到 MoodleSession，就不要强制了
+    if (!this.useWebvpn) {
+      const hasMoodle = this.hasMoodleSession();
+      if (!hasMoodle) {
+        throw new Error(
+          '[BitSsoSession] 未找到 MoodleSession，乐学单点登录可能失败（账号错误或需要验证码）',
+        );
+      }
     }
+
     try {
       await this.cookieStore.saveCookieDump(this.jar.dump());
       if (this.debug) {
@@ -361,6 +428,7 @@ export class BitSsoSession {
       console.warn('[BitSsoSession] 持久化 cookie 失败：', e);
     }
   }
+
 
   private hasMoodleSession(): boolean {
     const all = this.jar.dump() as any[];

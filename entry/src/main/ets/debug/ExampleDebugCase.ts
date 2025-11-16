@@ -20,6 +20,7 @@
  */
 
 import { DebugCase } from './DebugCase';
+import { TEST_PASSWORD, TEST_USERNAME } from './local.secret';
 
 export class ExampleDebugCase extends DebugCase {
   readonly name = 'Example / Template debug case';

@@ -6,7 +6,7 @@ import { DebugCase } from './DebugCase';
 import { LexueCookiePersistCase } from './LexueCookiePersistCase';
 import { LexueCalendarSyncCase } from './LexueCalendarSyncCase';
 import { LexueCalendarFastPathCase } from './LexueCalendarFastPathCase';
-
+import BitSsoLexueWebvpnCase from './BitSsoLexueWebvpnCase';
 
 export enum DebugTarget {
   NONE = 'NONE',
@@ -16,6 +16,7 @@ export enum DebugTarget {
   LEXUE_COOKIE_PERSIST = 'LEXUE_COOKIE_PERSIST',
   LEXUE_CALENDAR_SYNC = 'LEXUE_CALENDAR_SYNC',
   LEXUE_CALENDAR_FASTPATH = 'LEXUE_CALENDAR_FASTPATH',
+  BIT_SSO_LEXUE_WEBVPN = 'BIT_SSO_LEXUE_WEBVPN',
 }
 
 /**
@@ -23,7 +24,7 @@ export enum DebugTarget {
  * - 开发/调试时：改成你想跑的那个
  * - 发布正式包：改成 DebugTarget.NONE（或在 EntryAbility 里关掉调试入口）
  */
-const CURRENT_DEBUG_TARGET: DebugTarget = DebugTarget.LEXUE_CALENDAR_FASTPATH;
+const CURRENT_DEBUG_TARGET: DebugTarget = DebugTarget.BIT_SSO_LEXUE_WEBVPN;
 // 你想测别的就改成 DebugTarget.BIT_SSO_SESSION / BIT_SSO_LEXUE 等
 
 function createCase(target: DebugTarget): DebugCase | null {
@@ -40,6 +41,8 @@ function createCase(target: DebugTarget): DebugCase | null {
       return new LexueCalendarSyncCase();
     case DebugTarget.LEXUE_CALENDAR_FASTPATH:
       return new LexueCalendarFastPathCase();
+    case DebugTarget.BIT_SSO_LEXUE_WEBVPN:
+      return new BitSsoLexueWebvpnCase();
     case DebugTarget.NONE:
     default:
       return null;
