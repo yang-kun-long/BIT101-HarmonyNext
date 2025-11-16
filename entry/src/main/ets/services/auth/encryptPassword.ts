@@ -35,8 +35,8 @@ export function md5HexLower(plain: string): string {
 // 可选自测
 export function __cryptoSelfTest(): boolean {
   try {
-    const out = encryptPassword('password123', 'MDEyMzQ1Njc4OWFiY2RlZg==');
-    return out === 'hHSUMW7WbI0rQ3UPQpOe0Q==';
+    const out = encryptPassword('ykl12138', 'MDEyMzQ1Njc4OWFiY2RlZg==');
+    return out === 'EuLn3+Z6/3lbVnbTYhIwxw==';
   } catch {
     return false;
   }
