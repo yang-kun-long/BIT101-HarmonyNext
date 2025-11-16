@@ -5,8 +5,23 @@ import BitSsoSession from '../services/lexue/BitSsoSession';
 import LexueCalendarClient from '../services/lexue/LexueCalendarClient';
 import { parseLexueIcs, LexueCalendarEvent } from '../services/lexue/LexueCalendarParser';
 import { LexueCalendarStore } from '../services/storage/LexueCalendarStore';
-// ⚠️ 按你的 local.secret.ts 实际导出改名字
 import { TEST_USERNAME, TEST_PASSWORD } from './local.secret';
+import { createBitSsoSessionAuto, BitSsoLoginMode } from '../services/lexue/BitSsoAuto';
+/**
+ * 开关：当前调试用例是走校内直连，还是走 WebVPN
+ * - false: 直连 https://lexue.bit.edu.cn
+ * - true : 通过 WebVPN 访问乐学
+ */
+const USE_WEBVPN = true;
+
+/**
+ * WebVPN 下乐学的 BASE，对齐 Python lexue_calendar.py 里的 BASE
+ *   BASE = "https://webvpn.bit.edu.cn/https/7772...fcf25989..."
+ *
+ * 注意：不要在末尾加 /moodle/，保持和 Python 完全一致即可。
+ */
+const WEBVPN_LEXUE_BASE =
+  'https://webvpn.bit.edu.cn/https/77726476706e69737468656265737421fcf25989227e6a596a468ca88d1b203b';
 
 /**
  * LexueCalendarSyncCase
@@ -23,6 +38,7 @@ export class LexueCalendarSyncCase extends DebugCase {
 
   async run(): Promise<void> {
     this.logInfo('=== LexueCalendarSyncCase START ===');
+    this.logInfo('[mode] USE_WEBVPN =', USE_WEBVPN);
 
     // ---------- step 0: 检查调试账号 ----------
     if (!TEST_USERNAME || !TEST_PASSWORD) {
@@ -40,7 +56,12 @@ export class LexueCalendarSyncCase extends DebugCase {
     const calendarStore = new LexueCalendarStore();
 
     // ---------- step 1: 创建 SSO 会话并尝试从持久化 cookie 恢复 ----------
-    const sso = new BitSsoSession({ debug: true });
+    const { mode, sso } = await createBitSsoSessionAuto({
+      debug: true,
+      webvpnLexueBase: WEBVPN_LEXUE_BASE,
+    });
+
+    this.logInfo('[step 0] 自动选择的登录模式 =', mode); // 'inner' 或 'webvpn'
 
     this.logInfo('[step 1] 调用 sso.restoreFromStorage() 尝试从持久化 cookie 恢复');
     await sso.restoreFromStorage();
@@ -62,7 +83,18 @@ export class LexueCalendarSyncCase extends DebugCase {
     }
 
     // ---------- step 3: 使用 LexueCalendarClient 导出 ICS ----------
-    const client = new LexueCalendarClient(sso, { debug: true });
+    // baseUrl：
+    // - 校内直连: https://lexue.bit.edu.cn
+    // - WebVPN   : WEBVPN_LEXUE_BASE（对齐 Python 的 BASE）
+    const baseUrl = USE_WEBVPN
+      ? WEBVPN_LEXUE_BASE
+      : 'https://lexue.bit.edu.cn';
+
+    const client = new LexueCalendarClient(sso, {
+      debug: true,
+      baseUrl,
+      username: TEST_USERNAME, // ✅ 让订阅 URL 缓存按 (username, baseUrl) 生效
+    });
 
     this.logInfo('[step 3] 调用 client.exportCalendar(...) 导出 ICS');
     let subscribeUrl: string;
@@ -71,7 +103,7 @@ export class LexueCalendarSyncCase extends DebugCase {
     try {
       const result = await client.exportCalendar({
         what: 'all',
-        time: 'recentupcoming', // 或 'all', 根据你需求
+        time: 'recentupcoming', // 或 'all'，根据你需求
       });
       subscribeUrl = result.subscribeUrl;
       icsText = result.icsText;
@@ -140,11 +172,13 @@ export class LexueCalendarSyncCase extends DebugCase {
     );
 
     if (storedEvents.length > 0) {
-      const previewStored = storedEvents.slice(0, Math.min(storedEvents.length, 3)).map((ev) => ({
-        uid: ev.uid,
-        title: ev.title,
-        start: new Date(ev.startTime).toISOString(),
-      }));
+      const previewStored = storedEvents
+        .slice(0, Math.min(storedEvents.length, 3))
+        .map((ev) => ({
+          uid: ev.uid,
+          title: ev.title,
+          start: new Date(ev.startTime).toISOString(),
+        }));
       this.logInfo('[step 6] 读取回来的前几条事件预览 =', previewStored);
     }
 
