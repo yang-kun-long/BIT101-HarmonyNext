@@ -16,6 +16,19 @@ interface CookieItem {
   // 过期时间（毫秒时间戳），undefined 表示会话 Cookie
   expires?: number;
 }
+interface CookieItem {
+  name: string;
+  value: string;
+  domain: string;
+  path: string;
+  secure: boolean;
+  httpOnly: boolean;
+  // 过期时间（毫秒时间戳），undefined 表示会话 Cookie
+  expires?: number;
+}
+
+// ✅ 新增：导出 dump 类型，方便别的模块引用
+export type CookieDump = CookieItem[];
 
 function parseUrl(url: string): { host: string; path: string } {
   try {
@@ -151,7 +164,36 @@ export class SimpleCookieJar implements CookieJarLike {
       }
     }
   }
+  restoreFromDump(dump: CookieDump | null | undefined): void {
+    if (!dump || !Array.isArray(dump)) return;
 
+    const now = Date.now();
+    const restored: CookieItem[] = [];
+
+    for (const raw of dump) {
+      if (!raw || typeof raw.name !== 'string' || typeof raw.value !== 'string') {
+        continue;
+      }
+
+      const expires =
+        typeof raw.expires === 'number' && raw.expires > 0 ? raw.expires : undefined;
+
+      // 跳过已经过期的 cookie
+      if (expires && expires <= now) continue;
+
+      restored.push({
+        name: raw.name,
+        value: raw.value,
+        domain: raw.domain || '',
+        path: raw.path || '/',
+        secure: !!raw.secure,
+        httpOnly: !!raw.httpOnly,
+        expires,
+      });
+    }
+
+    this.cookies = restored;
+  }
   /**
    * 调试用：返回当前 cookie 快照
    */

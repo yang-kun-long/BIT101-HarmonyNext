@@ -3,6 +3,7 @@
 import RcpSession, { RcpResponseData } from '../../core/network/rcpSession';
 import SimpleCookieJar from '../../core/network/cookieJar';
 import { encryptPassword } from '../auth/encryptPassword';
+import { LexueCookieStore } from '../storage/LexueCookieStore';
 
 const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36';
@@ -99,6 +100,7 @@ export class BitSsoSession {
   private readonly client: RcpSession;
   private loggedInSso = false;
   private loggedInLexue = false;
+  private readonly cookieStore: LexueCookieStore;
 
   constructor(options?: BitSsoSessionOptions) {
     this.useWebvpn = !!options?.useWebvpn;
@@ -118,6 +120,7 @@ export class BitSsoSession {
       },
       cookieJar: this.jar,
     });
+    this.cookieStore = new LexueCookieStore();
   }
 
   getHttpClient(): RcpSession {
@@ -133,6 +136,45 @@ export class BitSsoSession {
     await this.ensureLexueSession();
     this.loggedInLexue = true;
   }
+  /**
+   * 从本地持久化存储中恢复 cookie：
+   * - 把 LexueCookieStore 里保存的 dump 填回 SimpleCookieJar
+   * - 根据 MoodleSession 粗略判断是否已经登录过
+   *
+   * 使用方式：
+   *   const s = new BitSsoSession({ debug: true });
+   *   await s.restoreFromStorage();
+   *   if (!s.isFullyLoggedIn()) {
+   *     await s.loginToLexue(username, password);
+   *   }
+   */
+  async restoreFromStorage(): Promise<void> {
+    try {
+      const dump = await this.cookieStore.loadCookieDump();
+      if (!dump) {
+        if (this.debug) {
+          console.log('[BitSsoSession] restoreFromStorage: 没有持久化 cookie');
+        }
+        return;
+      }
+
+      this.jar.restoreFromDump(dump);
+
+      const hasMoodle = this.hasMoodleSession();
+      this.loggedInSso = hasMoodle;
+      this.loggedInLexue = hasMoodle;
+
+      if (this.debug) {
+        console.log(
+          '[BitSsoSession] restoreFromStorage: 已恢复 cookie, hasMoodle =',
+          hasMoodle,
+        );
+      }
+    } catch (e) {
+      console.warn('[BitSsoSession] restoreFromStorage 出错：', e);
+    }
+  }
+
 
   /**
    * 统一认证登录（直连 SSO）
@@ -263,7 +305,16 @@ export class BitSsoSession {
     }
     throw new Error(`[BitSsoSession] 手动重定向次数超过上限：${maxRedirects}`);
   }
-
+  async clearPersistentSession(): Promise<void> {
+    this.jar.clear();
+    this.loggedInSso = false;
+    this.loggedInLexue = false;
+    try {
+      await this.cookieStore.clearCookieDump();
+    } catch (e) {
+      console.warn('[BitSsoSession] 清理持久化 cookie 失败：', e);
+    }
+  }
   /**
    * 确保乐学端会话已建立：
    * - 手动完成重定向链，拿到最终页面
@@ -300,6 +351,14 @@ export class BitSsoSession {
       throw new Error(
         '[BitSsoSession] 未找到 MoodleSession，乐学单点登录可能失败（账号错误或需要验证码）',
       );
+    }
+    try {
+      await this.cookieStore.saveCookieDump(this.jar.dump());
+      if (this.debug) {
+        console.log('[BitSsoSession] ensureLexueSession: cookie 已持久化');
+      }
+    } catch (e) {
+      console.warn('[BitSsoSession] 持久化 cookie 失败：', e);
     }
   }
 

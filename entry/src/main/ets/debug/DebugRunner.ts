@@ -3,12 +3,19 @@ import { BitSsoLexueCase } from './BitSsoLexueCase';
 import { BitSsoSessionCase } from './BitSsoSessionCase';
 import { ExampleDebugCase } from './ExampleDebugCase';  // ⬅️ 新增
 import { DebugCase } from './DebugCase';
+import { LexueCookiePersistCase } from './LexueCookiePersistCase';
+import { LexueCalendarSyncCase } from './LexueCalendarSyncCase';
+import { LexueCalendarFastPathCase } from './LexueCalendarFastPathCase';
+
 
 export enum DebugTarget {
   NONE = 'NONE',
   BIT_SSO_LEXUE = 'BIT_SSO_LEXUE',
   BIT_SSO_SESSION = 'BIT_SSO_SESSION',
   EXAMPLE = 'EXAMPLE',  // ⬅️ 新增示范用枚举
+  LEXUE_COOKIE_PERSIST = 'LEXUE_COOKIE_PERSIST',
+  LEXUE_CALENDAR_SYNC = 'LEXUE_CALENDAR_SYNC',
+  LEXUE_CALENDAR_FASTPATH = 'LEXUE_CALENDAR_FASTPATH',
 }
 
 /**
@@ -16,7 +23,7 @@ export enum DebugTarget {
  * - 开发/调试时：改成你想跑的那个
  * - 发布正式包：改成 DebugTarget.NONE（或在 EntryAbility 里关掉调试入口）
  */
-const CURRENT_DEBUG_TARGET: DebugTarget = DebugTarget.EXAMPLE;
+const CURRENT_DEBUG_TARGET: DebugTarget = DebugTarget.LEXUE_CALENDAR_FASTPATH;
 // 你想测别的就改成 DebugTarget.BIT_SSO_SESSION / BIT_SSO_LEXUE 等
 
 function createCase(target: DebugTarget): DebugCase | null {
@@ -27,6 +34,12 @@ function createCase(target: DebugTarget): DebugCase | null {
       return new BitSsoSessionCase();
     case DebugTarget.EXAMPLE:
       return new ExampleDebugCase();
+    case DebugTarget.LEXUE_COOKIE_PERSIST:
+      return new LexueCookiePersistCase();
+    case DebugTarget.LEXUE_CALENDAR_SYNC:
+      return new LexueCalendarSyncCase();
+    case DebugTarget.LEXUE_CALENDAR_FASTPATH:
+      return new LexueCalendarFastPathCase();
     case DebugTarget.NONE:
     default:
       return null;

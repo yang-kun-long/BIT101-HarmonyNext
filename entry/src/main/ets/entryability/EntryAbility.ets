@@ -3,7 +3,9 @@ import { AbilityConstant, ConfigurationConstant, UIAbility, Want } from '@kit.Ab
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { window } from '@kit.ArkUI';
 import { initTokenStore } from '../services/storage/tokenStore'
+import { initLexueCookieStore } from '../services/storage/LexueCookieStore';
 import { runCurrentDebugCase } from '../debug/DebugRunner'; // ⬅️ 从 TS 文件引入
+import { initLexueCalendarStore } from '../services/storage/LexueCalendarStore';
 
 const DOMAIN = 0x0000;
 
@@ -13,6 +15,8 @@ export default class EntryAbility extends UIAbility {
     AppStorage.SetOrCreate('cacheDir', this.context.cacheDir);
     AppStorage.SetOrCreate('tempDir',  this.context.tempDir);
     initTokenStore(this.context);
+    initLexueCookieStore(this.context);
+    initLexueCalendarStore(this.context);
 
     // 如果是 Debug 包就跑测试
     if (this.isDebugMode()) {
