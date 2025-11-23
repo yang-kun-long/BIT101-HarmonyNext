@@ -1,10 +1,14 @@
-// entry/src/main/ets/pages/LoginPage.ets
 import { AuthRepository } from '../services/auth/authRepository'
 import router from '@ohos.router'
+import { createBitSsoSessionAuto } from '../services/lexue/BitSsoAuto';
+import { syncUserCalendar } from '../services/lexue/CalendarService'; // 导入封装的服务
 
 interface RedirectParams {
   redirect?: string
 }
+
+const WEBVPN_LEXUE_BASE =
+  'https://webvpn.bit.edu.cn/https/77726476706e69737468656265737421fcf25989227e6a596a468ca88d1b203b';
 
 @Entry
 @Component
@@ -16,14 +20,15 @@ export default struct LoginPage {
   @State msg: string = ''        // 成功/失败提示
   @State showRaw: boolean = false // 开发开关：是否打印原始返回
 
-  private auth = new AuthRepository() // 默认 https://bit101.flwfdd.xyz
+  private auth = new AuthRepository()
 
   private async onLogin() {
     if (this.busy) return
     this.busy = true
     this.msg = ''
+
     try {
-      // 同时登录 BIT101 + WebVPN（你的 loginBoth 返回：{ bit101FakeCookie, webvpnCookie, webvpn }）
+      // 1. BIT101 + WebVPN 基础登录
       const ret = await this.auth.loginBoth({
         sid: this.sid.trim(),
         password: this.password,
@@ -34,14 +39,49 @@ export default struct LoginPage {
         console.log('[Login] loginBoth result: ' + JSON.stringify(ret))
       }
 
-      // 成功判断：BIT101 拿到 fake_cookie；WebVPN 返回 ok=true
       const okBit101 = !!(ret.bit101FakeCookie && ret.bit101FakeCookie.length > 0)
       const okWebvpn = !!ret.webvpn && !!ret.webvpn.ok
 
-      if (okBit101 && okWebvpn) {
-        this.msg = '登录成功'
+      // 2. 乐学 SSO 登录流程
+      // 注意：createBitSsoSessionAuto 内部通常会进行网络探测来决定是 inner 还是 webvpn
+      const GeneratedDestructObj_1 = await createBitSsoSessionAuto({
+        debug: true,
+        webvpnLexueBase: WEBVPN_LEXUE_BASE,
+      });
 
-        // 登录后返回：优先使用路由参数 redirect，否则回首页
+      const mode = GeneratedDestructObj_1.mode; // 'inner' | 'webvpn'
+      const sso = GeneratedDestructObj_1.sso;
+
+      // 执行登录
+      await sso.loginToLexue(this.sid.trim(), this.password);
+
+      // 3. 判定登录结果并同步数据
+      if (okBit101 && okWebvpn) {
+        this.msg = '登录成功，正在同步课表...'; // 更新UI提示用户正在获取数据
+
+        try {
+          // === 核心业务整合：同步日历 ===
+          // 动态决定使用哪个 BaseURL
+          const currentBaseUrl = mode === 'inner'
+            ? 'https://lexue.bit.edu.cn'
+            : WEBVPN_LEXUE_BASE;
+
+          const count = await syncUserCalendar({
+            sso: sso,
+            username: this.sid.trim(),
+            webvpnLexueBase: currentBaseUrl
+          });
+
+          console.info(`[Login] 日历同步完成，共 ${count} 条数据`);
+          // 可以选择在这里 toast 提示：`同步完成，更新了 ${count} 个DDL`
+        } catch (syncErr) {
+          // 日历同步失败不应该阻止用户进入 App，记录错误即可
+          console.error('[Login] 日历同步失败，跳过:', syncErr);
+          // 也可以在这里修改 this.msg 提示用户“登录成功但同步失败”
+        }
+        AppStorage.setOrCreate('current_username', this.sid)
+
+        // 4. 页面跳转
         const p = router.getParams() as object
         let target = 'pages/Index'
         if (p && typeof p === 'object') {
@@ -50,11 +90,13 @@ export default struct LoginPage {
             target = maybe.redirect
           }
         }
+
+        // 使用 replaceUrl 防止用户点返回键回到登录页
         await router.replaceUrl({ url: target })
         return
       }
 
-      // 失败提示（不读 .code，避免类型冲突）
+      // 失败处理
       const bit101Text = okBit101 ? 'OK' : 'FAIL'
       const webvpnText = okWebvpn ? 'OK' : 'FAIL'
       this.msg = `登录失败：BIT101=${bit101Text}，WebVPN=${webvpnText}`
@@ -84,7 +126,7 @@ export default struct LoginPage {
         .onChange(v => this.captcha = v)
 
       Row({ space: 8 }) {
-        Button(this.busy ? '登录中…' : '登录')
+        Button(this.busy ? '处理中…' : '登录')
           .type(ButtonType.Capsule)
           .backgroundColor(this.busy ? '#9CA3AF' : '#2563EB')
           .enabled(!this.busy && !!this.sid && !!this.password)
