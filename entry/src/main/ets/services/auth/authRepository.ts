@@ -153,13 +153,21 @@ export class AuthRepository {
     }
 
     // （可选）保存业务 token/user
+    // （可选）保存业务 token/user
     try {
       const body = ret.body as any;
       const token = body?.token || body?.data?.token;
-      const user = body?.user || body?.data?.user;
+      let user = body?.user || body?.data?.user;
+
+      // ⭐ 确保 user 里有 sid 字段
+      if (user && typeof user === 'object' && !(user as any).sid) {
+        (user as any).sid = sid;
+      }
+
       if (token) await this.tokenStore.saveToken(token);
       if (user) await this.tokenStore.saveUserInfo(user);
     } catch {}
+
 
     return ret;
   }

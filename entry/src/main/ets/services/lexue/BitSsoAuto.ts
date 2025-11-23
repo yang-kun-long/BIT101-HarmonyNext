@@ -39,7 +39,8 @@ export async function detectBitSsoLoginMode(
 
   try {
     const resp: RcpResponseData = await client.get(INNER_PROBE_URL, {
-      autoRedirect: true,
+      // ❗ 关键修改：不要自动重定向，避免被一堆 302/303 搞成 “重定向过多”
+      autoRedirect: false,
       collectTimeInfo: false,
     });
 
@@ -52,14 +53,31 @@ export async function detectBitSsoLoginMode(
       );
     }
 
-    // 这里可以稍微宽松一点：2xx / 3xx 都当成功
+    // 这里稍微宽松一点：2xx / 3xx 都当成功
     if (resp.statusCode >= 200 && resp.statusCode < 400) {
       if (debug) {
         console.log('[BitSsoAuto] 内网直连探测成功，使用 inner 模式');
       }
       return 'inner';
     }
-  } catch (e) {
+  } catch (e: any) {
+    if (debug) {
+      console.warn('[BitSsoAuto] 内网直连探测异常:', e);
+    }
+
+    // ❗ 特判 “Number of redirects hit maximum amount”
+    const code = e?.code ?? e?.errorCode;
+    const msg: string = e?.data ?? e?.message ?? '';
+
+    if (code === 1007900047 || String(msg).includes('Number of redirects hit maximum amount')) {
+      if (debug) {
+        console.log(
+          '[BitSsoAuto] 重定向次数过多，但说明已连通 lexue，仍然判定为 inner 模式',
+        );
+      }
+      return 'inner';
+    }
+
     if (debug) {
       console.warn('[BitSsoAuto] 内网直连探测异常，fallback 到 webvpn:', e);
     }
@@ -70,6 +88,7 @@ export async function detectBitSsoLoginMode(
   }
   return 'webvpn';
 }
+
 
 export interface BitSsoAutoCreateOptions {
   debug?: boolean;

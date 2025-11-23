@@ -6,6 +6,7 @@ import { CourseDetailDialog } from '../components/schedule/CourseDetailDialog'
 import type { CalendarEvent } from '../services/jw/timetableRepository'
 import type { RawIcsEvent } from '../services/storage/semesterStore'
 import type { PeriodTime } from '../services/jw/periodTimes'
+import curves from '@ohos.curves'; // ✅ 弹簧动画曲线
 
 enum ScheduleInnerTab {
   Timetable = 0, // 课表
@@ -66,16 +67,26 @@ export default struct ScheduleShellPage {
         .fontWeight(this.current === key ? FontWeight.Bold : FontWeight.Normal)
         .fontColor(this.current === key ? '#111827' : '#6B7280')
         .width('100%')
-        .textAlign(TextAlign.Center) // ✅ 文本在自己那一半水平居中
+        .textAlign(TextAlign.Center)
     }
-    .layoutWeight(1)  // 一人一半
+    .layoutWeight(1)
     .onClick(() => {
-      // ✅ 用 animateTo 做滑动动画
-      animateTo({ duration: 180, curve: Curve.EaseInOut }, () => {
-        this.current = key
-      })
+      const uiCtx = this.getUIContext()
+      uiCtx?.animateTo(
+        {
+          // 时间可以略长一点，看起来更“弹”
+          duration: 380,
+          // 关键：弹簧曲线，参数可以自己慢慢调
+          // velocity 初速度；mass 质量；stiffness 刚度；damping 阻尼
+          curve: curves.springCurve(0, 1, 260, 18),
+        },
+        () => {
+          this.current = key
+        }
+      )
     })
   }
+
 
   @Builder
   private TopSwitcher() {
@@ -149,32 +160,17 @@ export default struct ScheduleShellPage {
       .width('100%')
 
       // ===== 统一的课程详情遮罩 + 弹窗 =====
+      // ===== 课程详情弹窗：只控制“要不要挂载” =====
       if (this.showCourseDlg && this.dlgEv) {
-        // 整个遮罩层：盖在所有内容之上
-        Stack() {
-          // 半透明黑色背景，挡住下面内容 & 可点击关闭
-          Row() { }
-          .width('100%')
-          .height('100%')
-          .backgroundColor('#00000066')
-          .onClick(() => {
+        CourseDetailDialog({
+          ev: this.dlgEv,
+          raw: this.dlgRaw,
+          baseFont: this.dialogBaseFont,
+          periodTimes: this.dialogPeriodTimes,
+          onClose: (): void => {
             this.closeCourseDialog()
-          })
-
-          // 白色内容卡片交给 CourseDetailDialog 来画
-          CourseDetailDialog({
-            show: true, // 这里直接传 true，内部就别再管 show 了
-            ev: this.dlgEv,
-            raw: this.dlgRaw,
-            baseFont: this.dialogBaseFont,
-            periodTimes: this.dialogPeriodTimes,
-            onClose: (): void => {
-              this.closeCourseDialog()
-            }
-          })
-        }
-        .width('100%')
-        .height('100%')
+          }
+        })
       }
     }
     .height('100%')

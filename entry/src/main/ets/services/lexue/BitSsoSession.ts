@@ -138,12 +138,29 @@ export class BitSsoSession {
   }
 
   async loginToLexue(username: string, password: string): Promise<void> {
-    if (!this.loggedInSso) {
-      await this.loginSso(username, password);
+    try {
+      if (!this.loggedInSso) {
+        await this.loginSso(username, password);
+      }
+      await this.ensureLexueSession();
+      this.loggedInLexue = true;
+    } catch (e) {
+      // 如果是“统一身份认证登录页”错误，说明 SSO 失效了，尝试重登一次
+      const msg = String(e);
+      if (msg.includes('统一身份认证登录页')) {
+        if (this.debug) {
+          console.warn('[BitSsoSession] 检测到 SSO 失效，清空 cookie 后重试一次登录');
+        }
+        await this.clearPersistentSession();
+        await this.loginSso(username, password);
+        await this.ensureLexueSession();
+        this.loggedInLexue = true;
+        return;
+      }
+      throw e;
     }
-    await this.ensureLexueSession();
-    this.loggedInLexue = true;
   }
+
 
   /**
    * 从本地持久化存储中恢复 cookie：

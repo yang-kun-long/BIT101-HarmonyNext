@@ -3,12 +3,14 @@
 export interface LexueCalendarEvent {
   uid: string;
   title: string;
-  startTime: number;   // ms timestamp
-  endTime?: number;    // 可选
+  startTime: number;
+  endTime?: number;
   description?: string;
   location?: string;
-  raw?: Record<string, string>; // 保底原始字段
+  courseName?: string;     // ← 新增：课程名
+  raw?: Record<string, string>;
 }
+
 
 function unfoldIcsLines(ics: string): string[] {
   const lines = ics.split(/\r?\n/);
@@ -82,6 +84,7 @@ export function parseLexueIcs(icsText: string): LexueCalendarEvent[] {
             endTime,
             description: current['DESCRIPTION'],
             location: current['LOCATION'],
+            courseName: current['CATEGORIES'],   // ★★★
             raw: current,
           });
         }

@@ -24,7 +24,7 @@ export enum DebugTarget {
  * - 开发/调试时：改成你想跑的那个
  * - 发布正式包：改成 DebugTarget.NONE（或在 EntryAbility 里关掉调试入口）
  */
-const CURRENT_DEBUG_TARGET: DebugTarget = DebugTarget.LEXUE_CALENDAR_SYNC;
+const CURRENT_DEBUG_TARGET: DebugTarget = DebugTarget.NONE;
 // 你想测别的就改成 DebugTarget.BIT_SSO_SESSION / BIT_SSO_LEXUE 等
 
 function createCase(target: DebugTarget): DebugCase | null {
