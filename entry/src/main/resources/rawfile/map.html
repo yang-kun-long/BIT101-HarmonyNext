@@ -1,0 +1,72 @@
+<!--entry/src/main/resources/rawfile/map.html-->
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>BIT Map</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <style>
+        body { padding: 0; margin: 0; }
+        html, body, #map { height: 100%; width: 100%; background: #f0f0f0; }
+    </style>
+</head>
+<body>
+<div id="map"></div>
+<script>
+    // 1. 初始化地图，设置默认中心点（良乡）
+    // 注意：Leaflet 使用 [lat, lng]，而 BIT101 是平面坐标系统。
+    // 对于自定义瓦片，我们通常使用 Simple CRS (平面坐标系)
+
+    var map = L.map('map', {
+        crs: L.CRS.Simple, // 使用平面坐标系
+        minZoom: 1,
+        maxZoom: 19,
+        zoomControl: false, // 隐藏左上角的缩放按钮，更像原生 App
+        attributionControl: false // 隐藏右下角版权信息
+    }).setView([-200, 200], 16); // 初始位置暂时随便定，稍后通过 JS 调整
+
+    // 2. 配置 BIT101 瓦片层
+    L.tileLayer('https://map.bit101.flwfdd.xyz/tile/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        tileSize: 256,
+        // Leaflet 默认是 lat/lng，但 XYZ 瓦片通常是 x/y。
+        // 如果发现地图错乱，可能需要调整这个 tms 参数或 y 的计算方式。
+        // 根据之前的 Android 代码，它是标准的 XYZ。
+    }).addTo(map);
+
+    // 3. 暴露给 ArkTS 调用的方法：跳转到指定位置
+    // x, y 是 Android 代码里的 0.0-1.0 的相对坐标
+    // 3. 暴露给 ArkTS 调用的方法
+        window.flyToPosition = function(x, y, zoom) {
+             // Leaflet 的 Simple CRS 坐标原点在左上角
+             // BIT101 的 x, y 是归一化坐标 (0.0 ~ 1.0)
+
+             // 1. 计算世界总像素宽度 (256 * 2^zoom)
+             var totalPixels = 256 * Math.pow(2, zoom);
+
+             // 2. 计算目标像素坐标
+             var targetX = x * totalPixels;
+             var targetY = y * totalPixels;
+
+             // 3. 将像素坐标转换为 Leaflet 的 LatLng
+             // map.unproject 接受 point(x, y), zoom
+             var latLng = map.unproject(L.point(targetX, targetY), zoom);
+
+             // 4. 平滑飞行
+             map.flyTo(latLng, zoom, {
+                 animate: true,
+                 duration: 1.5 // 飞行时间 1.5秒
+             });
+        }
+
+    // 测试：先跳到良乡的一个估算位置
+    // 对应 Android: x=0.822685, y=0.37956, z=16
+    setTimeout(function(){
+        window.flyToPosition(0.822685, 0.37956, 16);
+    }, 500);
+
+</script>
+</body>
+</html>
