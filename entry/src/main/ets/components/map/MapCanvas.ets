@@ -1,45 +1,41 @@
-// entry/src/main/ets/components/map/MapCanvas.ets
-
 import web_webview from '@ohos.web.webview';
-import { fileIo } from '@kit.CoreFileKit';
 import { common } from '@kit.AbilityKit';
 import { MapConstants, MapPosition } from '../../services/map/MapConfig';
-import { TileCacheService } from '../../services/map/TileCacheService';
-import { createWebResourceResponse } from '../../services/map/WebShim';
+
+// 持久化存储 Key
+PersistentStorage.persistProp('last_map_x', MapConstants.LiangXiang.x);
+PersistentStorage.persistProp('last_map_y', MapConstants.LiangXiang.y);
+PersistentStorage.persistProp('last_map_zoom', 16);
 
 interface MapState {
   type: string;
   zoom: number;
-  lat: number;
-  lng: number;
+  x: number;
+  y: number;
 }
 
 @Component
 export struct MapCanvas {
   controller: web_webview.WebviewController = new web_webview.WebviewController();
 
-  private cacheService: TileCacheService | null = null;
+  // 自动从存储中读取上次的位置
+  @StorageLink('last_map_x') lastX: number = MapConstants.LiangXiang.x;
+  @StorageLink('last_map_y') lastY: number = MapConstants.LiangXiang.y;
+  @StorageLink('last_map_zoom') lastZoom: number = 16;
 
   @State currentZoom: number = 16;
   @State isSettingsOpen: boolean = false;
 
   aboutToAppear() {
-    const context = getContext(this) as common.UIAbilityContext;
-    this.cacheService = new TileCacheService(context);
+    this.currentZoom = this.lastZoom;
   }
 
-  /**
-   * 跳转到预设位置（良乡 / 中关村等）
-   */
   goToLocation(pos: MapPosition) {
-    const zoom: number = 16; // 先固定 16，有需要可以根据 pos.scale 做映射
+    const zoom = 16;
     this.controller.runJavaScript(`flyToPosition(${pos.x}, ${pos.y}, ${zoom})`);
     this.currentZoom = zoom;
   }
 
-  /**
-   * 通过 Slider 控制地图缩放
-   */
   setMapZoom(zoom: number) {
     this.controller.runJavaScript(`setZoom(${zoom})`);
   }
@@ -52,9 +48,7 @@ export struct MapCanvas {
           .fontWeight(FontWeight.Bold)
         Blank()
         Button({ type: ButtonType.Circle }) {
-          Text("×")
-            .fontSize(20)
-            .fontColor(Color.Black)
+          Text("×").fontSize(20).fontColor(Color.Black)
         }
         .backgroundColor(Color.Transparent)
         .onClick(() => this.isSettingsOpen = false)
@@ -63,10 +57,7 @@ export struct MapCanvas {
       .padding({ bottom: 20 })
 
       Row() {
-        Text("1.0")
-          .fontSize(12)
-          .fontColor(Color.Gray)
-
+        Text("1.0").fontSize(12).fontColor(Color.Gray)
         Slider({
           value: this.currentZoom,
           min: 1,
@@ -75,18 +66,13 @@ export struct MapCanvas {
           style: SliderStyle.OutSet
         })
           .layoutWeight(1)
-          .trackColor('#E0E0E0')
-          .selectedColor('#6200EE')
           .onChange((value: number, mode: SliderChangeMode) => {
             this.currentZoom = value;
             if (mode === SliderChangeMode.Moving || mode === SliderChangeMode.End) {
               this.setMapZoom(value);
             }
           })
-
-        Text("19.0")
-          .fontSize(12)
-          .fontColor(Color.Gray)
+        Text("19.0").fontSize(12).fontColor(Color.Gray)
       }
     }
     .padding(20)
@@ -97,60 +83,43 @@ export struct MapCanvas {
 
   build() {
     Stack({ alignContent: Alignment.BottomEnd }) {
-
       Web({
         src: $rawfile('map.html'),
         controller: this.controller
       })
         .domStorageAccess(true)
-        .zoomAccess(true)
+        .databaseAccess(true)
+        .imageAccess(true)
         .fileAccess(true)
         .mixedMode(MixedMode.All)
+        .zoomAccess(true)
+        .cacheMode(CacheMode.Default)
         .onControllerAttached(() => {
           this.controller.setCustomUserAgent("BIT101 " + this.controller.getUserAgent());
         })
-        // 🔥 核心逻辑：拦截 + 缓存
-        .onInterceptRequest((event) => {
-          if (!event) {
-            return null;
-          }
-
-          const url: string = event.request.getRequestUrl();
-
-          // 只拦截我们自己的瓦片服务
-          if (url.includes('/tile/')) {
-
-            const localPath = this.cacheService?.getLocalPath(url);
-
-            if (localPath) {
-              console.info('[Map] HIT local: ' + localPath);
-              try {
-                const file = fileIo.openSync(localPath, fileIo.OpenMode.READ_ONLY);
-                return createWebResourceResponse(file.fd);
-              } catch (error) {
-                const e = error as object;
-                console.error('[Map] Read Error: ' + JSON.stringify(e));
-                return null;
-              }
-            } else {
-              console.info('[Map] MISS (Downloading): ' + url);
-              this.cacheService?.downloadAndCache(url);
-              return null;
-            }
-          }
-          return null;
+        .onPageEnd(() => {
+          // 🔥 页面加载完毕，立即恢复上次位置
+          // 这里不再需要注入 JS，因为 html 里已经写好了监听逻辑
+          setTimeout(() => {
+            console.info(`[Map] Restoring position: ${this.lastX}, ${this.lastY}, ${this.lastZoom}`);
+            this.controller.runJavaScript(`flyToPosition(${this.lastX}, ${this.lastY}, ${this.lastZoom})`);
+          }, 200); // 稍微给一点时间让Leaflet初始化
         })
         .onConsole((event) => {
-          const msg: string = event?.message.getMessage() || "";
+          const msg = event?.message.getMessage() || "";
           if (msg.startsWith("FromJS:")) {
             try {
-              const jsonStr: string = msg.replace("FromJS:", "");
+              const jsonStr = msg.replace("FromJS:", "");
               const state = JSON.parse(jsonStr) as MapState;
               if (state.type === 'map_state') {
+                // 收到 HTML 传来的新坐标，存入本地
                 this.currentZoom = state.zoom;
+                this.lastX = state.x;
+                this.lastY = state.y;
+                this.lastZoom = state.zoom;
               }
-            } catch (_e) {
-              // 忽略解析错误
+            } catch (e) {
+              // ignore
             }
             return true;
           }
@@ -160,15 +129,10 @@ export struct MapCanvas {
         .height('100%')
 
       Column({ space: 15 }) {
-        // 设置按钮
         Button({ type: ButtonType.Circle }) {
-          Text("设")
-            .fontColor(Color.White)
-            .fontSize(16)
+          Text("设").fontColor(Color.White).fontSize(16)
         }
-        .width(50)
-        .height(50)
-        .backgroundColor('#6200EE')
+        .width(50).height(50).backgroundColor('#6200EE')
         .bindSheet($$this.isSettingsOpen, this.SettingsPanel(), {
           height: SheetSize.FIT_CONTENT,
           dragBar: true,
@@ -176,26 +140,16 @@ export struct MapCanvas {
         })
         .onClick(() => this.isSettingsOpen = true)
 
-        // 良乡
         Button({ type: ButtonType.Circle }) {
-          Text("乡")
-            .fontColor(Color.White)
-            .fontSize(16)
+          Text("乡").fontColor(Color.White).fontSize(16)
         }
-        .width(50)
-        .height(50)
-        .backgroundColor('#03DAC6')
+        .width(50).height(50).backgroundColor('#03DAC6')
         .onClick(() => this.goToLocation(MapConstants.LiangXiang))
 
-        // 中关村
         Button({ type: ButtonType.Circle }) {
-          Text("村")
-            .fontColor(Color.White)
-            .fontSize(16)
+          Text("村").fontColor(Color.White).fontSize(16)
         }
-        .width(50)
-        .height(50)
-        .backgroundColor('#018786')
+        .width(50).height(50).backgroundColor('#018786')
         .onClick(() => this.goToLocation(MapConstants.ZhongGuanCun))
       }
       .padding({ right: 20, bottom: 50 })

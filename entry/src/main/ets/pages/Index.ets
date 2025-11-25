@@ -1,4 +1,3 @@
-// entry/src/main/ets/pages/Index.ets
 import ScheduleShellPage from './ScheduleShellPage'
 import MapPage from './MapPage'
 import ForumPage from './ForumPage'
@@ -20,16 +19,30 @@ enum TabKey {
 struct Index {
   @State current: TabKey = TabKey.Schedule
 
+  // 🔥 核心修改：添加状态位，用于实现“懒加载 + 保活”
+  // 只有当用户点过一次后，该标志位变为 true，组件才会被创建
+  // 创建后，即使切走，该标志位依然为 true，所以组件不会被销毁，只是被隐藏
+  @State isMapLoaded: boolean = false
+  @State isForumLoaded: boolean = false
+  @State isPostLoaded: boolean = false
+  @State isMeLoaded: boolean = false
+
   private async goto(tab: TabKey) {
     const needAuth = (tab === TabKey.Schedule || tab === TabKey.Forum || tab === TabKey.Post)
     if (needAuth && !(await isAuthedBit101())) {
       await router.pushUrl({ url: 'pages/LoginPage', params: { redirect: 'pages/Index' } })
       return
     }
-    this.current = tab
-    console.log('[tab]', this.current) // 应看到 0~4 的变化
-  }
 
+    // 🔥 激活对应页面的加载标志位
+    if (tab === TabKey.Map) this.isMapLoaded = true;
+    if (tab === TabKey.Forum) this.isForumLoaded = true;
+    if (tab === TabKey.Post) this.isPostLoaded = true;
+    if (tab === TabKey.Me) this.isMeLoaded = true;
+
+    this.current = tab
+    console.log('[tab]', this.current)
+  }
 
   @Builder
   TabButton(label: string, key: TabKey) {
@@ -60,21 +73,47 @@ struct Index {
 
   build() {
     Column() {
-      // 内容区（根据当前 Tab 切换）
+      // 内容区
+      // 🔥 改用 Stack 叠加模式，配合 Visibility 控制显隐
       Stack() {
-        if (this.current === TabKey.Schedule) {
-          ScheduleShellPage()
-        } else if (this.current === TabKey.Map) {
+
+        // 1. Schedule (首页，始终存在)
+        ScheduleShellPage()
+          .visibility(this.current === TabKey.Schedule ? Visibility.Visible : Visibility.None)
+          .width('100%').height('100%')
+
+        // 2. Map (懒加载 + 保活)
+        // 只要 this.isMapLoaded 为 true，MapPage 就会一直存在于组件树中
+        // 切走时，只是 Visibility 变为 None，WebView 进程依然活着，状态不丢失
+        if (this.isMapLoaded) {
           MapPage()
-        } else if (this.current === TabKey.Forum) {
+            .visibility(this.current === TabKey.Map ? Visibility.Visible : Visibility.None)
+            .width('100%').height('100%')
+        }
+
+        // 3. Forum
+        if (this.isForumLoaded) {
           ForumPage()
-        } else if (this.current === TabKey.Post) {
+            .visibility(this.current === TabKey.Forum ? Visibility.Visible : Visibility.None)
+            .width('100%').height('100%')
+        }
+
+        // 4. Post
+        if (this.isPostLoaded) {
           PostPage()
-        } else {
+            .visibility(this.current === TabKey.Post ? Visibility.Visible : Visibility.None)
+            .width('100%').height('100%')
+        }
+
+        // 5. Me
+        if (this.isMeLoaded) {
           MePage()
+            .visibility(this.current === TabKey.Me ? Visibility.Visible : Visibility.None)
+            .width('100%').height('100%')
         }
       }
       .layoutWeight(1)
+      .width('100%')
 
       // 底部导航
       this.BottomBar()

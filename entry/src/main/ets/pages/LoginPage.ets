@@ -1,7 +1,8 @@
 import { AuthRepository } from '../services/auth/authRepository'
 import router from '@ohos.router'
 import { createBitSsoSessionAuto } from '../services/lexue/BitSsoAuto';
-import { syncUserCalendar } from '../services/lexue/CalendarService'; // 导入封装的服务
+import { syncUserCalendar } from '../services/lexue/CalendarService';
+import { BusinessError } from '@kit.BasicServicesKit'; // 引入系统错误类型
 
 interface RedirectParams {
   redirect?: string
@@ -43,13 +44,12 @@ export default struct LoginPage {
       const okWebvpn = !!ret.webvpn && !!ret.webvpn.ok
 
       // 2. 乐学 SSO 登录流程
-      // 注意：createBitSsoSessionAuto 内部通常会进行网络探测来决定是 inner 还是 webvpn
       const GeneratedDestructObj_1 = await createBitSsoSessionAuto({
         debug: true,
         webvpnLexueBase: WEBVPN_LEXUE_BASE,
       });
 
-      const mode = GeneratedDestructObj_1.mode; // 'inner' | 'webvpn'
+      const mode = GeneratedDestructObj_1.mode;
       const sso = GeneratedDestructObj_1.sso;
 
       // 执行登录
@@ -57,11 +57,10 @@ export default struct LoginPage {
 
       // 3. 判定登录结果并同步数据
       if (okBit101 && okWebvpn) {
-        this.msg = '登录成功，正在同步课表...'; // 更新UI提示用户正在获取数据
+        this.msg = '登录成功，正在同步课表...';
 
         try {
           // === 核心业务整合：同步日历 ===
-          // 动态决定使用哪个 BaseURL
           const currentBaseUrl = mode === 'inner'
             ? 'https://lexue.bit.edu.cn'
             : WEBVPN_LEXUE_BASE;
@@ -73,12 +72,11 @@ export default struct LoginPage {
           });
 
           console.info(`[Login] 日历同步完成，共 ${count} 条数据`);
-          // 可以选择在这里 toast 提示：`同步完成，更新了 ${count} 个DDL`
         } catch (syncErr) {
-          // 日历同步失败不应该阻止用户进入 App，记录错误即可
-          console.error('[Login] 日历同步失败，跳过:', syncErr);
-          // 也可以在这里修改 this.msg 提示用户“登录成功但同步失败”
+          // 日历同步失败不应阻止跳转，但要打印详细日志
+          console.error('[Login] 日历同步失败详情:', JSON.stringify(syncErr));
         }
+
         AppStorage.setOrCreate('current_username', this.sid)
 
         // 4. 页面跳转
@@ -91,7 +89,6 @@ export default struct LoginPage {
           }
         }
 
-        // 使用 replaceUrl 防止用户点返回键回到登录页
         await router.replaceUrl({ url: target })
         return
       }
@@ -102,9 +99,32 @@ export default struct LoginPage {
       this.msg = `登录失败：BIT101=${bit101Text}，WebVPN=${webvpnText}`
 
     } catch (e) {
-      const m = (e as Error)?.message ?? String(e)
-      this.msg = `登录异常：${m}`
-      console.error('[Login] login error', e)
+      // 🔥 核心修复：不再盲目转字符串，而是尝试提取有用信息
+      let errorMsg = '未知错误';
+
+      if (typeof e === 'string') {
+        errorMsg = e;
+      } else if (e instanceof Error) {
+        errorMsg = e.message;
+      } else if (e && typeof e === 'object') {
+        // 尝试读取 BusinessError 的 code 或 msg
+        const err = e as BusinessError;
+        if (err.code) {
+          errorMsg = `Code: ${err.code}, Msg: ${err.message ?? 'No message'}`;
+        } else {
+          // 其他对象，尝试 JSON 序列化
+          try {
+            errorMsg = JSON.stringify(e);
+          } catch {
+            errorMsg = String(e);
+          }
+        }
+      }
+
+      this.msg = `登录异常：${errorMsg}`
+
+      // 🔥 关键日志：强制 JSON 序列化，让你在控制台看清 [object Object] 到底是什么
+      console.error('[Login] login error details:', JSON.stringify(e));
     } finally {
       this.busy = false
     }
@@ -141,7 +161,7 @@ export default struct LoginPage {
         Text(this.msg)
           .fontColor(this.msg.startsWith('登录成功') ? '#16a34a' : '#ef4444')
           .fontSize(14)
-          .maxLines(3)
+          .maxLines(5) // 增加行数以显示详细错误
       }
     }.padding(16)
   }
