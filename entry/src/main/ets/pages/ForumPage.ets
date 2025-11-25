@@ -1,11 +1,18 @@
+import { WebPage } from '../components/web/WebPage';
+
 @Component
 export default struct ForumPage {
+  // 【修正】这里换成真正的网页前端地址
+  // 如果手机版显示效果不好，也可以尝试 'http://android.bit101.cn' (Android源码里提到的另一个地址)
+  private readonly FORUM_URL = 'https://bit101.cn';
+
   build() {
-    Column({ space: 8 }) {
-      Text('网 · 话廊').fontSize(20).fontWeight(FontWeight.Bold)
-      Column() {
-        Text('后续接入：帖子流 / 点赞 / 评论').fontColor('#666')
-      }.padding(12).backgroundColor('#FFF').borderRadius(12)
-    }.padding(16)
+    Column() {
+      // 我们的 WebPage 组件已经加了 'bit101.cn' 的白名单，
+      // 所以这个地址可以正常加载，不会被拦截跳出去。
+      WebPage({ url: this.FORUM_URL })
+    }
+    .width('100%')
+    .height('100%')
   }
 }
