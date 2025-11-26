@@ -1,114 +1,137 @@
-// entry/src/main/ets/components/gallery/PosterCard.ets
 import { Poster, GalleryImage } from '../../services/gallery/GalleryModels';
 import { TimeUtils } from '../../utils/TimeUtils';
 import { RCP_BASE_URL } from '../../core/network/bit101Session';
 import promptAction from '@ohos.promptAction';
+import { AvatarWithVerified } from './AvatarWithVerified';
+import { UserNameWithIdentity } from './UserNameWithIdentity';
 
 @Component
 export struct PosterCard {
   @Prop poster: Poster;
+
+  // 外部传入的点击回调
   onClickPoster?: () => void;
-  aboutToAppear() {
-    console.info('[PosterCard]', 'poster = ' + JSON.stringify(this.poster));
+
+  // --- 交互逻辑：未实现接口用弹窗替代 ---
+
+  private onUserClick() {
+    promptAction.showToast({
+      message: `跳转用户详情: ${this.getNickname()}\nID: ${this.poster.user?.id ?? '未知'}`,
+      duration: 1500,
+      bottom: 400
+    });
   }
 
+  private onImageClick(index: number) {
+    promptAction.showToast({
+      message: `查看大图预览\n当前索引: ${index}\n图片总数: ${this.getImageCount()}`,
+      duration: 1500,
+      bottom: 400
+    });
+  }
 
   build() {
     Column() {
-      // 0. 标题（对应 Android: Text(data.title, style = titleMedium)）
-      if (this.hasTitle()) {
-        Text(this.poster.title!)
-          .fontSize(18)
-          .fontWeight(FontWeight.Medium)
-          .fontColor('#111827')
-          .maxLines(2)
-          .textOverflow({ overflow: TextOverflow.Ellipsis })
-          .margin({ bottom: 6 });
-      }
-
-      // 1. 根据图片数量分支布局
-      if (this.hasFewImages()) {
-        // === 分支 1：1~2 张图，横排布局 ===
-        Row() {
-          // 左侧：头像 + 正文 + Info
-          Column() {
-            this.AvatarWithName();
-
-            if (this.poster.text) {
-              Text(this.poster.text)
-                .fontSize(15)
-                .fontColor('#333333')
-                .maxLines(4)
-                .lineHeight(22)
-                .textOverflow({ overflow: TextOverflow.Ellipsis })
-                .margin({ top: 4 });
-            }
-
-            this.InfoBar();
-          }
-          .layoutWeight(1)
-          .margin({ right: 8 });
-
-          // 右侧：第一张图片
-          this.FirstImageBox();
-        }
-        .width('100%')
-        .margin({ top: 6 });
-      } else {
-        // === 分支 2：0 张 或 ≥3 张图，纵向布局 ===
-
-        // 头像 + 昵称
-        this.AvatarWithName();
-
-        // 正文
-        if (this.poster.text) {
-          Text(this.poster.text)
-            .fontSize(15)
-            .fontColor('#333333')
-            .maxLines(3)
-            .lineHeight(22)
+      Column() {
+        // 0. 标题
+        if (this.hasTitle()) {
+          Text(this.poster.title!)
+            .fontSize(16) // Android: TitleMedium (~16sp)
+            .fontWeight(FontWeight.Medium)
+            .fontColor($r('sys.color.font_primary'))
+            .maxLines(2)
             .textOverflow({ overflow: TextOverflow.Ellipsis })
+            .lineHeight(24)
             .width('100%')
-            .margin({ top: 4 });
+            .margin({ bottom: 4 }); // Android: Spacer 2dp (visual approx 4vp)
         }
 
-        // 图片网格（≥3 张时显示）
-        if (this.hasManyImages()) {
-          this.ImageGrid(this.poster.images);
-        }
+        // 1. 布局分支
+        if (this.hasFewImages()) {
+          // === 分支 1：1~2 张图 (左右布局) ===
+          // Android高度设置为 128dp
+          Row() {
+            // 左侧：头像 -> 正文 -> 底部信息 (垂直分布，自动撑满)
+            Column() {
+              this.AvatarWithName()
 
-        // 底部 Info
-        this.InfoBar();
+              // 模拟 Android BoxWithConstraints 计算行数逻辑
+              // 这里使用 layoutWeight 让文字区域占据剩余空间
+              Text(this.poster.text || '')
+                .fontSize(14) // Android: BodyMedium
+                .fontColor($r('sys.color.font_primary'))
+                .lineHeight(20)
+                .textOverflow({ overflow: TextOverflow.Ellipsis })
+                .maxLines(4) // 限制最大行数防止溢出
+                .margin({ top: 2, bottom: 4 })
+                .layoutWeight(1) // 关键：占据中间剩余高度
+                .align(Alignment.TopStart) // 文字顶对齐
+
+              this.InfoBar()
+            }
+            .layoutWeight(1) // 占满左侧宽度
+            .height('100%')  // 占满固定高度
+            .padding({ right: 8 }) // 右侧间距
+            .alignItems(HorizontalAlign.Start)
+
+            // 右侧：第一张图片
+            this.FirstImageBox()
+          }
+          .width('100%')
+          .height(128) // Android: val height = 128.dp
+          .alignItems(VerticalAlign.Top) // 顶部对齐
+
+        } else {
+          // === 分支 2：0 张 或 ≥3 张图 (垂直布局) ===
+
+          this.AvatarWithName()
+
+          if (this.poster.text) {
+            Text(this.poster.text)
+              .fontSize(14) // Android: BodyMedium
+              .fontColor($r('sys.color.font_primary'))
+              .maxLines(3)
+              .lineHeight(20)
+              .textOverflow({ overflow: TextOverflow.Ellipsis })
+              .width('100%')
+              .margin({ top: 2 });
+          }
+
+          // 图片显示逻辑：≥3 张图才显示 Grid
+          if (this.hasManyImages()) {
+            this.ImageGrid(this.poster.images)
+          }
+
+          this.InfoBar()
+        }
       }
+      .width('100%')
+      .padding(12) // Android: padding(12.dp)
     }
-    .backgroundColor(Color.White)
-    .padding({ left: 12, right: 12, top: 12, bottom: 12 })
-    .margin({ bottom: 10 })
+    .width('100%')
+    .backgroundColor($r('sys.color.ohos_id_color_background')) // Surface color
     .onClick(() => {
       if (this.onClickPoster) {
         this.onClickPoster();
       } else {
-        promptAction.showToast({
-          message: `即将打开帖子 ID: ${this.poster.id}`,
-          duration: 2000
-        });
+        // 默认卡片点击行为
+        promptAction.showToast({ message: `打开帖子详情 ID: ${this.poster.id}` });
       }
-    });
+    })
   }
 
-  // ---------- 纯逻辑方法：不在 UI 区内写 const/let ----------
+  // ---------- 逻辑辅助方法 ----------
 
   private getImages(): GalleryImage[] {
     return this.poster.images ?? [];
   }
 
   private getImageCount(): number {
-    const imgs = this.getImages();
-    return imgs.length;
+    return this.getImages().length;
   }
 
   private hasTitle(): boolean {
-    return !!this.poster.title && this.poster.title!.length > 0;
+    return !!this.poster.title && this.poster.title.length > 0;
   }
 
   private hasFewImages(): boolean {
@@ -117,177 +140,126 @@ export struct PosterCard {
   }
 
   private hasManyImages(): boolean {
-    const count = this.getImageCount();
-    return count >= 3;
-  }
-
-  private getFirstImage(): GalleryImage | undefined {
-    const imgs = this.getImages();
-    return imgs.length > 0 ? imgs[0] : undefined;
+    return this.getImageCount() >= 3;
   }
 
   private getNickname(): string {
-    if (this.poster.anonymous) {
-      return '匿名用户';
-    }
-    if (this.poster.user && this.poster.user.nickname) {
-      return this.poster.user.nickname;
-    }
-    return '匿名用户';
+    if (this.poster.anonymous) return '匿名用户';
+    return this.poster.user?.nickname ?? '匿名用户';
   }
 
+  // 构造底部信息字符串
   private getInfoText(): string {
     const rawTime = this.poster.editTime || this.poster.createTime;
-    const diff = TimeUtils.getRelativeTime(rawTime); // 内部返回 '未知' 或 'xx分钟前'
-
+    const diff = TimeUtils.getRelativeTime(rawTime);
     const likeNum = this.poster.likeNum ?? 0;
     const commentNum = this.poster.commentNum ?? 0;
-
     const visibility = this.poster.public ? '' : ' · 仅自己可见';
     return `${likeNum}赞 · ${commentNum}评${visibility} · ${diff}`;
   }
 
-
+  // 获取显示的图片切片
   private getGridImages(images: GalleryImage[]): GalleryImage[] {
-    if (!images) {
-      return [];
-    }
+    if (!images) return [];
+    // Android逻辑: if size==3 subList(0,3) else subList(0,4)
     const count = images.length;
-    if (count === 0) {
-      return [];
-    }
-    const maxCount = count >= 4 ? 4 : count; // Android: 3 或 4
+    const maxCount = count === 3 ? 3 : 4;
     return images.slice(0, maxCount);
   }
 
   private getAvatarUrl(url?: string): string | Resource {
-    if (!url || this.poster.anonymous) {
-      return $r('app.media.startIcon');
-    }
+    if (!url || this.poster.anonymous) return $r('app.media.startIcon'); // 替换为你的默认头像资源
     const safeUrl = String(url);
-    if (safeUrl.startsWith('http://') || safeUrl.startsWith('https://')) {
-      return safeUrl;
-    }
+    if (safeUrl.startsWith('http')) return safeUrl;
     return `${RCP_BASE_URL}${safeUrl}`;
   }
 
-  // ---------- UI Builder 部分：只写组件语法 + if/ForEach ----------
+  // ---------- UI Components ----------
 
   @Builder
   AvatarWithName() {
     Row() {
-      Image(this.getAvatarUrl(this.poster.user?.avatar))
-        .width(20)
-        .height(20)
-        .borderRadius(10)
-        .backgroundColor('#F3F4F6')
-        .objectFit(ImageFit.Cover)
-        .alt($r('app.media.startIcon'));
+      // ✅ 替换为：带认证的头像组件
+      AvatarWithVerified({
+        user: this.poster.user,
+        avatarSize: 20, // 列表页头像比较小，原来是 20
+        onClickUser: () => {
+          // 这里处理点击头像逻辑 (如果需要的话)
+          this.onUserClick();
+        }
+      })
 
-      Text(this.getNickname())
-        .fontSize(13)
-        .fontColor('#4B5563')
-        .maxLines(1)
-        .textOverflow({ overflow: TextOverflow.Ellipsis })
-        .margin({ left: 6 });
+      // ✅ 替换为：带身份标签的昵称组件
+      UserNameWithIdentity({
+        user: this.poster.user,
+        fontSize: 13, // 列表页字号
+        fontColor: '#4B5563'
+      })
+        .layoutWeight(1) // 占满剩余空间
+        .margin({ left: 6 }) // 名字和头像的间距
     }
     .width('100%')
-    .alignItems(VerticalAlign.Center);
+    .alignItems(VerticalAlign.Center)
   }
 
   @Builder
   InfoBar() {
     Text(this.getInfoText())
-      .fontSize(12)
-      .fontColor('#991F2937') // 约等于 onSurface 60% 透明度
+      .fontSize(12) // Android: labelMedium
+      .fontColor($r('sys.color.font_secondary')) // Android: onSurface copy alpha 0.6
       .width('100%')
-      .margin({ top: 6 });
+      .margin({ top: 4 }) // margin(top=4.dp)
   }
 
-  // 1~2 张图时用的右侧预览
-  // 1~2 张图时用的右侧预览
   @Builder
   FirstImageBox() {
-    if (this.hasFirstImage()) {
-      Image(this.getFirstImageUrl())
-        .width(120)
-        .height(120)
-        .objectFit(ImageFit.Cover)
-        .borderRadius(8)
-        .backgroundColor('#EEEEEE');
-    } else {
-      Column()
-        .width(120)
-        .height(120)
-        .borderRadius(8)
-        .backgroundColor('#EEEEEE');
-    }
+    // 右侧大图 (1-2张模式)
+    Image(this.getImages()[0]?.url ?? '')
+      .width(128)  // 保持正方形或固定宽高，对应 Android height=128.dp
+      .height(128)
+      .objectFit(ImageFit.Cover)
+      .borderRadius(4)
+      .backgroundColor($r('sys.color.ohos_id_color_sub_background'))
+      .onClick(() => this.onImageClick(0))
   }
-
-  private hasFirstImage(): boolean {
-    const img = this.getFirstImage();
-    return !!(img && img.url);
-  }
-
-  private getFirstImageUrl(): string {
-    const img = this.getFirstImage();
-    return img && img.url ? img.url : '';
-  }
-
 
   @Builder
   ImageGrid(images: GalleryImage[]) {
-    // 这里不能用 let，只能直接在表达式里调方法
-    if (this.getGridImages(images).length === 0) {
-      // 不渲染任何内容
-    } else {
-      Grid() {
-        ForEach(
-          this.getGridImages(images),
-          (img: GalleryImage) => {
-            GridItem() {
-              if (img && img.url) {
-                Image(img.url)
-                  .width('100%')
-                  .aspectRatio(1)
-                  .objectFit(ImageFit.Cover)
-                  .borderRadius(4)
-                  .backgroundColor('#EEEEEE');
-              } else {
-                Column()
-                  .width('100%')
-                  .aspectRatio(1)
-                  .borderRadius(4)
-                  .backgroundColor('#EEEEEE');
-              }
-            }
-          },
-          (img: GalleryImage, index?: number) => index!.toString()
-        );
-      }
-      .columnsTemplate('1fr 1fr 1fr')
-      .columnsGap(4)
-      .rowsGap(4)
-      .height(this.getGridHeight(images))
-      .width('100%')
-      .margin({ top: 6 });
+    // 动态计算显示数量
+    // Android: if(data.images.size == 3) -> 3 columns, else -> 4 columns (based on maxCount=4)
+    // 这里为了视觉对齐，3张图显示1行3列，4张图显示1行4列
+
+    Grid() {
+      ForEach(this.getGridImages(images), (img: GalleryImage, index: number) => {
+        GridItem() {
+          Image(img.url)
+            .width('100%')
+            .aspectRatio(1) // 1:1 正方形
+            .objectFit(ImageFit.Cover)
+            .borderRadius(4)
+            .backgroundColor($r('sys.color.ohos_id_color_sub_background'))
+            .onClick(() => this.onImageClick(index))
+        }
+      })
     }
+    .columnsTemplate(images.length === 3 ? '1fr 1fr 1fr' : '1fr 1fr 1fr 1fr') // 动态列数对齐安卓逻辑
+    .columnsGap(4) // padding(4.dp)
+    .rowsGap(4)
+    .width('100%')
+    // 计算 Grid 高度: 只有一行，所以高度 = (ScreenWidth - padding - gaps) / cols
+    // 这里简单给定一个高度范围或让其自适应，Grid默认需要高度。
+    // 由于是单行显示(3或4个)，使用 aspectRatio 在外层限制更佳，或者定高
+    .height(this.calcGridHeight(images.length))
+    .margin({ top: 4 })
   }
 
-  private getGridHeight(images: GalleryImage[]): number {
-    const gridImages = this.getGridImages(images);
-    return this.calcGridHeight(gridImages.length);
-  }
-
-  calcGridHeight(count: number): number {
-    const rowHeight = 110;
-    const gap = 4;
-    if (count <= 3) {
-      return rowHeight;
-    }
-    if (count <= 6) {
-      return rowHeight * 2 + gap;
-    }
-    return rowHeight * 3 + gap * 2;
+  // 简单的 Grid 高度估算，确保 Grid 可见
+  calcGridHeight(totalCount: number): number {
+    // 假设屏幕宽度约 360vp，减去 padding 24vp
+    // 3列: (336 - 8)/3 ≈ 109
+    // 4列: (336 - 12)/4 ≈ 81
+    // 这是一个近似值，实际项目中最好用 Flex Wrap 或动态计算
+    const isThree = totalCount === 3;
+    return isThree ? 110 : 85;
   }
 }

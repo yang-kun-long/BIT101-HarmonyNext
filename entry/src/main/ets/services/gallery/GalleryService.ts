@@ -1,6 +1,6 @@
 // entry/src/main/ets/services/gallery/GalleryService.ts
 import { bit101Session } from '../../core/network/bit101Session';
-import { Poster, GalleryUser, GalleryImage } from './GalleryModels';
+import { Poster, GalleryUser, GalleryImage, PosterDetail, PosterClaim } from './GalleryModels';
 
 export enum PostersMode {
   Recommend = 'recommend',
@@ -57,12 +57,52 @@ class GalleryService {
       return [];
     }
   }
+  async getPosterById(id: number): Promise<PosterDetail | null> {
+    try {
+      const resp = await bit101Session.get(`${this.apiPath}/${id}`, {});
+
+      if (resp.statusCode !== 200 || !resp.bodyText) {
+        console.warn('[GalleryService] getPosterById status=', resp.statusCode, 'id=', id);
+        return null;
+      }
+
+      const raw = JSON.parse(resp.bodyText);
+
+      // 先复用列表里的 safeParsePoster，拿到公共字段
+      const base = this.safeParsePoster(raw);
+
+      // claim
+      const claimRaw = raw.claim;
+      let claim: PosterClaim | null = null;
+      if (claimRaw) {
+        claim = {
+          id: Number(claimRaw.id ?? 0),
+          text: String(claimRaw.text ?? ''),
+        };
+      }
+
+      const detail: PosterDetail = {
+        ...base,
+        like: Boolean(raw.like),
+        own: Boolean(raw.own),
+        claim,
+        plugins: raw.plugins ? String(raw.plugins) : undefined,
+        subscription: typeof raw.subscription === 'number' ? raw.subscription : undefined,
+      };
+
+      return detail;
+    } catch (e) {
+      console.error('[GalleryService] getPosterById error:', e);
+      return null;
+    }
+  }
+
 
   // 🔥 新增：安全解析函数 (解决头像对象解析和空指针问题)
   private safeParsePoster(raw: any): Poster {
     const rawUser = raw.user || {};
 
-    // 1. 头像保持你原来的逻辑即可
+    // 1. 头像处理 (保持不变)
     let avatarUrl = '';
     if (rawUser.avatar) {
       if (typeof rawUser.avatar === 'string') {
@@ -72,10 +112,21 @@ class GalleryService {
       }
     }
 
+    // ✅ 新增：解析 identity
+    let userIdentity = undefined;
+    if (rawUser.identity) {
+      userIdentity = {
+        id: Number(rawUser.identity.id ?? 0),
+        color: String(rawUser.identity.color ?? ''),
+        text: String(rawUser.identity.text ?? '')
+      };
+    }
+
     const safeUser: GalleryUser = {
       id: String(rawUser.id ?? '0'),
       nickname: String(rawUser.nickname ?? '匿名用户'),
       avatar: String(avatarUrl),
+      identity: userIdentity, // ✅ 赋值回去！
     };
 
     // 2. 图片：后端是 { mid, url, low_url }，但你自己定义了 id/w/h/type，这里兼容一下
