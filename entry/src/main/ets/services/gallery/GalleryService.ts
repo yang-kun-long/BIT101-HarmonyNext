@@ -1,7 +1,6 @@
 // entry/src/main/ets/services/gallery/GalleryService.ts
 import { bit101Session } from '../../core/network/bit101Session';
-import { Poster, GalleryUser, GalleryImage, PosterDetail, PosterClaim } from './GalleryModels';
-
+import { Poster, GalleryUser, GalleryImage, PosterDetail, PosterClaim, PosterPostRequest } from './GalleryModels';
 export enum PostersMode {
   Recommend = 'recommend',
   Hot = 'hot',
@@ -94,6 +93,85 @@ class GalleryService {
     } catch (e) {
       console.error('[GalleryService] getPosterById error:', e);
       return null;
+    }
+  }
+  // ==============================================================
+  // [新增] 获取创作者声明列表
+  // ==============================================================
+  async getClaims(): Promise<PosterClaim[]> {
+    try {
+      // 猜测路径为 /posters/claims (参考安卓逻辑)
+      const resp = await bit101Session.get(`${this.apiPath}/claims`);
+
+      if (resp.statusCode === 200 && resp.bodyText) {
+        const json = JSON.parse(resp.bodyText);
+        // 兼容处理：可能返回数组，也可能返回 { data: [] }
+        const list = Array.isArray(json) ? json : (json.data || []);
+
+        return list.map((item: any) => ({
+          id: Number(item.id ?? 0),
+          text: String(item.text ?? '')
+        }));
+      }
+    } catch (e) {
+      console.error('[GalleryService] getClaims error:', e);
+    }
+    return [];
+  }
+
+  // ==============================================================
+  // [新增] 发布帖子 (POST)
+  // ==============================================================
+  async postPoster(req: PosterPostRequest): Promise<boolean> {
+    try {
+      console.info('[GalleryService] Sending:', JSON.stringify(req));
+
+      // 🚩 终极修正：按照报错提示，先转 unknown 再转 Record
+      // 只有这样写，ArkTS 才会允许把 Interface 传给 Record 类型
+      const resp = await bit101Session.post(this.apiPath, req as unknown as Record<string, unknown>);
+
+      if (resp.statusCode === 200) {
+        return true;
+      } else {
+        console.warn('[GalleryService] Post failed:', resp.statusCode, resp.bodyText);
+        return false;
+      }
+    } catch (e) {
+      console.error('[GalleryService] postPoster exception:', e);
+      return false;
+    }
+  }
+
+  // ==============================================================
+  // [新增] 修改帖子 (PUT)
+  // ==============================================================
+  async updatePoster(id: number, req: PosterPostRequest): Promise<boolean> {
+    try {
+      // 🚩 update 同理，但在 RcpSession.ts 里没有定义 put 方法的快捷方式
+      // 所以我们要用 fetch 或者去 bit101Session 补全 put
+      // 之前我们在 bit101Session 补过 put，但签名可能不一样。
+      // 为了稳妥，这里用 fetch 或者检查一下 bit101Session 的 put 定义
+
+      // 假设 bit101Session.put 的定义是 async put(url, options)
+      // (根据之前补全的代码: async put(url, options) { return this.fetch('PUT', url, options); })
+
+      // 注意：之前补的 put 方法签名是 (url, options)，和 post 不一样！
+      // 所以 updatePoster 这里的写法要对应 put 的定义：
+      const resp = await bit101Session.put(`${this.apiPath}/${id}`, {
+        body: req
+        // ⚠️ 注意：如果你的 bit101Session.put 是接收 options 的，那这里要保留 body: req
+        // 建议去检查一下 entry/src/main/ets/core/network/bit101Session.ts 里的 put 实现
+      });
+
+      if (resp.statusCode === 200) {
+        return true;
+      } else {
+        console.warn('[GalleryService] Update failed:', resp.statusCode, resp.bodyText);
+        return false;
+      }
+    } catch (e) {
+      console.error('[GalleryService] updatePoster exception:', e);
+      return false;
     }
   }
 

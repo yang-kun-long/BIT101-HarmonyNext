@@ -1,8 +1,9 @@
+// entry/src/main/ets/pages/PostPage.ets
 import { PostersTabPage } from '../components/gallery/PostersTabPage';
 import { PosterListState } from '../services/gallery/PosterListState';
 import { PostersMode } from '../services/gallery/GalleryService';
 import promptAction from '@ohos.promptAction';
-import router from '@ohos.router';
+import router from '@ohos.router'; // 确保引入 router
 
 @Component
 export default struct PostPage {
@@ -12,7 +13,7 @@ export default struct PostPage {
   @State newestState: PosterListState = new PosterListState(PostersMode.Newest);
   @State followState: PosterListState = new PosterListState(PostersMode.Follow);
 
-  // 当前选中的 Tab 索引，默认选中 "推荐" (索引1，与安卓对齐)
+  // 当前选中的 Tab 索引，默认选中 "推荐"
   @State currentIndex: number = 1;
 
   // Tab 控制器
@@ -29,10 +30,22 @@ export default struct PostPage {
     });
   }
 
-  // --- 业务逻辑：搜索（未实现接口，使用弹窗占位） ---
+  // ============================================
+  // [新增] 业务逻辑：跳转去发帖页面
+  // ============================================
+  onPostClick(): void {
+    router.pushUrl({
+      url: 'pages/PostEditorPage'
+    }).catch((err: Error) => {
+      // 如果跳转失败，通常是 main_pages.json 没配置好
+      console.error('Jump to PostEditorPage failed:', JSON.stringify(err));
+    });
+  }
+
+  // --- 业务逻辑：搜索 ---
   onSearchClick(): void {
     promptAction.showToast({
-      message: '搜索功能开发中...\n用户ID: 待对接', // 模拟你的示例需求
+      message: '搜索功能开发中...\n用户ID: 待对接',
       duration: 2000,
       bottom: 400
     });
@@ -41,23 +54,18 @@ export default struct PostPage {
   build() {
     Column() {
       // ============================================================
-      // 2. 自定义顶部栏 (完全复刻安卓 Scaffold TopAppBar 布局)
+      // 2. 顶部栏 (UI 不变)
       // ============================================================
       Row() {
-        // 2.1 左侧 Tab 区域：固定宽度 280vp，模拟安卓的 Modifier.width(280.dp)
+        // Tab 标题
         Row() {
           ForEach(this.tabItems, (item: string, index: number) => {
             Column() {
-              // 文字
               Text(item)
-                .fontColor(this.currentIndex === index ? $r('sys.color.font_primary') : $r('sys.color.font_secondary')) // 适配系统深色模式
-                .fontSize(18) // 安卓 TitleMedium 大小约为 16-20sp
-                .fontWeight(this.currentIndex === index ? FontWeight.Bold : FontWeight.Medium) // 选中加粗
-                .animation({ duration: 200 }) // 字体变化动画
-
-              // 这里的 UI 逻辑可以根据安卓是否显示下划线来调整
-              // 安卓代码中 TabRow 默认有 Indicator，这里我们做一个简单的透明度/颜色切换即可
-              // 如果需要严格对其安卓 Material3 Tab 的 Indicator，可以在这里加个 Line
+                .fontColor(this.currentIndex === index ? $r('sys.color.font_primary') : $r('sys.color.font_secondary'))
+                .fontSize(18)
+                .fontWeight(this.currentIndex === index ? FontWeight.Bold : FontWeight.Medium)
+                .animation({ duration: 200 })
             }
             .height('100%')
             .justifyContent(FlexAlign.Center)
@@ -65,20 +73,16 @@ export default struct PostPage {
               this.currentIndex = index;
               this.controller.changeIndex(index);
             })
-            // 均分 280vp 的宽度
             .width('25%')
           })
         }
-        .width(280) // 核心：限制宽度，实现左对齐
+        .width(280)
         .height('100%')
 
-        // 2.2 占位符：把搜索按钮挤到最右边
         Blank()
 
-        // 2.3 右侧搜索按钮
+        // 搜索按钮
         Button({ type: ButtonType.Circle, stateEffect: true }) {
-          // 使用系统搜索图标，或者你可以换成具体的图片资源
-          // 这里为了兼容性使用 SymbolGlyph (API 11+) 或 Image
           SymbolGlyph($r('sys.symbol.magnifyingglass'))
             .fontSize(24)
             .fontColor([$r('sys.color.icon_primary')])
@@ -91,13 +95,13 @@ export default struct PostPage {
         })
       }
       .width('100%')
-      .height(56) // 标准 AppBar 高度
-      .padding({ left: 16, right: 8 }) // 左右内边距
-      .backgroundColor($r('sys.color.ohos_id_color_background')) // 保持背景一致
-      .zIndex(1) // 确保阴影或层级在内容之上
+      .height(56)
+      .padding({ left: 16, right: 8 })
+      .backgroundColor($r('sys.color.ohos_id_color_background'))
+      .zIndex(1)
 
       // ============================================================
-      // 3. 内容区域 (隐藏原生 TabBar)
+      // 3. 内容区域
       // ============================================================
       Tabs({
         barPosition: BarPosition.Start,
@@ -108,15 +112,19 @@ export default struct PostPage {
         TabContent() {
           PostersTabPage({
             state: this.followState,
-            onOpenPoster: (id: number) => this.openPosterDetail(id)
+            onOpenPoster: (id: number) => this.openPosterDetail(id),
+            // ✅ 绑定发帖事件
+            onOpenPostOrEdit: () => this.onPostClick()
           })
-        }.tabBar(null) // 隐藏原生 TabBar
+        }.tabBar(null)
 
         // Tab 1: 推荐
         TabContent() {
           PostersTabPage({
             state: this.recommendState,
-            onOpenPoster: (id: number) => this.openPosterDetail(id)
+            onOpenPoster: (id: number) => this.openPosterDetail(id),
+            // ✅ 绑定发帖事件
+            onOpenPostOrEdit: () => this.onPostClick()
           })
         }.tabBar(null)
 
@@ -124,7 +132,9 @@ export default struct PostPage {
         TabContent() {
           PostersTabPage({
             state: this.newestState,
-            onOpenPoster: (id: number) => this.openPosterDetail(id)
+            onOpenPoster: (id: number) => this.openPosterDetail(id),
+            // ✅ 绑定发帖事件
+            onOpenPostOrEdit: () => this.onPostClick()
           })
         }.tabBar(null)
 
@@ -132,21 +142,23 @@ export default struct PostPage {
         TabContent() {
           PostersTabPage({
             state: this.hotState,
-            onOpenPoster: (id: number) => this.openPosterDetail(id)
+            onOpenPoster: (id: number) => this.openPosterDetail(id),
+            // ✅ 绑定发帖事件
+            onOpenPostOrEdit: () => this.onPostClick()
           })
         }.tabBar(null)
       }
-      .barHeight(0) // 彻底隐藏原生导航栏高度
+      .barHeight(0)
       .vertical(false)
-      .scrollable(true) // 允许手势滑动切换
+      .scrollable(true)
       .animationDuration(200)
       .onChange((index: number) => {
         this.currentIndex = index;
       })
-      .layoutWeight(1) // 占满剩余高度
+      .layoutWeight(1)
     }
     .width('100%')
     .height('100%')
-    .backgroundColor($r('sys.color.ohos_id_color_sub_background')) // 对应安卓 surfaceContainer
+    .backgroundColor($r('sys.color.ohos_id_color_sub_background'))
   }
 }

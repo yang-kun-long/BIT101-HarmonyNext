@@ -34,6 +34,9 @@ class Bit101Client extends RcpSession {
     // 4. 调用父类
     return super.fetch(method, url, { ...options, headers });
   }
+  async put(url: string, options?: RcpRequestOptions & { body?: any }): Promise<RcpResponseData> {
+    return this.fetch('PUT', url, options);
+  }
 }
 
 // 导出这个专用的实例

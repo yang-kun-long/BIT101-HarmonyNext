@@ -3,6 +3,7 @@
     "pages/Index",
     "pages/LoginPage",
     "pages/PosterDetailPage",
-    "pages/WebBrowserPage"
+    "pages/WebBrowserPage",
+    "pages/PostEditorPage"
   ]
 }

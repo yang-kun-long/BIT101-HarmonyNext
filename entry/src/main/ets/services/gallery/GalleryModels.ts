@@ -78,7 +78,29 @@ export interface UserIdentity {
   color: string; // 例如 "#FF0000"
   text: string;  // 例如 "管理员", "学生"
 }
+export interface PosterClaim {
+  id: number;
+  text: string;
+}
 
+// [新增] 发帖/更新帖子的 API 请求体
+// 对应 OpenAPI 中的 /posters 接口 body
+export interface PosterPostRequest {
+  title: string;
+  text: string;
+  tags: string[];
+  anonymous: boolean;
+  public: boolean;
+
+  // 对应 API: claim_id (注意下划线命名)
+  claim_id: number;
+
+  // 对应 API: image_mids (图片mid列表，必须传)
+  image_mids: string[];
+
+  // 对应 API: plugins (JSON字符串)
+  plugins: string;
+}
 
 
 
