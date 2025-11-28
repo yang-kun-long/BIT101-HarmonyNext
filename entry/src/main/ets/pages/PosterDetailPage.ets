@@ -9,6 +9,7 @@ import { reactionService } from '../services/gallery/ReactionService';
 import { AvatarWithVerified } from '../components/gallery/AvatarWithVerified';
 import { UserNameWithIdentity } from '../components/gallery/UserNameWithIdentity';
 import curves from '@ohos.curves';
+import { Logger } from '../utils/Logger';
 
 // ✅ 1. 引入支持链接点击的文本组件
 import { LinkableText } from '../components/gallery/LinkableText';
@@ -16,6 +17,7 @@ import { LinkableText } from '../components/gallery/LinkableText';
 @Entry
 @Component
 export default struct PosterDetailPage {
+  private logger = new Logger('PosterDetailPage');
   @State postId: number = 0;
   @State poster: PosterDetail | null = null;
   @State loading: boolean = true;
@@ -529,7 +531,7 @@ export default struct PosterDetailPage {
                   }
                 }
               } catch (e) {
-                console.error('Like sub comment failed:', e);
+                this.logger.error('Like sub comment failed:', e);
               }
             }
           })

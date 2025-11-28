@@ -1,6 +1,7 @@
 // entry/src/main/ets/services/storage/semesterStore.ts
 import fs from '@ohos.file.fs'
 import util from '@ohos.util'
+import { Logger } from '../../utils/Logger';
 
 /** ICS 属性（含参数） */
 export interface IcsProp {
@@ -94,7 +95,6 @@ function normalizeName(x?: string): string {
   return (x || '').trim().replace(/\s+/g, ' ').toLowerCase();
 }
 
-// 你可以替换这段为“从 raw.description/raw.organizer 等解析教师名”
 function pickTeacher(ci: CourseInstance): string {
   if (ci.teacher) return ci.teacher;
   const desc = (ci.raw?.description || '') + '\n' + (ci.raw?.rawText || '');
@@ -125,14 +125,16 @@ const VERSION = 2;
 // ---------------- 存储类 ----------------
 
 export class SemesterStore {
+  // Tag: BIT101_SemesterStore
+  private logger = new Logger('SemesterStore');
   private readonly rootDir: string;
 
   constructor(ctx: FilesCtx) {
     // <filesDir>/bit101/timetable
     this.rootDir = ctx.filesDir;
-    console.info('[SEMFS] ctor.rootDir =', this.rootDir);
-    this.ensureDirRecursive(this.rootDir); // 仍然留着，幂等
-    console.info('[SEMFS] ctor.rootDir =', this.rootDir);
+    this.logger.debug('ctor.rootDir =', this.rootDir);
+    this.ensureDirRecursive(this.rootDir);
+    // 重复调用是为了确保安全，日志已降级为 debug
     this.ensureDirRecursive(this.rootDir);
   }
 
@@ -158,20 +160,20 @@ export class SemesterStore {
       const next = parts[i];
       cur = this.join(cur || '', next);
       const exists: boolean = this.exists(cur);
-      console.info('[SEMFS] ensureDir step=', i, ' dir=', cur, ' exists=', exists);
+
+      this.logger.debug('ensureDir step=', i, 'dir=', cur, 'exists=', exists);
+
       if (!exists) {
         try {
           fs.mkdirSync(cur);
-          console.info('[SEMFS] mkdir ok dir=', cur);
+          this.logger.debug('mkdir ok dir=', cur);
         } catch (e) {
-          const msg: string = (e instanceof Error) ? e.message : String(e);
-          console.error('[SEMFS] mkdir failed dir=', cur, ' msg=', msg);
+          this.logger.error('mkdir failed dir=', cur, e);
           // 不修改行为：交给后续 openSync 抛错
         }
       }
     }
   }
-
 
   private ensureParentDir(filePath: string): void {
     const idx = filePath.lastIndexOf('/');
@@ -181,18 +183,17 @@ export class SemesterStore {
 
   private readJson<T>(path: string): T | null {
     if (!this.exists(path)) {
-      console.info('[SEMFS] readJson.miss path =', path);
+      this.logger.debug('readJson.miss path =', path);
       return null;
     }
     try {
-      console.info('[SEMFS] readJson.path =', path);
+      this.logger.debug('readJson.path =', path);
       const text = fs.readTextSync(path);
       const obj = JSON.parse(text) as T;
-      console.info('[SEMFS] readJson.ok size =', text.length);
+      this.logger.debug('readJson.ok size =', text.length);
       return obj;
     } catch (e) {
-      const msg: string = (e instanceof Error) ? e.message : String(e);
-      console.error('[SEMFS] readJson.failed path =', path, ' msg =', msg);
+      this.logger.error('readJson.failed path =', path, e);
       return null;
     }
   }
@@ -201,12 +202,13 @@ export class SemesterStore {
   private writeJson(path: string, obj: object): void {
     const parentIdx: number = path.lastIndexOf('/');
     const parent: string = parentIdx >= 0 ? path.slice(0, parentIdx) : '';
-    console.info('[SEMFS] writeJson.path =', path, ' parent =', parent);
+
+    this.logger.debug('writeJson.path =', path, 'parent =', parent);
 
     // 父目录存在性/类型日志
     try {
       const exists: boolean = parent.length > 0 ? this.exists(parent) : false;
-      console.info('[SEMFS] writeJson.parent.exists =', exists);
+      this.logger.debug('writeJson.parent.exists =', exists);
       if (exists) {
         try {
           const st = fs.statSync(parent);
@@ -214,15 +216,13 @@ export class SemesterStore {
           let isFile = false;
           try { isDir = st.isDirectory(); } catch { isDir = false; }
           try { isFile = st.isFile(); } catch { isFile = false; }
-          console.info('[SEMFS] writeJson.parent.kind isDir=', isDir, ' isFile=', isFile, ' size=', st.size);
+          this.logger.debug('writeJson.parent.kind isDir=', isDir, 'isFile=', isFile, 'size=', st.size);
         } catch (se) {
-          const msg: string = (se instanceof Error) ? se.message : String(se);
-          console.error('[SEMFS] writeJson.parent.stat.error =', msg);
+          this.logger.warn('writeJson.parent.stat.error =', se);
         }
       }
     } catch (pe) {
-      const msg: string = (pe instanceof Error) ? pe.message : String(pe);
-      console.error('[SEMFS] writeJson.parent.check.error =', msg, ' parent =', parent);
+      this.logger.warn('writeJson.parent.check.error =', pe);
     }
 
     // 仍确保父目录
@@ -234,39 +234,43 @@ export class SemesterStore {
       const json = JSON.stringify(obj);
       const enc = new util.TextEncoder();
       const bytes = enc.encode(json);
-      console.info('[SEMFS] writeJson.bytes =', bytes.byteLength);
+      this.logger.debug('writeJson.bytes =', bytes.byteLength);
 
       stage = 'open';
       let fd = fs.openSync(path, fs.OpenMode.CREATE | fs.OpenMode.TRUNC | fs.OpenMode.READ_WRITE);
-      console.info('[SEMFS] writeJson.open.ok fd=', fd.fd);
+      this.logger.debug('writeJson.open.ok fd=', fd.fd);
 
       try {
         stage = 'write';
         const written = fs.writeSync(fd.fd, bytes.buffer);
-        console.info('[SEMFS] writeJson.write.ok bytes=', written);
+        this.logger.debug('writeJson.write.ok bytes=', written);
 
         stage = 'fsync';
         fs.fsyncSync(fd.fd);
-        console.info('[SEMFS] writeJson.fsync.ok');
+        this.logger.debug('writeJson.fsync.ok');
       } finally {
-        try { stage = 'close'; fs.closeSync(fd); console.info('[SEMFS] writeJson.close.ok'); } catch { /* ignore */ }
+        try {
+          stage = 'close';
+          fs.closeSync(fd);
+          this.logger.debug('writeJson.close.ok');
+        } catch { /* ignore */ }
       }
 
-      console.info('[SEMFS] writeJson.done path =', path);
+      this.logger.debug('writeJson.done path =', path);
     } catch (e) {
       const firstMsg: string = (e instanceof Error) ? e.message : String(e);
-      console.error('[SEMFS] writeJson.failed stage=', stage, ' path =', path, ' msg =', firstMsg);
+      this.logger.error('writeJson.failed stage=', stage, 'path=', path, e);
 
       // 仅在 open 阶段 ENOENT/找不到时，执行兜底：用 openSync(create+read_only) 触发“touch”，再 reopen
       const needFallback: boolean = (stage === 'open') && (firstMsg.indexOf('No such file or directory') >= 0);
       if (!needFallback) throw e;
 
-      console.info('[SEMFS] writeJson.fallback.touch+reopen path =', path);
+      this.logger.debug('writeJson.fallback.touch+reopen path =', path);
       try {
         // 1) touch：不 TRUNC，只 CREATE + READ_ONLY 打开并马上关闭，生成一个空文件
         const fdTouch = fs.openSync(path, fs.OpenMode.CREATE | fs.OpenMode.READ_ONLY);
         try {
-          console.info('[SEMFS] writeJson.fallback.touch.open.ok fd=', fdTouch.fd);
+          this.logger.debug('writeJson.fallback.touch.open.ok fd=', fdTouch.fd);
         } finally {
           try { fs.closeSync(fdTouch); } catch { /* ignore */ }
         }
@@ -279,22 +283,19 @@ export class SemesterStore {
         const fd2 = fs.openSync(path, fs.OpenMode.READ_WRITE | fs.OpenMode.TRUNC);
         try {
           const written2 = fs.writeSync(fd2.fd, bytes2.buffer);
-          console.info('[SEMFS] writeJson.fallback.write.ok bytes=', written2);
+          this.logger.debug('writeJson.fallback.write.ok bytes=', written2);
           fs.fsyncSync(fd2.fd);
-          console.info('[SEMFS] writeJson.fallback.fsync.ok');
+          this.logger.debug('writeJson.fallback.fsync.ok');
         } finally {
           try { fs.closeSync(fd2); } catch { /* ignore */ }
         }
-        console.info('[SEMFS] writeJson.fallback.done path =', path);
+        this.logger.debug('writeJson.fallback.done path =', path);
       } catch (e2) {
-        const msg2: string = (e2 instanceof Error) ? e2.message : String(e2);
-        console.error('[SEMFS] writeJson.fallback.failed path =', path, ' msg =', msg2);
+        this.logger.error('writeJson.fallback.failed path =', path, e2);
         throw e2; // 保持原抛错
       }
     }
   }
-
-
 
   private fileSize(path: string): number {
     try {
@@ -314,13 +315,6 @@ export class SemesterStore {
   }
 
   // ---------- 迁移/补齐逻辑 ----------
-  /**
-   * 对快照做惰性迁移：
-   * - 回填 courseKey/teacher
-   * - 生成或合并 courseColors
-   * - 升级 version
-   * - 可在此加入后续的字段修复逻辑
-   */
   private migrateSnapshot(s: SemesterSnapshot | null): SemesterSnapshot | null {
     if (!s) return s;
 
@@ -393,20 +387,20 @@ export class SemesterStore {
     };
 
     const p = this.semesterPath(data.semesterId);
-    console.info('[SEMFS] saveSemester.path =', p, ' semId =', data.semesterId);
+    this.logger.debug('saveSemester.path =', p, 'semId =', data.semesterId);
+
     const parentIdx = p.lastIndexOf('/');
     const parent = parentIdx >= 0 ? p.slice(0, parentIdx) : '';
     try {
       const parentOk = parent.length > 0 ? this.exists(parent) : false;
-      console.info('[SEMFS] saveSemester.parent.exists =', parentOk, ' parent =', parent);
+      this.logger.debug('saveSemester.parent.exists =', parentOk, 'parent =', parent);
     } catch (pe) {
-      const msg: string = (pe instanceof Error) ? pe.message : String(pe);
-      console.error('[SEMFS] saveSemester.parent.check.error =', msg, ' parent =', parent);
+      this.logger.warn('saveSemester.parent.check.error =', pe);
     }
 
     this.writeJson(p, payload);
     const sizeAfter = this.fileSize(p);
-    console.info('[SEMFS] saveSemester.after.size =', sizeAfter, ' path =', p);
+    this.logger.debug('saveSemester.after.size =', sizeAfter, 'path =', p);
 
     await this.upsertIndexItem(data.semesterId, payload.updatedAt, sizeAfter);
   }
@@ -415,7 +409,7 @@ export class SemesterStore {
     const p = this.semesterPath(semesterId);
     const obj = this.readJson<SemesterSnapshot>(p);
     if (!obj) {
-      console.info('[SEMFS] loadSemester.miss path =', p);
+      this.logger.debug('loadSemester.miss path =', p);
       return null;
     }
 
@@ -432,7 +426,7 @@ export class SemesterStore {
         );
 
     if (needRewrite && migrated) {
-      console.info('[SEMFS] loadSemester.migrate.rewrite path =', p);
+      this.logger.info('loadSemester.migrate.rewrite path =', p);
       this.writeJson(p, migrated);
       await this.upsertIndexItem(semesterId, migrated.updatedAt || Date.now(), this.fileSize(p));
       return migrated;
@@ -445,10 +439,9 @@ export class SemesterStore {
     if (this.exists(p)) {
       try {
         fs.unlinkSync(p);
-        console.info('[SEMFS] removeSemester.unlink path =', p);
+        this.logger.info('removeSemester.unlink path =', p);
       } catch (e) {
-        const msg: string = (e instanceof Error) ? e.message : String(e);
-        console.error('[SEMFS] removeSemester.unlink.failed path =', p, ' msg =', msg);
+        this.logger.error('removeSemester.unlink.failed path =', p, e);
       }
     }
     await this.removeIndexItem(semesterId);
@@ -461,7 +454,7 @@ export class SemesterStore {
     if (obj && obj.items) {
       return obj;
     }
-    console.info('[SEMFS] listIndex.default path =', idxPath);
+    this.logger.debug('listIndex.default path =', idxPath);
     return { version: VERSION, items: [] };
   }
 
@@ -481,7 +474,7 @@ export class SemesterStore {
     if (!replaced) out.items.push({ semesterId, updatedAt, size });
 
     const ip = this.indexPath();
-    console.info('[SEMFS] upsertIndexItem.path =', ip, ' semId =', semesterId, ' size =', size);
+    this.logger.debug('upsertIndexItem.path =', ip, 'semId =', semesterId, 'size =', size);
     this.writeJson(ip, out);
   }
 
@@ -492,7 +485,7 @@ export class SemesterStore {
       if (idx.items[i].semesterId !== semesterId) out.items.push(idx.items[i]);
     }
     const ip = this.indexPath();
-    console.info('[SEMFS] removeIndexItem.path =', ip, ' semId =', semesterId);
+    this.logger.debug('removeIndexItem.path =', ip, 'semId =', semesterId);
     this.writeJson(ip, out);
   }
 }

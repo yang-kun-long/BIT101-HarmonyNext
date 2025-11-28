@@ -1,6 +1,7 @@
 // entry/src/main/ets/services/auth/encryptPassword.ts
 import * as CryptoJSPkg from '../../vendor/crypto-js-4.2.0.js';
-
+import { Logger } from '../../utils/Logger';
+const logger = new Logger('EncryptPassword');
 function mustGetCryptoJS(): any {
   const cands: any[] = [
     (CryptoJSPkg as any)?.CryptoJS,
@@ -13,7 +14,7 @@ function mustGetCryptoJS(): any {
   }
   // 打印 keys 帮助定位打包问题
   // @ts-ignore
-  console.error('[encryptPassword] CryptoJS keys:', Object.keys(CryptoJSPkg || {}));
+  logger.debug('CryptoJS keys:', Object.keys(CryptoJSPkg || {}));
   throw new Error('CryptoJS not loaded. Check vendor import path.');
 }
 

@@ -1,8 +1,10 @@
+// entry/src/main/ets/pages/LoginPage.ets
 import { AuthRepository } from '../services/auth/authRepository'
 import router from '@ohos.router'
 import { createBitSsoSessionAuto } from '../services/lexue/BitSsoAuto';
 import { syncUserCalendar } from '../services/lexue/CalendarService';
 import { BusinessError } from '@kit.BasicServicesKit'; // 引入系统错误类型
+import { Logger } from '../utils/Logger';
 
 interface RedirectParams {
   redirect?: string
@@ -14,6 +16,7 @@ const WEBVPN_LEXUE_BASE =
 @Entry
 @Component
 export default struct LoginPage {
+  private logger = new Logger('LoginPage');
   @State sid: string = ''        // 学号
   @State password: string = ''   // 明文密码
   @State captcha: string = ''    // 验证码（允许留空）
@@ -37,7 +40,7 @@ export default struct LoginPage {
       })
 
       if (this.showRaw) {
-        console.log('[Login] loginBoth result: ' + JSON.stringify(ret))
+        this.logger.debug('loginBoth result:', ret);
       }
 
       const okBit101 = !!(ret.bit101FakeCookie && ret.bit101FakeCookie.length > 0)
@@ -71,10 +74,10 @@ export default struct LoginPage {
             webvpnLexueBase: currentBaseUrl
           });
 
-          console.info(`[Login] 日历同步完成，共 ${count} 条数据`);
+          this.logger.info('日历同步完成，共', count, '条数据');
         } catch (syncErr) {
           // 日历同步失败不应阻止跳转，但要打印详细日志
-          console.error('[Login] 日历同步失败详情:', JSON.stringify(syncErr));
+          this.logger.error('日历同步失败详情:', syncErr);
         }
 
         AppStorage.setOrCreate('current_username', this.sid)
@@ -122,9 +125,7 @@ export default struct LoginPage {
       }
 
       this.msg = `登录异常：${errorMsg}`
-
-      // 🔥 关键日志：强制 JSON 序列化，让你在控制台看清 [object Object] 到底是什么
-      console.error('[Login] login error details:', JSON.stringify(e));
+      this.logger.error('login error details:', e);
     } finally {
       this.busy = false
     }

@@ -3,7 +3,8 @@
 
 import { rcp } from '@kit.RemoteCommunicationKit';
 import { BusinessError } from '@kit.BasicServicesKit';
-
+import { Logger } from '../../utils/Logger';
+const logger = new Logger('RcpSession');
 // ================= 对外类型定义 =================
 
 export interface RcpSessionOptions {
@@ -58,10 +59,7 @@ function isAbsoluteUrl(url: string): boolean {
   return /^https?:\/\//i.test(url);
 }
 
-function logDebug(enabled: boolean, ...args: unknown[]) {
-  if (!enabled) return;
-  console.log('[RcpSession]', ...args);
-}
+
 
 // ================= 核心类 =================
 
@@ -142,7 +140,7 @@ export class RcpSession {
       }
     }
 
-    logDebug(this.debug, 'REQ', method, finalUrl, 'headers=', mergedHeaders);
+    logger.debug('REQ', method, finalUrl, 'headers=', mergedHeaders);
 
     // 3) 构造 Request content
     let content: any = undefined;
@@ -229,15 +227,12 @@ export class RcpSession {
       }
 
       const bodyText = resp.toString();
-      logDebug(
-        this.debug,
+      logger.debug(
         'RESP',
         method,
         finalUrl,
-        'status=',
-        resp.statusCode,
-        'effectiveUrl=',
-        resp.effectiveUrl,
+        'status=', resp.statusCode,
+        'effectiveUrl=', resp.effectiveUrl
       );
 
       return {
@@ -249,7 +244,7 @@ export class RcpSession {
       };
     } catch (e) {
       const err = e as BusinessError;
-      logDebug(this.debug, 'ERROR', method, finalUrl, err?.code, err?.message);
+      logger.error('ERROR', method, finalUrl, err?.code, err?.message);
       throw err;
     } finally {
       try {

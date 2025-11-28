@@ -1,4 +1,5 @@
 // src/main/ets/services/jw/periodTimesStore.ts
+import { Logger } from '../../utils/Logger';
 import fileIo from '@ohos.file.fs'
 import util from '@ohos.util'
 import { __setPeriodTimesInMemory, getDefaultPeriodTimes, PeriodTime } from './periodTimes'
@@ -8,6 +9,7 @@ export interface TimesFilesCtx { filesDir: string }
 const PERIOD_TIMES_FILENAME = 'period_times.json';
 
 export class PeriodTimesStore {
+  private logger = new Logger('PeriodTimesStore');
   constructor(private ctx: TimesFilesCtx) {}
 
   private filePath(): string {
@@ -18,26 +20,26 @@ export class PeriodTimesStore {
   load(): PeriodTime[] {
     const p = this.filePath()
     try {
-      console.info('[PTS] load.path =', p)
+      this.logger.debug('load path:', p);
       const parent = p.slice(0, Math.max(0, p.lastIndexOf('/')))
       try {
         const parentOk = parent ? fileIo.accessSync(parent) : false
-        console.info('[PTS] parent.exists =', parentOk, ' parent =', parent)
+        this.logger.debug('parent check:', parentOk, 'parent:', parent);
       } catch (pe) {
-        console.error('[PTS] parent.access error =', (pe as Error).message, ' parent =', parent)
+        this.logger.debug('parent access check failed (expected if first run):', pe, 'parent:', parent);
       }
 
       let exists = false
       try {
         exists = fileIo.accessSync(p)
-        console.info('[PTS] file.exists =', exists)
+        this.logger.debug('file exists:', exists);
       } catch (ae) {
-        console.error('[PTS] file.access error =', (ae as Error).message)
+        this.logger.debug('file access check failed:', ae);
       }
 
       if (!exists) {
         const def = getDefaultPeriodTimes()
-        console.info('[PTS] file not exist -> save default')
+        this.logger.info('file not found, initializing default values.');
         this.save(def)          // 首次落盘
         __setPeriodTimesInMemory(def)
         return def
@@ -46,13 +48,13 @@ export class PeriodTimesStore {
       const fd = fileIo.openSync(p, fileIo.OpenMode.READ_ONLY)
       try {
         const stat = fileIo.statSync(p)
-        console.info('[PTS] file.size =', stat.size)
+        this.logger.debug('file size:', stat.size);
         const buf = new ArrayBuffer(stat.size)
         fileIo.readSync(fd.fd, buf, { offset: 0 })
         const txt = String.fromCharCode.apply(null, Array.from(new Uint8Array(buf)) as unknown as number[])
         const obj = JSON.parse(txt)
         const okArr = Array.isArray(obj) && obj.length === 13
-        console.info('[PTS] json.okArr =', okArr)
+        this.logger.debug('loaded json content:', okArr);
         if (okArr) {
           const list: PeriodTime[] = obj.map((it: any) => ({ start: String(it.start || ''), end: String(it.end || '') }))
           __setPeriodTimesInMemory(list)
@@ -65,7 +67,7 @@ export class PeriodTimesStore {
         try { fileIo.closeSync(fd) } catch {}
       }
     } catch (e) {
-      console.error('[PTS] load.failed =', (e as Error).message, ' path =', p)
+      this.logger.error('load failed:', e, 'path:', p);
       const def = getDefaultPeriodTimes()
       __setPeriodTimesInMemory(def)
       return def
@@ -75,13 +77,13 @@ export class PeriodTimesStore {
   save(list: PeriodTime[]): void {
     const p = this.filePath()
     try {
-      console.info('[PTS] save.path =', p)
+      this.logger.debug('save path:', p);
       const parent = p.slice(0, Math.max(0, p.lastIndexOf('/')))
       try {
         const parentOk = parent ? fileIo.accessSync(parent) : false
-        console.info('[PTS] save.parent.exists =', parentOk, ' parent =', parent)
+        this.logger.debug('save parent check:', parentOk, 'parent:', parent);
       } catch (pe) {
-        console.error('[PTS] save.parent.access error =', (pe as Error).message, ' parent =', parent)
+        this.logger.debug('save parent access check failed:', pe, 'parent:', parent);
       }
 
       const json = JSON.stringify(list, null, 2)
@@ -89,15 +91,15 @@ export class PeriodTimesStore {
       try {
         const encoder = new util.TextEncoder()
         const bytes = encoder.encode(json)
-        console.info('[PTS] save.bytes =', bytes.byteLength)
+        this.logger.debug('save bytes:', bytes.byteLength);
         fileIo.writeSync(fd.fd, bytes.buffer)
       } finally {
         try { fileIo.closeSync(fd) } catch {}
       }
       __setPeriodTimesInMemory(list)
-      console.info('[PTS] save.ok')
+      this.logger.debug('save success');
     } catch (e) {
-      console.error('[PTS] save.failed =', (e as Error).message, ' path =', p)
+      this.logger.error('save failed:', e, 'path:', p);
     }
   }
 }

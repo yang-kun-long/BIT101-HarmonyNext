@@ -8,6 +8,7 @@ import { syncUserCalendar } from '../../services/lexue/CalendarService';
 import BitSsoSession from '../../services/lexue/BitSsoSession';
 import promptAction from '@ohos.promptAction'; // [新增] 用于 UI 提示
 import router from '@ohos.router'; // [新增] 用于过期跳转
+import { Logger } from '../../utils/Logger';
 
 // 定义 WebVPN Base (需要与 Login 页保持一致，或者单独提取常量文件)
 const WEBVPN_LEXUE_BASE =
@@ -23,6 +24,7 @@ interface SsoWithUsername {
 export default struct DdlList {
   @State private ddlList: LexueCalendarEvent[] = [];
   @State private loading: boolean = true;
+  private logger = new Logger('DdlList');
 
   // 弹框相关状态
   @State private showDetail: boolean = false;
@@ -36,7 +38,7 @@ export default struct DdlList {
 
   aboutToAppear(): void {
     this.loadDdl().catch((err: Error) => {
-      console.error('[DdlList] loadDdl failed', err);
+      this.logger.error('loadDdl failed', err);
     });
   }
 

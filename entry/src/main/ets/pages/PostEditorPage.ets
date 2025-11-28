@@ -4,7 +4,7 @@ import promptAction from '@ohos.promptAction';
 import picker from '@ohos.file.picker';
 import { galleryService } from '../services/gallery/GalleryService';
 import { PosterClaim, PosterPostRequest } from '../services/gallery/GalleryModels';
-
+import { Logger } from '../utils/Logger';
 // ===============================================================
 // 1. 数据模型
 // ===============================================================
@@ -20,6 +20,7 @@ interface ImageUploadItem {
 // ===============================================================
 @CustomDialog
 struct TagInputDialog {
+
   controller: CustomDialogController;
   initialText: string = '';
   // 显式声明箭头函数的返回值类型
@@ -203,6 +204,7 @@ struct SelectClaimDialog {
 @Entry
 @Component
 struct PostEditorPage {
+  private logger = new Logger('PostEditorPage');
   @State posterId: number = 0;
   @State isLoading: boolean = false;
 
@@ -316,7 +318,7 @@ struct PostEditorPage {
         this.localImages.push(...newItems);
       }
     } catch (err) {
-      console.error('PhotoViewPicker failed', err);
+      this.logger.error('PhotoViewPicker failed', err);
     }
   }
 

@@ -1,7 +1,8 @@
-// services/appEnv.ts
+// entry/src/main/ets/services/appEnv.ts
 // 统一存放应用级路径；带日志，避免多实例/路径不一致
 // 不依赖 SDK 的命名类型，避免打包期类型冲突
-
+import { Logger } from '../utils/Logger';
+const logger = new Logger('AppEnv');
 /** 轻量上下文：只关注我们需要的字段 */
 export interface LiteContext {
   filesDir?: string
@@ -42,28 +43,30 @@ export function appFilesDir(ctx?: LiteContext | AbilityCtx): string {
   const fallback = '/data/storage/el2/base/files'
   const out = fromArg || fromCache || fallback
 
-  console.info('[AppEnv] appFilesDir ->', out)
+  logger.debug('appFilesDir ->', out);
   return out
 }
 
 /** 设置 Ability 上下文（在 EntryAbility.onCreate 等生命周期里调用一次） */
 export function setAbilityContext(ctx: AbilityCtx): void {
   _ability = ctx
-  console.info(
-    '[AppEnv] setAbilityContext',
-    JSON.stringify({ filesDir: ctx.filesDir, cacheDir: ctx.cacheDir, tempDir: ctx.tempDir })
-  )
+  logger.info('setAbilityContext', {
+    filesDir: ctx.filesDir,
+    cacheDir: ctx.cacheDir,
+    tempDir: ctx.tempDir
+  });
 }
 
 /** 读取已缓存的 Ability 上下文（可能为 undefined） */
 export function getAbilityContext(): AbilityCtx | undefined {
   const has = _ability ? 'yes' : 'no'
-  console.info('[AppEnv] getAbilityContext called, has =', has)
+  logger.debug('getAbilityContext called, has =', has);
   if (_ability) {
-    console.info(
-      '[AppEnv] current ctx',
-      JSON.stringify({ filesDir: _ability.filesDir, cacheDir: _ability.cacheDir, tempDir: _ability.tempDir })
-    )
+    logger.debug('current ctx', {
+      filesDir: _ability.filesDir,
+      cacheDir: _ability.cacheDir,
+      tempDir: _ability.tempDir
+    });
   }
   return _ability
 }

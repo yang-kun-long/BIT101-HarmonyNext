@@ -1,9 +1,9 @@
 // entry/src/main/ets/services/lexue/BitSsoAuto.ts
-
+import { Logger } from '../../utils/Logger';
 import BitSsoSession from './BitSsoSession';
 import RcpSession, { RcpResponseData } from '../../core/network/rcpSession';
 import SimpleCookieJar from '../../core/network/cookieJar';
-
+const logger = new Logger('BitSsoAuto');
 const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36';
 
@@ -45,24 +45,19 @@ export async function detectBitSsoLoginMode(
     });
 
     if (debug) {
-      console.log(
-        '[BitSsoAuto] probe inner: status =',
-        resp.statusCode,
-        'effectiveUrl =',
-        resp.effectiveUrl,
-      );
+      logger.debug('probe inner: status =', resp.statusCode, 'effectiveUrl =', resp.effectiveUrl);
     }
 
     // 这里稍微宽松一点：2xx / 3xx 都当成功
     if (resp.statusCode >= 200 && resp.statusCode < 400) {
       if (debug) {
-        console.log('[BitSsoAuto] 内网直连探测成功，使用 inner 模式');
+        logger.info('内网直连探测成功，使用 inner 模式');
       }
       return 'inner';
     }
   } catch (e: any) {
     if (debug) {
-      console.warn('[BitSsoAuto] 内网直连探测异常:', e);
+      logger.debug('内网直连探测异常:', e);
     }
 
     // ❗ 特判 “Number of redirects hit maximum amount”
@@ -71,20 +66,18 @@ export async function detectBitSsoLoginMode(
 
     if (code === 1007900047 || String(msg).includes('Number of redirects hit maximum amount')) {
       if (debug) {
-        console.log(
-          '[BitSsoAuto] 重定向次数过多，但说明已连通 lexue，仍然判定为 inner 模式',
-        );
+        logger.info('重定向次数过多，但说明已连通 lexue，仍然判定为 inner 模式');
       }
       return 'inner';
     }
 
     if (debug) {
-      console.warn('[BitSsoAuto] 内网直连探测异常，fallback 到 webvpn:', e);
+      logger.debug('内网直连探测异常，fallback 到 webvpn:', e);
     }
   }
 
   if (debug) {
-    console.log('[BitSsoAuto] 内网探测失败，使用 webvpn 模式');
+    logger.info('内网探测失败，使用 webvpn 模式');
   }
   return 'webvpn';
 }
@@ -137,12 +130,7 @@ export async function createBitSsoSessionAuto(
   });
 
   if (debug) {
-    console.log(
-      '[BitSsoAuto] createBitSsoSessionAuto: mode =',
-      mode,
-      ', useWebvpn =',
-      useWebvpn,
-    );
+    logger.info('createBitSsoSessionAuto result: mode=', mode, 'useWebvpn=', useWebvpn);
   }
 
   return { mode, sso };

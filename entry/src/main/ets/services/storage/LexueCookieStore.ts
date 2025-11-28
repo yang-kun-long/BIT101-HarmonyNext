@@ -1,5 +1,5 @@
 // entry/src/main/ets/services/storage/LexueCookieStore.ts
-
+import { Logger } from '../../utils/Logger';
 import preferences from '@ohos.data.preferences';
 import type { CookieDump } from '../../core/network/cookieJar';
 
@@ -14,6 +14,7 @@ const KEY_LEXUE_COOKIE_JAR_LEGACY = 'lexue_cookie_jar';
 export type LexueCookieScope = 'inner' | 'webvpn';
 
 export class LexueCookieStore {
+  private logger = new Logger('LexueCookieStore');
   // 和 TokenStore 一样的能力上下文注入方案
   private static abilityContext: any | null = null;
 
@@ -87,10 +88,7 @@ export class LexueCookieStore {
         return parsed as CookieDump;
       }
     } catch (e) {
-      console.warn(
-        '[LexueCookieStore] 解析 cookie dump 失败，将忽略：',
-        e,
-      );
+      this.logger.warn('解析 cookie dump 失败，将忽略：', e);
     }
     return null;
   }

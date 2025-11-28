@@ -1,4 +1,5 @@
 // entry/src/main/ets/pages/PostPage.ets
+import { Logger } from '../utils/Logger';
 import { PostersTabPage } from '../components/gallery/PostersTabPage';
 import { PosterListState } from '../services/gallery/PosterListState';
 import { PostersMode } from '../services/gallery/GalleryService';
@@ -7,6 +8,7 @@ import router from '@ohos.router'; // 确保引入 router
 
 @Component
 export default struct PostPage {
+  private logger = new Logger('PostPage');
   // --- 1. 数据流保持不变 ---
   @State recommendState: PosterListState = new PosterListState(PostersMode.Recommend);
   @State hotState: PosterListState = new PosterListState(PostersMode.Hot);
@@ -38,7 +40,7 @@ export default struct PostPage {
       url: 'pages/PostEditorPage'
     }).catch((err: Error) => {
       // 如果跳转失败，通常是 main_pages.json 没配置好
-      console.error('Jump to PostEditorPage failed:', JSON.stringify(err));
+      this.logger.error('Jump to PostEditorPage failed:', err);
     });
   }
 

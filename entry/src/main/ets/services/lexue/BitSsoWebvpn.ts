@@ -1,10 +1,10 @@
 // entry/src/main/ets/services/lexue/BitSsoWebvpn.ts
-
+import { Logger } from '../../utils/Logger';
 import RcpSession, { RcpResponseData } from '../../core/network/rcpSession';
 import { encryptPassword } from '../auth/encryptPassword';
 
 // ---------------- WebVPN 配置（与 Python bit_auth 对齐） ----------------
-
+const logger = new Logger('BitSsoWebvpn');
 const SSO_WEBVPN_URL =
   'https://webvpn.bit.edu.cn/https/' +
     '77726476706e69737468656265737421e3e44ed225397c1e7b0c9ce29b5b/cas/login';
@@ -102,18 +102,11 @@ export async function loginViaWebvpn(
   }
 
   const { salt, execution } = extractSaltAndExecution(loginPage.bodyText);
-  if (debug) {
-    console.log('[BitSsoWebvpn] salt =', salt);
-    console.log('[BitSsoWebvpn] execution =', execution);
-  }
+  logger.debug('salt =', salt);
+  logger.debug('execution =', execution);
 
   const encryptedPassword = encryptPassword(password, salt);
-  if (debug) {
-    console.log(
-      '[BitSsoWebvpn] encryptedPassword (length) =',
-      encryptedPassword.length,
-    );
-  }
+  logger.debug('encryptedPassword (length) =', encryptedPassword.length);
 
   const form: Record<string, string> = {
     username,
@@ -137,16 +130,11 @@ export async function loginViaWebvpn(
     collectTimeInfo: false,
   });
 
-  if (debug) {
-    console.log(
-      '[BitSsoWebvpn] loginResp status =',
-      loginResp.statusCode,
-      'effectiveUrl =',
-      loginResp.effectiveUrl,
-      'headers =',
-      JSON.stringify(loginResp.headers || {}),
-    );
-  }
+  logger.debug(
+    'loginResp status =', loginResp.statusCode,
+    'effectiveUrl =', loginResp.effectiveUrl,
+    'headers =', loginResp.headers
+  );
 
   // 允许 200 / 302 / 303 之类，只要不是 4xx/5xx 就先往后走
   if (loginResp.statusCode >= 400) {
@@ -161,14 +149,7 @@ export async function loginViaWebvpn(
     collectTimeInfo: false,
   });
 
-  if (debug) {
-    console.log(
-      '[BitSsoWebvpn] portalResp status =',
-      portalResp.statusCode,
-      'effectiveUrl =',
-      portalResp.effectiveUrl,
-    );
-  }
+  logger.debug('portalResp status =', portalResp.statusCode, 'effectiveUrl =', portalResp.effectiveUrl);
 
   if (portalResp.statusCode !== 200 || isLoginPage(portalResp.bodyText)) {
     throw new Error(

@@ -3,7 +3,6 @@ import { WebPage } from '../components/web/WebPage';
 @Component
 export default struct ForumPage {
   // 【修正】这里换成真正的网页前端地址
-  // 如果手机版显示效果不好，也可以尝试 'http://android.bit101.cn' (Android源码里提到的另一个地址)
   private readonly FORUM_URL = 'https://bit101.cn';
 
   build() {

@@ -1,11 +1,11 @@
 // File: entry/src/main/ets/services/Bit101Auth.ts
 // HarmonyOS NEXT (ArkTS) — BIT101 login (minimal & stable)
-
+import { Logger } from '../utils/Logger';
 import http from '@ohos.net.http';
 
 // 显式导入 UMD 模块；兼容 default / CryptoJS / 直接顶层导出 / 全局挂载
 import * as CryptoJSPkg from '../vendor/crypto-js-4.2.0.js';
-
+const logger = new Logger('Bit101Auth');
 // ---------- helpers ----------
 function mustGetCryptoJS(): any {
   // 依次尝试：
@@ -36,7 +36,7 @@ function mustGetCryptoJS(): any {
 
   // 打印模块键值帮助定位
   // @ts-ignore
-  console.error('[Bit101Auth] CryptoJS module keys:', Object.keys(CryptoJSPkg || {}));
+  logger.debug('CryptoJS module keys:', Object.keys(CryptoJSPkg || {}));
   throw new Error('CryptoJS not loaded. Check vendor path and import (../vendor/crypto-js-4.2.0.js)');
 }
 
@@ -47,22 +47,7 @@ function redact(str: string, keepStart: number, keepEnd: number): string {
   return s.slice(0, keepStart) + '***' + s.slice(-keepEnd);
 }
 
-// 将超长文本拆成多行打印，避免日志系统单行截断
-function logLarge(label: string, text: string, chunkSize: number = 2000) {
-  if (text == null) {
-    console.log(label + ' <null>');
-    return;
-  }
-  const s = String(text);
-  if (s.length <= chunkSize) {
-    console.log(label + s);
-    return;
-  }
-  console.log(label + `[len=${s.length}] ↓`);
-  for (let i = 0; i < s.length; i += chunkSize) {
-    console.log(label + `[${i}-${Math.min(i + chunkSize, s.length)}] ` + s.slice(i, i + chunkSize));
-  }
-}
+
 
 // ---------- types ----------
 export interface InitVerifyResp {
@@ -120,7 +105,7 @@ export class Bit101Client {
     if (!sid) throw new Error('sid is required');
 
     const url = this.baseUrl + '/user/webvpn_verify_init';
-    console.log('[Bit101Auth] initVerify request ' + JSON.stringify({ url: url, sid: redact(sid, 4, 2), timeoutMs }));
+    logger.debug('initVerify request', { url, sid: redact(sid, 4, 2), timeoutMs });
 
     const client = http.createHttp();
     try {
@@ -136,8 +121,8 @@ export class Bit101Client {
       const text: string = (res.result as string) || '';
       const headers: any = res.header || {};
 
-      logLarge('[Bit101Auth] initVerify FULL BODY: ', text);
-      console.log('[Bit101Auth] initVerify HEADERS: ' + JSON.stringify(headers));
+      logger.debug('initVerify FULL BODY:', text);
+      logger.debug('initVerify HEADERS:', headers);
 
       if (code < 200 || code >= 300) throw new Error('initVerify HTTP ' + code + ': ' + text);
 
@@ -151,7 +136,7 @@ export class Bit101Client {
 
       // Fallback to Set-Cookie if body.cookie missing
       const setCookieAny: any = headers['Set-Cookie'] ? headers['Set-Cookie'] : headers['set-cookie'];
-      console.log('[Bit101Auth] initVerify Set-Cookie: ' + JSON.stringify(setCookieAny ? setCookieAny : '(none)'));
+      logger.debug('initVerify Set-Cookie:', setCookieAny || '(none)');
       if (!cookieStr && setCookieAny) {
         if (Array.isArray(setCookieAny)) cookieStr = setCookieAny.join('; ');
         else cookieStr = String(setCookieAny);
@@ -178,7 +163,7 @@ export class Bit101Client {
     if (payload.captcha === undefined || payload.captcha === null) payload.captcha = '';
 
     const url = this.baseUrl + '/user/webvpn_verify';
-    console.log('[Bit101Auth] verify request meta ' + JSON.stringify({
+    logger.debug('verify request meta', {
       url,
       keys: Object.keys(payload),
       sid: redact(payload.sid, 4, 2),
@@ -188,7 +173,7 @@ export class Bit101Client {
       cookie: redact(payload.cookie, 8, 6),
       captcha: payload.captcha ? redact(payload.captcha, 2, 2) : '(empty)',
       timeoutMs
-    }));
+    });
 
     const client = http.createHttp();
     try {
@@ -214,8 +199,8 @@ export class Bit101Client {
       const code: number = res.responseCode;
       const raw: string = (res.result as string) || '';
       const respHeaders: any = res.header || {};
-      logLarge('[Bit101Auth] verify FULL BODY: ', raw);
-      console.log('[Bit101Auth] verify HEADERS: ' + JSON.stringify(respHeaders));
+      logger.debug('verify FULL BODY:', raw);
+      logger.debug('verify HEADERS:', respHeaders);
 
       let parsed: any = raw;
       try { parsed = JSON.parse(raw); } catch {}
@@ -260,10 +245,10 @@ export function __selfTest(): boolean {
     const out = encryptPassword('password123', 'MDEyMzQ1Njc4OWFiY2RlZg==');
     const reference = 'hHSUMW7WbI0rQ3UPQpOe0Q==';
     const pass = out === reference;
-    console.log('[Bit101Auth] __selfTest', { pass, out });
+    logger.debug('__selfTest result:', { pass, out });
     return pass;
   } catch (e) {
-    console.error('[Bit101Auth] __selfTest exception', e);
+    logger.error('__selfTest exception', e);
     return false;
   }
 }

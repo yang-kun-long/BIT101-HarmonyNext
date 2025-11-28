@@ -1,3 +1,5 @@
+// entry/src/main/ets/services/gallery/PosterListState.ets
+import { Logger } from '../../utils/Logger';
 import { galleryService, PostersMode } from './GalleryService';
 import { Poster } from './GalleryModels';
 
@@ -7,6 +9,7 @@ import { Poster } from './GalleryModels';
  */
 @Observed
 export class PosterListState {
+  private logger = new Logger('PosterListState');
   // 数据源
   public items: Poster[] = [];
 
@@ -46,7 +49,7 @@ export class PosterListState {
         this.hasMore = false;
       }
     } catch (e) {
-      console.error('[PosterListState] Refresh failed', e);
+      this.logger.error('Refresh failed', e);
     } finally {
       this.isRefreshing = false;
     }
@@ -76,7 +79,7 @@ export class PosterListState {
         this.hasMore = false;
       }
     } catch (e) {
-      console.error('[PosterListState] LoadMore failed', e);
+      this.logger.error('LoadMore failed', e);
     } finally {
       this.isLoading = false;
     }

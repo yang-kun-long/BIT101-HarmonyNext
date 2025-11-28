@@ -1,3 +1,5 @@
+// entry/src/main/ets/pages/Index.ets
+import { Logger } from '../utils/Logger';
 import ScheduleShellPage from './ScheduleShellPage'
 import MapPage from './MapPage'
 import ForumPage from './ForumPage'
@@ -17,6 +19,7 @@ enum TabKey {
 @Entry
 @Component
 struct Index {
+  private logger = new Logger('Index');
   @State current: TabKey = TabKey.Schedule
 
   // 🔥 核心修改：添加状态位，用于实现“懒加载 + 保活”
@@ -41,7 +44,7 @@ struct Index {
     if (tab === TabKey.Me) this.isMeLoaded = true;
 
     this.current = tab
-    console.log('[tab]', this.current)
+    this.logger.info('切换 Tab 至:', this.current);
   }
 
   @Builder

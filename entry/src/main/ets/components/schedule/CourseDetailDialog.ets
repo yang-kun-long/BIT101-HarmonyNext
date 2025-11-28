@@ -4,6 +4,7 @@ import type { RawIcsEvent } from '../../services/storage/semesterStore'
 import type { CalendarEvent } from '../../services/jw/timetableRepository'
 import type { PeriodTime } from '../../services/jw/periodTimes'
 import { parseIcsToDate, sanitizeLocation } from '../../utils/scheduleUtils'
+import { Logger } from '../../utils/Logger';
 
 @Component
 export struct CourseDetailDialog {
@@ -12,6 +13,7 @@ export struct CourseDetailDialog {
   @Prop raw: RawIcsEvent | null
   @Prop baseFont: number = 12
   @Prop periodTimes: PeriodTime[] = []
+  private logger = new Logger('CourseDetailDialog');
 
   // --- Callback ---
   onClose: () => void = () => {}
@@ -23,7 +25,7 @@ export struct CourseDetailDialog {
 
   // 组件挂载时做入场动画
   aboutToAppear(): void {
-    console.info('[CourseDetailDialog] aboutToAppear, evTitle=', this.evTitle())
+    this.logger.info('aboutToAppear, evTitle=', this.evTitle());
 
     this.opacityVal = 0
     this.scaleVal = 0.96

@@ -1,5 +1,5 @@
 // entry/src/main/ets/services/lexue/BitSsoSession.ts
-
+import { Logger } from '../../utils/Logger';
 import RcpSession, { RcpResponseData } from '../../core/network/rcpSession';
 import SimpleCookieJar from '../../core/network/cookieJar';
 import { encryptPassword } from '../auth/encryptPassword';
@@ -96,6 +96,7 @@ function resolveRedirectUrl(currentUrl: string, location: string): string {
 }
 
 export class BitSsoSession {
+  private logger = new Logger('BitSsoSession');
   private readonly useWebvpn: boolean;
   private readonly debug: boolean;
   private readonly jar: SimpleCookieJar;
@@ -111,7 +112,7 @@ export class BitSsoSession {
     this.webvpnLexueBase = options?.webvpnLexueBase;
 
     if (this.useWebvpn && this.debug) {
-      console.log('[BitSsoSession] useWebvpn = true，将通过 WebVPN 登录 SSO');
+      this.logger.info('useWebvpn = true，将通过 WebVPN 登录 SSO');
     }
 
     this.jar = new SimpleCookieJar();
@@ -149,7 +150,7 @@ export class BitSsoSession {
       const msg = String(e);
       if (msg.includes('统一身份认证登录页')) {
         if (this.debug) {
-          console.warn('[BitSsoSession] 检测到 SSO 失效，清空 cookie 后重试一次登录');
+          this.logger.warn('检测到 SSO 失效，清空 cookie 后重试一次登录');
         }
         await this.clearPersistentSession();
         await this.loginSso(username, password);
@@ -179,7 +180,7 @@ export class BitSsoSession {
       const dump = await this.cookieStore.loadCookieDump();
       if (!dump) {
         if (this.debug) {
-          console.log('[BitSsoSession] restoreFromStorage: 没有持久化 cookie');
+          this.logger.debug('restoreFromStorage: 没有持久化 cookie');
         }
         return;
       }
@@ -213,15 +214,10 @@ export class BitSsoSession {
       this.loggedInLexue = hasLexue;
 
       if (this.debug) {
-        console.log(
-          '[BitSsoSession] restoreFromStorage: 已恢复 cookie, hasSso =',
-          hasSso,
-          ', hasLexue =',
-          hasLexue,
-        );
+        this.logger.info('restoreFromStorage: 已恢复 cookie', 'hasSso=', hasSso, 'hasLexue=', hasLexue);
       }
     } catch (e) {
-      console.warn('[BitSsoSession] restoreFromStorage 出错：', e);
+      this.logger.warn('restoreFromStorage 出错：', e);
     }
   }
 
@@ -245,13 +241,13 @@ export class BitSsoSession {
 
     const { salt, execution } = extractSaltAndExecution(loginPage.bodyText);
     if (this.debug) {
-      console.log('[BitSsoSession] salt =', salt);
-      console.log('[BitSsoSession] execution =', execution);
+      this.logger.debug('salt =', salt);
+      this.logger.debug('execution =', execution);
     }
 
     const encryptedPassword = encryptPassword(password, salt);
     if (this.debug) {
-      console.log('[BitSsoSession] encryptedPassword (length) =', encryptedPassword.length);
+      this.logger.debug('encryptedPassword (length) =', encryptedPassword.length);
     }
 
     const form: Record<string, string> = {
@@ -276,17 +272,10 @@ export class BitSsoSession {
     });
 
     if (this.debug) {
-      console.log(
-        '[BitSsoSession] loginResp status =',
-        loginResp.statusCode,
-        'effectiveUrl =',
-        loginResp.effectiveUrl,
-      );
-      console.log(
-        '[BitSsoSession] loginResp looksLikeLoginPage =',
-        isLoginPage(loginResp.bodyText),
-      );
-      console.log('[BitSsoSession] cookies after login =', JSON.stringify(this.jar.dump()));
+      this.logger.debug('loginResp status =', loginResp.statusCode, 'effectiveUrl =', loginResp.effectiveUrl);
+
+      this.logger.debug('loginResp looksLikeLoginPage =', isLoginPage(loginResp.bodyText));
+      this.logger.debug('cookies after login =', this.jar.dump());
     }
 
     if (
@@ -323,9 +312,7 @@ export class BitSsoSession {
       });
 
       if (this.debug) {
-        console.log(
-          `[BitSsoSession] manual GET step=${i} status=${resp.statusCode} url=${currentUrl}`,
-        );
+        this.logger.debug(`manual GET step=${i}`, `status=${resp.statusCode}`, `url=${currentUrl}`);
       }
 
       if (
@@ -351,7 +338,7 @@ export class BitSsoSession {
         }
         const nextUrl = resolveRedirectUrl(currentUrl, loc);
         if (this.debug) {
-          console.log(`[BitSsoSession] redirect to: ${nextUrl}`);
+          this.logger.debug('redirect to:', nextUrl);
         }
         currentUrl = nextUrl;
         continue;
@@ -369,7 +356,7 @@ export class BitSsoSession {
     try {
       await this.cookieStore.clearCookieDump();
     } catch (e) {
-      console.warn('[BitSsoSession] 清理持久化 cookie 失败：', e);
+      this.logger.warn('清理持久化 cookie 失败：', e);
     }
   }
   /**
@@ -400,16 +387,8 @@ export class BitSsoSession {
       await this.getWithManualRedirects(targetUrl, 20);
 
     if (this.debug) {
-      console.log(
-        '[BitSsoSession] ensureLexueSession final status =',
-        resp.statusCode,
-        'effectiveUrl =',
-        resp.effectiveUrl,
-      );
-      console.log(
-        '[BitSsoSession] cookies snapshot =',
-        JSON.stringify(this.jar.dump()),
-      );
+      this.logger.info('ensureLexueSession final status =', resp.statusCode, 'effectiveUrl =', resp.effectiveUrl);
+      this.logger.debug('cookies snapshot =', this.jar.dump());
     }
 
     if (resp.statusCode !== 200) {
@@ -439,10 +418,10 @@ export class BitSsoSession {
     try {
       await this.cookieStore.saveCookieDump(this.jar.dump());
       if (this.debug) {
-        console.log('[BitSsoSession] ensureLexueSession: cookie 已持久化');
+        this.logger.debug('ensureLexueSession: cookie 已持久化');
       }
     } catch (e) {
-      console.warn('[BitSsoSession] 持久化 cookie 失败：', e);
+      this.logger.warn('持久化 cookie 失败：', e);
     }
   }
 

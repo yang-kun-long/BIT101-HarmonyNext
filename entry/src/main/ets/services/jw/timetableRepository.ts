@@ -5,6 +5,7 @@
 
 import http from '@ohos.net.http'
 import { TokenStore } from '../storage/tokenStore'
+import { Logger } from '../../utils/Logger';
 
 export interface ScheduleLinkResp {
   url: string
@@ -30,13 +31,13 @@ function redact(s: string, keepStart = 8, keepEnd = 6): string {
 function logLarge(prefix: string, text: string, chunk = 1800) {
   const s = text ?? ''
   if (s.length <= chunk) {
-    console.info(prefix + s)
+    this.logger.debug(prefix, s);
     return
   }
-  console.info(`${prefix}[len=${s.length}] ↓`)
+  this.logger.debug(prefix, `[len=${s.length}] ↓`);
   for (let i = 0; i < s.length; i += chunk) {
     const seg = s.slice(i, i + chunk)
-    console.info(`${prefix}[${i}-${i + seg.length}] ${seg}`)
+    this.logger.debug(prefix, `[len=${s.length}] ↓`);
   }
 }
 
@@ -46,6 +47,7 @@ function safeJson<T>(txt: string): T | null {
 }
 
 export class TimetableRepository {
+  private logger = new Logger('Timetable');
   private baseUrl: string
   private store = new TokenStore()
   private debug: boolean
@@ -64,8 +66,8 @@ export class TimetableRepository {
 
     const url = this.baseUrl + '/courses/schedule'
     if (this.debug) {
-      console.info(`[Timetable] GET ${url}`)
-      console.info(`[Timetable] headers.webvpn-cookie=${redact(cookie)}`)
+      this.logger.debug('GET', url);
+      this.logger.debug('headers.webvpn-cookie', redact(cookie));
     }
 
     const client = http.createHttp()
@@ -87,7 +89,7 @@ export class TimetableRepository {
       const body = String(res.result ?? '')
 
       if (this.debug) {
-        console.info(`[Timetable] /courses/schedule -> HTTP ${code}`)
+        this.logger.debug('/courses/schedule -> HTTP', code);
         logLarge('[Timetable] response.headers: ', headers)
         logLarge('[Timetable] response.body: ', body)
       }
@@ -104,8 +106,8 @@ export class TimetableRepository {
       if (!link) throw new Error('缺少 .ics 下载地址')
 
       if (this.debug) {
-        console.info(`[Timetable] ics url = ${link}`)
-        if (note) console.info(`[Timetable] note = ${note}`)
+        this.logger.debug('ics url found:', link);
+        if (note) this.logger.debug('note:', note);
       }
 
       return { url: link, note }
@@ -117,7 +119,7 @@ export class TimetableRepository {
   // 2) 下载 ICS 文本
   async downloadIcs(icsUrl: string): Promise<string> {
     if (this.debug) {
-      console.info(`[Timetable] Download ICS: ${icsUrl}`)
+      this.logger.debug('Download ICS:', icsUrl);
     }
     const client = http.createHttp()
     try {
@@ -135,7 +137,7 @@ export class TimetableRepository {
       const text = String(res.result ?? '')
 
       if (this.debug) {
-        console.info(`[Timetable] ICS HTTP ${code}, length=${text.length}`)
+        this.logger.debug('ICS HTTP', code, 'length=', text.length);
         // 不建议全量打印 ICS（可能很长），仅打印前后 500 字
         const head = text.slice(0, 500)
         const tail = text.slice(-500)
@@ -186,7 +188,7 @@ export class TimetableRepository {
     }
 
     if (this.debug) {
-      console.info(`[Timetable] Parsed events: ${events.length}`)
+      this.logger.info('Parsed events count:', events.length);
     }
     return events
   }
@@ -202,7 +204,14 @@ export class TimetableRepository {
       const previewCount = Math.min(events.length, 3)
       for (let i = 0; i < previewCount; i++) {
         const e = events[i]
-        console.info(`[Timetable] ev#${i + 1}: ${e.summary ?? '(未命名)'} | ${this.formatIcsDate(e.dtstart)} ~ ${this.formatIcsDate(e.dtend)} | ${e.location ?? ''}`)
+        this.logger.debug(
+          `ev#${i + 1}:`,
+          e.summary ?? '(未命名)',
+          '|',
+          `${this.formatIcsDate(e.dtstart)} ~ ${this.formatIcsDate(e.dtend)}`,
+          '|',
+          e.location ?? ''
+        );
       }
     }
 

@@ -1,6 +1,8 @@
+// entry/src/main/ets/components/map/MapCanvas.ets
 import web_webview from '@ohos.web.webview';
 import { common } from '@kit.AbilityKit';
 import { MapConstants, MapPosition } from '../../services/map/MapConfig';
+import { Logger } from '../../utils/Logger';
 
 // 持久化存储 Key
 PersistentStorage.persistProp('last_map_x', MapConstants.LiangXiang.x);
@@ -17,6 +19,7 @@ interface MapState {
 @Component
 export struct MapCanvas {
   controller: web_webview.WebviewController = new web_webview.WebviewController();
+  private logger = new Logger('MapCanvas');
 
   // 自动从存储中读取上次的位置
   @StorageLink('last_map_x') lastX: number = MapConstants.LiangXiang.x;
@@ -101,29 +104,50 @@ export struct MapCanvas {
           // 🔥 页面加载完毕，立即恢复上次位置
           // 这里不再需要注入 JS，因为 html 里已经写好了监听逻辑
           setTimeout(() => {
-            console.info(`[Map] Restoring position: ${this.lastX}, ${this.lastY}, ${this.lastZoom}`);
+            this.logger.info('Restoring position:', this.lastX, this.lastY, this.lastZoom);
             this.controller.runJavaScript(`flyToPosition(${this.lastX}, ${this.lastY}, ${this.lastZoom})`);
           }, 200); // 稍微给一点时间让Leaflet初始化
         })
         .onConsole((event) => {
           const msg = event?.message.getMessage() || "";
+
+          // ---------------------------------------------------------
+          // 1. 优先处理地图通信逻辑（保持原有逻辑不变）
+          // ---------------------------------------------------------
           if (msg.startsWith("FromJS:")) {
             try {
               const jsonStr = msg.replace("FromJS:", "");
               const state = JSON.parse(jsonStr) as MapState;
               if (state.type === 'map_state') {
-                // 收到 HTML 传来的新坐标，存入本地
                 this.currentZoom = state.zoom;
                 this.lastX = state.x;
                 this.lastY = state.y;
                 this.lastZoom = state.zoom;
               }
             } catch (e) {
-              // ignore
+              // 建议这里也打印一下，万一 JSON 解析失败能看见
+              this.logger.error('解析地图状态失败:', e);
             }
+            // 返回 true 表示“即使拦截了，不再通过系统默认方式打印”，保持控制台干净
             return true;
           }
-          return false;
+
+          // ---------------------------------------------------------
+          // 2. 新增：转发网页普通日志到你的 Logger
+          // ---------------------------------------------------------
+          // 这样你搜 Tag "BIT101" 时，也能看到网页内部的报错或打印
+          // 还可以根据 level 判断是调用 info 还是 error
+          const level = event?.message.getMessageLevel();
+
+          if (level === 3) { // 3 代表 Error 级别
+            this.logger.error('[Web]', msg);
+          } else {
+            this.logger.info('[Web]', msg);
+          }
+
+          // 返回 false 表示允许系统默认打印（双重保险），
+          // 或者返回 true 表示完全接管（Log 面板只有你的 BIT101_MapCanvas）
+          return true;
         })
         .width('100%')
         .height('100%')

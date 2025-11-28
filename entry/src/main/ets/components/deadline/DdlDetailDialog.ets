@@ -1,11 +1,13 @@
 // entry/src/main/ets/components/deadline/DdlDetailDialog.ets
 
 import type { LexueCalendarEvent } from '../../services/lexue/LexueCalendarParser';
+import { Logger } from '../../utils/Logger';
 
 @Component
 export struct DdlDetailDialog {
   // 父组件只负责把当前事件传进来
   @Prop ev: LexueCalendarEvent | null;
+  private logger = new Logger('DdlDetailDialog');
 
   // 回调不要加 @Prop（函数不能作为 @Prop）
   onClose: () => void = () => {};
@@ -18,10 +20,7 @@ export struct DdlDetailDialog {
   @State private offsetY: number = 24;     // 向下位移
 
   aboutToAppear(): void {
-    console.info(
-      '[DdlDetailDialog] aboutToAppear, evNull=',
-      this.ev === null
-    );
+    this.logger.info('aboutToAppear, evNull=', this.ev === null);
 
     // 进场动画：从略小、略下、透明 -> 正常
     this.opacityVal = 0;

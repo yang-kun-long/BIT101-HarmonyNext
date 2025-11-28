@@ -1,8 +1,10 @@
+// entry/src/main/ets/components/schedule/ScheduleGrid.ets
 import { DayLayout, AbsoluteItem } from '../../pages/SchedulePage'
 import type { RawIcsEvent } from '../../services/storage/semesterStore'
 import type { CalendarEvent } from '../../services/jw/timetableRepository'
 import { CourseCard } from './CourseCard'
 import { sanitizeLocation, makeCourseKeyForCard } from '../../utils/scheduleUtils'
+import { Logger } from '../../utils/Logger';
 
 @Component
 export struct ScheduleGrid {
@@ -15,6 +17,7 @@ export struct ScheduleGrid {
   @Prop courseColors: Record<string, string> = {}
   @Prop rightAreaWidth: number = 0
   @Prop rightAreaHeight: number = 0
+  private logger = new Logger('ScheduleGrid');
   onCourseClick: (ev: CalendarEvent, raw?: RawIcsEvent) => void = (ev, raw) => {}
 
   // --- LOGGING FUNCTION ---
@@ -22,7 +25,11 @@ export struct ScheduleGrid {
     const w = Number(rect.width);
     const h = Number(rect.height);
     // 这个日志将告诉我们 Stack 的真实高度
-    console.info(`[LOG] ScheduleGrid.onAreaChange: Fired. w=${w}, h=${h}. (Expected height from props: ${this.rightAreaHeight})`)
+    this.logger.info(
+      'onAreaChange: Fired.',
+      `w=${w}, h=${h}.`,
+      'Expected prop height:', this.rightAreaHeight
+    );
   }
 
   // --- Layout Helpers ---
@@ -153,8 +160,6 @@ export struct ScheduleGrid {
   }
 
   build() {
-    // ❌ 日志不能在这里
-    // console.info(`[LOG] ScheduleGrid.build: Fired. rightAreaHeight=${this.rightAreaHeight}, rightAreaWidth=${this.rightAreaWidth}, unitHeight=${this.unitHeight}`)
 
     Stack() {
       // 底层：横线贯穿 (必须 100% 高度)
@@ -171,7 +176,12 @@ export struct ScheduleGrid {
     .onAreaChange(this.onGridAreaChange.bind(this))
     // ✅ 修复 3：将日志移动到 onAppear 钩子中
     .onAppear(() => {
-      console.info(`[LOG] ScheduleGrid.build: Fired. rightAreaHeight=${this.rightAreaHeight}, rightAreaWidth=${this.rightAreaWidth}, unitHeight=${this.unitHeight}`)
+      this.logger.info(
+        'build: Fired.',
+        'rightAreaHeight=', this.rightAreaHeight,
+        'rightAreaWidth=', this.rightAreaWidth,
+        'unitHeight=', this.unitHeight
+      );
     })
   }
 }

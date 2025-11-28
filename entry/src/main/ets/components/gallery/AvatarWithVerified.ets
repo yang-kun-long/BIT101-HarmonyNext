@@ -1,12 +1,14 @@
 // entry/src/main/ets/components/gallery/AvatarWithVerified.ets
 import { GalleryUser } from '../../services/gallery/GalleryModels';
 import { RCP_BASE_URL } from '../../core/network/bit101Session';
+import { Logger } from '../../utils/Logger';
 
 @Component
 export struct AvatarWithVerified {
   @Prop user: GalleryUser | null = null;
   // 🔴 修改：将 'size' 改名为 'avatarSize'
   @Prop avatarSize: number = 40;
+  private logger = new Logger('AvatarWithVerified');
 
   onClickUser?: () => void;
 
@@ -21,13 +23,14 @@ export struct AvatarWithVerified {
   }
   aboutToAppear() {
     // 打印整个 user 对象
-    console.info('【调试头像】User:', JSON.stringify(this.user));
+    this.logger.info('User:', this.user);
 
     if (this.user && this.user.identity) {
-      console.info('【调试头像】Identity ID:', this.user.identity.id);
-      console.info('【调试头像】Identity Color:', this.user.identity.color);
+      // 多参数打印，自动用空格拼接
+      this.logger.info('Identity ID:', this.user.identity.id);
+      this.logger.info('Identity Color:', this.user.identity.color);
     } else {
-      console.error('【调试头像】User 或 Identity 为空！');
+      this.logger.error('User 或 Identity 为空！');
     }
   }
 

@@ -1,10 +1,11 @@
 // entry/src/main/ets/services/gallery/ReactionService.ts
+import { Logger } from '../../utils/Logger';
 import { bit101Session } from '../../core/network/bit101Session';
 import { Comment, GalleryImage, GalleryUser } from './GalleryModels';
 
 class ReactionService {
   private commentsPath = '/reaction/comments';
-
+  private logger = new Logger('ReactionService');
   private makeObj(type: 'poster' | 'comment', id: number): string {
     return `${type}${id}`;
   }
@@ -40,7 +41,7 @@ class ReactionService {
 
       return rawList.map((raw) => this.safeParseComment(raw));
     } catch (e) {
-      console.error('[ReactionService] getComments error', e);
+      this.logger.error('getComments error', e);
       return [];
     }
   }

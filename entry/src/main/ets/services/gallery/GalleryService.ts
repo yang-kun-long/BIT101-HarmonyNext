@@ -1,4 +1,5 @@
 // entry/src/main/ets/services/gallery/GalleryService.ts
+import { Logger } from '../../utils/Logger';
 import { bit101Session } from '../../core/network/bit101Session';
 import { Poster, GalleryUser, GalleryImage, PosterDetail, PosterClaim, PosterPostRequest } from './GalleryModels';
 export enum PostersMode {
@@ -10,6 +11,7 @@ export enum PostersMode {
 }
 
 class GalleryService {
+  private logger = new Logger('GalleryService');
   private apiPath = '/posters';
 
   async getPosters(mode: PostersMode, page: number = 0, keyword?: string): Promise<Poster[]> {
@@ -31,7 +33,7 @@ class GalleryService {
         default: break;
       }
 
-      console.info(`[GalleryService] Requesting page ${page}, mode: ${mode}`);
+      this.logger.debug('Requesting page', page, 'mode:', mode);
 
       const resp = await bit101Session.get(this.apiPath, { query: queryParams });
 
@@ -52,7 +54,7 @@ class GalleryService {
       return rawList.map((raw: any) => this.safeParsePoster(raw));
 
     } catch (e) {
-      console.error('[GalleryService] Exception:', e);
+      this.logger.error('Exception:', e);
       return [];
     }
   }
@@ -61,7 +63,7 @@ class GalleryService {
       const resp = await bit101Session.get(`${this.apiPath}/${id}`, {});
 
       if (resp.statusCode !== 200 || !resp.bodyText) {
-        console.warn('[GalleryService] getPosterById status=', resp.statusCode, 'id=', id);
+        this.logger.warn('getPosterById failed status=', resp.statusCode, 'id=', id);
         return null;
       }
 
@@ -91,7 +93,7 @@ class GalleryService {
 
       return detail;
     } catch (e) {
-      console.error('[GalleryService] getPosterById error:', e);
+      this.logger.error('getPosterById error:', e);
       return null;
     }
   }
@@ -114,7 +116,7 @@ class GalleryService {
         }));
       }
     } catch (e) {
-      console.error('[GalleryService] getClaims error:', e);
+      this.logger.error('getClaims error:', e);
     }
     return [];
   }
@@ -124,7 +126,7 @@ class GalleryService {
   // ==============================================================
   async postPoster(req: PosterPostRequest): Promise<boolean> {
     try {
-      console.info('[GalleryService] Sending:', JSON.stringify(req));
+      this.logger.debug('Sending request body:', req);
 
       // 🚩 终极修正：按照报错提示，先转 unknown 再转 Record
       // 只有这样写，ArkTS 才会允许把 Interface 传给 Record 类型
@@ -133,11 +135,11 @@ class GalleryService {
       if (resp.statusCode === 200) {
         return true;
       } else {
-        console.warn('[GalleryService] Post failed:', resp.statusCode, resp.bodyText);
+        this.logger.warn('Post failed:', resp.statusCode, resp.bodyText);
         return false;
       }
     } catch (e) {
-      console.error('[GalleryService] postPoster exception:', e);
+      this.logger.error('postPoster exception:', e);
       return false;
     }
   }
@@ -166,11 +168,11 @@ class GalleryService {
       if (resp.statusCode === 200) {
         return true;
       } else {
-        console.warn('[GalleryService] Update failed:', resp.statusCode, resp.bodyText);
+        this.logger.warn('Update failed:', resp.statusCode, resp.bodyText);
         return false;
       }
     } catch (e) {
-      console.error('[GalleryService] updatePoster exception:', e);
+      this.logger.error('updatePoster exception:', e);
       return false;
     }
   }
@@ -226,15 +228,12 @@ class GalleryService {
         : createTime;
 
     // （可选）打日志看真实时间字段
-    console.info(
-      '[GalleryService] raw time',
-      JSON.stringify({
-        id: raw.id,
-        create_time: raw.create_time,
-        edit_time: raw.edit_time,
-        update_time: raw.update_time,
-      })
-    );
+    this.logger.debug('raw time check:', {
+      id: raw.id,
+      create: raw.create_time,
+      edit: raw.edit_time,
+      update: raw.update_time
+    });
 
     return {
       id: Number(raw.id ?? 0),

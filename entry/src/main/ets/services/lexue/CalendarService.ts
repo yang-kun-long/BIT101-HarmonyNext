@@ -1,8 +1,11 @@
+// entry/src/main/ets/services/lexue/CalendarService.ts
+import { Logger } from '../../utils/Logger';
 import BitSsoSession from './BitSsoSession';
 import LexueCalendarClient from './LexueCalendarClient';
 import { parseLexueIcs, LexueCalendarEvent } from './LexueCalendarParser';
 import { LexueCalendarStore } from '../storage/LexueCalendarStore';
 
+const logger = new Logger('CalendarService');
 /**
  * 配置接口
  */
@@ -37,11 +40,11 @@ export async function syncUserCalendar(config: SyncConfig): Promise<number> {
   // 这里我们复用 LoginPage 的逻辑：
   const baseUrl = webvpnLexueBase;
 
-  console.info(`[CalendarService] 开始同步，用户: ${username}, BaseUrl: ${baseUrl}`);
+  logger.info('开始同步', '用户:', username, 'BaseUrl:', baseUrl);
 
   // 2. 初始化 Client
   const client = new LexueCalendarClient(sso, {
-    debug: true,
+    // debug: true, // 建议移除或改为 false，让 Logger 接管日志开关
     baseUrl: baseUrl,
     username: username,
   });
@@ -54,13 +57,13 @@ export async function syncUserCalendar(config: SyncConfig): Promise<number> {
   });
 
   if (!icsText || icsText.length === 0) {
-    console.warn('[CalendarService] 导出的 ICS 为空');
+    logger.warn('导出的 ICS 为空');
     return 0;
   }
 
   // 4. 解析
   const events: LexueCalendarEvent[] = parseLexueIcs(icsText);
-  console.info(`[CalendarService] 解析成功，发现 ${events.length} 个事件`);
+  logger.info('解析成功，发现', events.length, '个事件');
 
   // 5. 持久化存储
   const store = new LexueCalendarStore();

@@ -7,6 +7,7 @@ import type { CalendarEvent } from '../services/jw/timetableRepository'
 import type { RawIcsEvent } from '../services/storage/semesterStore'
 import type { PeriodTime } from '../services/jw/periodTimes'
 import curves from '@ohos.curves'; // ✅ 弹簧动画曲线
+import { Logger } from '../utils/Logger';
 
 enum ScheduleInnerTab {
   Timetable = 0, // 课表
@@ -15,6 +16,7 @@ enum ScheduleInnerTab {
 
 @Component
 export default struct ScheduleShellPage {
+  private logger = new Logger('ScheduleShellPage');
   @State current: ScheduleInnerTab = ScheduleInnerTab.Timetable
 
   // 统一管理课程详情弹窗的状态
@@ -28,15 +30,13 @@ export default struct ScheduleShellPage {
     raw: RawIcsEvent | null,
     baseFont?: number,
     periodTimes?: PeriodTime[]) {
-    console.info('[Shell] openCourseDialog fired, summary=',
-      ev ? ev.summary : 'null',
-      ', baseFont=', baseFont,
-      ', periodsLen=', periodTimes ? periodTimes.length : 'null')
+    this.logger.debug('openCourseDialog fired',
+      'summary=', ev?.summary,
+      'baseFont=', baseFont,
+      'periodsLen=', periodTimes?.length
+    );
 
-    console.info('[Shell] BEFORE setState, showCourseDlg=',
-      this.showCourseDlg,
-      ', dlgEv=',
-      this.dlgEv ? this.dlgEv.summary : 'null')
+    this.logger.debug('BEFORE setState', 'showCourseDlg=', this.showCourseDlg, 'dlgEv=', this.dlgEv?.summary);
 
     this.dlgEv = ev
     this.dlgRaw = raw
@@ -48,14 +48,11 @@ export default struct ScheduleShellPage {
     }
     this.showCourseDlg = true
 
-    console.info('[Shell] AFTER setState, showCourseDlg=',
-      this.showCourseDlg,
-      ', dlgEv=',
-      this.dlgEv ? this.dlgEv.summary : 'null')
+    this.logger.debug('AFTER setState', 'showCourseDlg=', this.showCourseDlg, 'dlgEv=', this.dlgEv?.summary);
   }
 
   private closeCourseDialog(): void {
-    console.info('[Shell] closeCourseDialog called')
+    this.logger.debug('closeCourseDialog called');
     this.showCourseDlg = false
   }
 

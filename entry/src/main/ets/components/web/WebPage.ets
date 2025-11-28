@@ -1,3 +1,5 @@
+// entry/src/main/ets/components/web/WebPage.ets
+import { Logger } from '../../utils/Logger';
 import web_webview from '@ohos.web.webview';
 import promptAction from '@ohos.promptAction';
 import common from '@ohos.app.ability.common';
@@ -7,6 +9,7 @@ import { handleFileSelect, WebFileSelectorEvent } from './WebUtils';
 
 @Component
 export struct WebPage {
+  private logger = new Logger('WebPage');
   // --- 外部参数 ---
   @Prop url: string;
 
@@ -75,7 +78,7 @@ export struct WebPage {
             };
             this.context.startAbility(want);
           } catch (error) {
-            console.error('StartAbility failed:', error);
+            this.logger.error('StartAbility failed:', error);
           }
           return true;
         })
@@ -86,6 +89,27 @@ export struct WebPage {
             // 【修复点】使用 ESObject 替代 unknown，解决红色报错
             // ESObject 是 ArkTS 允许的“任意类型”，专门用于桥接原生对象
             handleFileSelect((event as ESObject) as WebFileSelectorEvent);
+            return true;
+          }
+          return false;
+        })
+        .onConsole((event) => {
+          if (event) {
+            const msg = event.message.getMessage();
+            const level = event.message.getMessageLevel();
+            // level枚举: 1: Debug, 2: Info, 3: Warn, 4: Error, 0: Tip
+
+            // 转发给 Logger，这样就能受黑/白名单控制了
+            // 加个 [Web] 前缀方便区分
+            if (level === 4) {
+              this.logger.error('[Web]', msg);
+            } else if (level === 3) {
+              this.logger.warn('[Web]', msg);
+            } else {
+              // Info/Debug/Log 全部降级为 Debug，保持清爽
+              this.logger.debug('[Web]', msg);
+            }
+            // 返回 true 表示“消费掉这个事件”，阻止系统默认的 ARKWEB-CONSOLE 打印
             return true;
           }
           return false;
@@ -142,7 +166,7 @@ export struct WebPage {
     try {
       this.controller.runJavaScript(injectScript);
     } catch (error) {
-      console.error('InjectState failed:', error);
+      this.logger.error('InjectState failed:', error);
     }
   }
 
@@ -166,7 +190,7 @@ export struct WebPage {
         this.controller.runJavaScript(fillScript);
         promptAction.showToast({ message: '已为您自动填充学号密码' });
       } catch (error) {
-        console.error('AutoFill failed:', error);
+        this.logger.error('AutoFill failed:', error);
       }
     }
   }

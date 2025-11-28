@@ -1,5 +1,5 @@
 // entry/src/main/ets/pages/SchedulePage.ets
-
+import { Logger } from '../utils/Logger';
 import fileIo from '@ohos.file.fs'
 
 import { TimetableRepository, CalendarEvent } from '../services/jw/timetableRepository'
@@ -45,6 +45,7 @@ export interface AbsoluteItem {
 
 @Component
 export default struct SchedulePage {
+  private logger = new Logger('SchedulePage');
   onCourseClick?: (ev: CalendarEvent, raw?: RawIcsEvent | null, baseFont?: number, periodTimes?: PeriodTime[]) => void
   // --- 状态管理 ---
   @State loading: boolean = true
@@ -80,7 +81,7 @@ export default struct SchedulePage {
 
   // --- 生命周期 ---
   aboutToAppear(): void {
-    console.info('[LOG] aboutToAppear: Fired. Initializing.')
+    this.logger.info('aboutToAppear: Fired. Initializing.');
     this.initWeek()
     this.initSemesterRepoIfNeeded()
 
@@ -91,13 +92,14 @@ export default struct SchedulePage {
 
   // --- 核心数据加载逻辑 (保留) ---
   private async loadLocalFirst(forceRefresh: boolean) {
-    console.info(`[LOG] loadLocalFirst: Start. forceRefresh = ${forceRefresh}, weekStartISO = ${this.weekStartISO}`)
+    this.logger.debug('loadLocalFirst: Start.', 'forceRefresh=', forceRefresh, 'weekStartISO=', this.weekStartISO);
     this.loading = true
     this.err = ''
     this.weekLayouts = []
     this.hasWebvpn = await this.store.isLoggedInWebvpn()
 
     if (!this.hasWebvpn) {
+      this.logger.warn('未登录教务（缺少 WebVPN 会话）');
       this.loading = false
       this.err = '未登录教务（缺少 WebVPN 会话）'
       return
@@ -118,9 +120,9 @@ export default struct SchedulePage {
 
       const weekInstances: CourseInstance[] = this.semRepo.filterWeekInstances(result.semester, this.weekStartISO);
       this.courseColors = (result.semester && result.semester.courseColors) ? result.semester.courseColors : {};
-      console.info(`[LOG] loadLocalFirst: Checking firstWeekISO. Current value = '${this.firstWeekISO}'`)
+      this.logger.debug('Checking firstWeekISO. Current value:', this.firstWeekISO);
       if (!this.firstWeekISO || this.firstWeekISO.length === 0) {
-        console.info(`[LOG] loadLocalFirst: firstWeekISO is empty, calculating...`)
+        this.logger.debug('firstWeekISO is empty, calculating...');
 
         if (result && result.semester && result.semester.instances && result.semester.instances.length > 0) {
           const insts: CourseInstance[] = result.semester.instances;
@@ -129,14 +131,14 @@ export default struct SchedulePage {
             if (insts[i].weekStartISO < minISO) minISO = insts[i].weekStartISO;
           }
           this.firstWeekISO = minISO;
-          console.info(`[LOG] loadLocalFirst: Calculated firstWeekISO from instances: ${this.firstWeekISO}`)
+          this.logger.info('Calculated firstWeekISO from instances:', this.firstWeekISO);
         } else {
           // 如果没有课程数据，就*姑且*用当前周作为第一周
           this.firstWeekISO = this.weekStartISO;
-          console.info(`[LOG] loadLocalFirst: No instances, setting firstWeekISO to weekStartISO: ${this.firstWeekISO}`)
+          this.logger.warn('No instances, setting firstWeekISO to weekStartISO:', this.firstWeekISO);
         }
       } else {
-        console.info(`[LOG] loadLocalFirst: firstWeekISO already set ('${this.firstWeekISO}'), skipping calculation.`)
+        this.logger.debug('firstWeekISO already set, skipping calculation.');
       }
 
       this.updateWeekNoText()
@@ -146,7 +148,7 @@ export default struct SchedulePage {
     } catch (e) {
       const msg: string = (e instanceof Error) ? e.message : String(e);
       this.err = msg;
-      console.error('[ERR] getSemester:', msg);
+      this.logger.error('getSemester failed:', msg);
     } finally {
       this.loading = false;
     }
@@ -154,14 +156,13 @@ export default struct SchedulePage {
 
   // --- 布局计算 (保留) ---
   private recomputeWidthMetrics(totalWidth: number): void {
-    console.info(`[LOG] recomputeWidthMetrics: Fired. totalWidth=${totalWidth}. (Current: ${this.courseColWidth})`)
-
+    this.logger.debug('recomputeWidthMetrics: Fired.', 'totalWidth=', totalWidth);
     // ⬇️ 关键：使用【干净】的逻辑
     // 1. 如果宽度为0，我们【什么也不做】。
     //    我们等待 onAreaChange 再次用
     //    【正确的】宽度（如 360）来调用我们。
     if (totalWidth <= 0) {
-      console.info('[LOG] recomputeWidthMetrics: totalWidth is 0, ignoring.')
+      this.logger.debug('recomputeWidthMetrics: totalWidth is 0, ignoring.');
       return;
     }
 
@@ -169,7 +170,7 @@ export default struct SchedulePage {
     const gaps = this.colGap * 7;
     const usable = totalWidth - gaps;
     if (usable <= 0) {
-      console.info('[LOG] recomputeWidthMetrics: usable width is 0, ignoring.')
+      this.logger.debug('recomputeWidthMetrics: usable width is 0, ignoring.');
       return;
     }
 
@@ -178,16 +179,16 @@ export default struct SchedulePage {
 
     // 3. 只有当状态【真正改变时】才设置
     if (c !== this.courseColWidth || l !== this.leftColWidth) {
-      console.info(`[LOG] recomputeWidthMetrics: State CHANGED! Setting courseColWidth=${c}`)
+      this.logger.debug('recomputeWidthMetrics: State CHANGED! Setting courseColWidth=', c);
       this.courseColWidth = c;
       this.leftColWidth = l;
     } else {
-      console.info(`[LOG] recomputeWidthMetrics: State NOT changed (c=${c}). Ignoring.`)
+      this.logger.debug('recomputeWidthMetrics: State NOT changed. Ignoring. c=', c);
     }
   }
 
   private recomputeMetrics(availableHeight: number): void {
-    console.info(`[LOG] recomputeMetrics: Fired. availableHeight=${availableHeight}. (Current: unitHeight=${this.unitHeight})`)
+    this.logger.debug('recomputeMetrics: Fired.', 'availableHeight=', availableHeight);
     if (availableHeight <= 0) return
     const uh = Math.floor(availableHeight / 13)
     const usable = uh - this.innerPad * 2
@@ -204,7 +205,7 @@ export default struct SchedulePage {
     const h = Number(rect.height);
 
     // 这个日志总会打印
-    console.info(`[LOG] onBodyAreaChange: Fired. w=${w}, h=${h}`)
+    this.logger.debug('onBodyAreaChange: Fired.', `w=${w}, h=${h}`);
 
     // 调用我们带日志的函数
     this.recomputeWidthMetrics(w);
@@ -226,9 +227,7 @@ export default struct SchedulePage {
 
   // --- 事件处理器 (保留) ---
   private onTapEvent(ev: CalendarEvent, raw?: RawIcsEvent): void {
-    console.info('[SchedulePage] onTapEvent fired, summary=',
-      ev ? ev.summary : 'null',
-      ', hasCallback=', this.onCourseClick ? 'yes' : 'no')
+    this.logger.debug('onTapEvent fired', 'summary=', ev?.summary, 'hasCallback=', !!this.onCourseClick);
 
     if (this.onCourseClick) {
       this.onCourseClick(ev, raw ? raw : null, this.getBaseFont(), this.periodTimes)
@@ -245,7 +244,7 @@ export default struct SchedulePage {
 
   private onNextWeek(): void {
     this.weekStartISO = utils.addDaysISO(this.weekStartISO, 7)
-    console.info(`[LOG] onNextWeek: new weekStartISO = ${this.weekStartISO}`)
+    this.logger.info('onNextWeek: new weekStartISO =', this.weekStartISO);
     this.recomputeWeekHeader()
     this.updateWeekNoText()
     this.loadLocalFirst(false)
@@ -253,7 +252,7 @@ export default struct SchedulePage {
 
   private onPrevWeek(): void {
     this.weekStartISO = utils.addDaysISO(this.weekStartISO, -7)
-    console.info(`[LOG] onPrevWeek: new weekStartISO = ${this.weekStartISO}`)
+    this.logger.info('onPrevWeek: new weekStartISO =', this.weekStartISO);
     this.recomputeWeekHeader()
     this.updateWeekNoText()
     this.loadLocalFirst(false)
@@ -375,7 +374,7 @@ export default struct SchedulePage {
     //    因为下面的 deps 对象中的函数依赖它。
     this.timesStore = new PeriodTimesStore({ filesDir })
     this.periodTimes = this.timesStore.load()
-    console.info('[Init] periodTimes.loaded count =', this.periodTimes.length)
+    this.logger.info('periodTimes loaded count:', this.periodTimes.length);
 
     // 2. 【然后】才能创建依赖 this.periodTimes 的 deps 对象
     // (请确保您在 SchedulePage 中保留了 periodIndexByStart 等 6 个私有函数)
@@ -393,13 +392,13 @@ export default struct SchedulePage {
     const filesCtx: FilesCtx = { filesDir }
     this.semRepo = new SemesterRepository(this.repo, filesCtx, deps)
 
-    console.info('[Init] SemesterRepository created.')
+    this.logger.debug('SemesterRepository created.');
   }
 
   private calculateWeekNoText(): string {
     // 1. 如果 firstWeekISO 还没加载好，我们不能计算，默认返回 "1"
     if (!this.firstWeekISO || this.firstWeekISO.length === 0) {
-      console.info(`[LOG] calculateWeekNoText: firstWeekISO is empty. Returning '1'. (weekStartISO: ${this.weekStartISO})`)
+      this.logger.debug('calculateWeekNoText: firstWeekISO is empty. Returning 1.');
       return '1';
     }
     // 2. 只有 firstWeekISO 存在时，才用它作为 baseISO
@@ -410,12 +409,12 @@ export default struct SchedulePage {
     const weeks = Math.floor(diffDays / 7) + 1;
     const finalWeek = (weeks < 1) ? '1' : String(weeks);
 
-    console.info(`[LOG] calculateWeekNoText: firstWeekISO='${baseISO}', weekStartISO='${this.weekStartISO}', diffDays=${diffDays}, weeks=${weeks}. Returning '${finalWeek}'.`)
+    this.logger.debug('calculateWeekNoText result:', `weeks=${weeks}, returning=${finalWeek}`);
     return finalWeek;
   }
   private updateWeekNoText(): void {
     const newWeekText = this.calculateWeekNoText()
-    console.info(`[LOG] updateWeekNoText: Setting weekNoTextComputed to '${newWeekText}'`)
+    this.logger.debug('updateWeekNoText: Setting weekNoTextComputed to', newWeekText);
     this.weekNoTextComputed = newWeekText
   }
 
@@ -516,7 +515,7 @@ export default struct SchedulePage {
           .margin({ top: 8 })
           .onAreaChange((_, rect: Area) => {
             const h = Number(rect.height);
-            console.info(`[LOG] onAreaChange (Body Row): Fired. h=${h}`)
+            this.logger.debug('onAreaChange (Body Row): Fired.', `h=${h}`);
             this.recomputeMetrics(h);
           })
         }
@@ -526,7 +525,7 @@ export default struct SchedulePage {
       .height('100%')
       .onAreaChange((_, rect: Area) => {
         const w = Number(rect.width);
-        console.info(`[LOG] onAreaChange (Column): Fired. w=${w}`)
+        this.logger.debug('onAreaChange (Column): Fired.', `w=${w}`);
         this.recomputeWidthMetrics(w);
 
         // ❌ 修复：从这里【删除】高度计算

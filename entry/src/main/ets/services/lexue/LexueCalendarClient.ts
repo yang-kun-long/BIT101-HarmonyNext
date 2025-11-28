@@ -3,7 +3,7 @@
 import BitSsoSession from './BitSsoSession';
 import RcpSession, { RcpResponseData } from '../../core/network/rcpSession';
 import { LexueCalendarStore } from '../storage/LexueCalendarStore';
-
+import { Logger } from '../../utils/Logger';
 
 export type CalendarExportWhat = 'all' | 'categories' | 'courses' | 'groups' | 'user';
 export type CalendarExportTime = 'weeknow' | 'monthnow' | 'recentupcoming' | 'custom';
@@ -36,6 +36,7 @@ export interface LexueCalendarExportResult {
  *  4) GET export_execute.php?... 拉取 ICS
  */
 export class LexueCalendarClient {
+  private logger = new Logger('LexueCalendarClient');
   private readonly baseUrl: string;
   private readonly debug: boolean;
   private readonly sso: BitSsoSession;
@@ -83,10 +84,8 @@ export class LexueCalendarClient {
     const what: CalendarExportWhat = options?.what ?? 'all';
     const time: CalendarExportTime = options?.time ?? 'recentupcoming';
 
-    if (!this.sso.isFullyLoggedIn() && this.debug) {
-      console.warn(
-        '[LexueCalendarClient] BitSsoSession 尚未完全登录，后续请求可能被重定向到登录页。',
-      );
+    if (!this.sso.isFullyLoggedIn()) {
+      this.logger.warn('BitSsoSession 尚未完全登录，后续请求可能被重定向到登录页。');
     }
 
     // ========== Fast Path：优先尝试使用缓存订阅 URL ==========
@@ -97,53 +96,36 @@ export class LexueCalendarClient {
           this.baseUrl,
         );
         if (cachedUrl) {
-          if (this.debug) {
-            console.log(
-              '[LexueCalendarClient] FastPath: 使用缓存订阅 URL =',
-              cachedUrl,
-            );
-          }
+          this.logger.debug('FastPath: 使用缓存订阅 URL =', cachedUrl);
 
           const fastResp: RcpResponseData = await this.http.get(cachedUrl, {
             autoRedirect: true,
             collectTimeInfo: false,
           });
 
-          if (this.debug) {
-            console.log(
-              '[LexueCalendarClient] FastPath GET ICS status =',
-              fastResp.statusCode,
-              'effectiveUrl =',
-              fastResp.effectiveUrl,
-            );
-          }
+          this.logger.debug('FastPath GET ICS status =', fastResp.statusCode, 'effectiveUrl =', fastResp.effectiveUrl);
 
           if (
             fastResp.statusCode === 200 &&
             this.looksLikeIcs(fastResp.bodyText)
           ) {
             const icsText = fastResp.bodyText ?? '';
-            if (this.debug) {
+            {
               const preview = icsText.replace(/\r?\n/g, '\\n').slice(0, 200);
-              console.log('[LexueCalendarClient] FastPath ICS 预览前 200 字符 =', preview);
+              this.logger.debug('FastPath ICS 预览前 200 字符 =', preview);
             }
             return {
               subscribeUrl: cachedUrl,
               icsText,
             };
-          } else if (this.debug) {
-            console.log(
-              '[LexueCalendarClient] FastPath: 缓存 URL 不可用，fallback 到正常流程',
-            );
+          } else  {
+            this.logger.debug('FastPath: 缓存 URL 不可用，fallback 到正常流程');
           }
         } else if (this.debug) {
-          console.log('[LexueCalendarClient] FastPath: 没有缓存订阅 URL');
+          this.logger.debug('FastPath: 没有缓存订阅 URL');
         }
       } catch (e) {
-        console.warn(
-          '[LexueCalendarClient] FastPath: 使用缓存订阅 URL 时异常，fallback 到正常流程：',
-          e,
-        );
+        this.logger.warn('FastPath: 使用缓存订阅 URL 时异常，fallback 到正常流程：', e);
       }
     }
 
@@ -156,14 +138,7 @@ export class LexueCalendarClient {
       },
     });
 
-    if (this.debug) {
-      console.log(
-        '[LexueCalendarClient] GET export.php status =',
-        exportPage.statusCode,
-        'effectiveUrl =',
-        exportPage.effectiveUrl,
-      );
-    }
+    this.logger.debug('GET export.php status =', exportPage.statusCode, 'effectiveUrl =', exportPage.effectiveUrl);
 
     if (exportPage.statusCode !== 200) {
       throw new Error(
@@ -173,17 +148,14 @@ export class LexueCalendarClient {
 
     const sesskey = this.parseSesskey(exportPage.bodyText ?? '');
     if (!sesskey) {
-      if (this.debug) {
+      {
         const preview = (exportPage.bodyText ?? '').replace(/\s+/g, ' ').slice(0, 400);
-        console.log('[LexueCalendarClient] 未解析到 sesskey，HTML 预览 =', preview);
+        this.logger.warn('未解析到 sesskey，HTML 预览 =', preview);
       }
       throw new Error('[LexueCalendarClient] 未能从导出页解析到 sesskey');
     }
 
-    if (this.debug) {
-      console.log('[LexueCalendarClient] sesskey =', sesskey);
-    }
-
+    this.logger.debug('sesskey =', sesskey);
     // 2) POST /calendar/export.php（generateurl）
     const form: Record<string, string> = {
       sesskey,
@@ -209,14 +181,7 @@ export class LexueCalendarClient {
       },
     );
 
-    if (this.debug) {
-      console.log(
-        '[LexueCalendarClient] POST generateurl status =',
-        postResp.statusCode,
-        'effectiveUrl =',
-        postResp.effectiveUrl,
-      );
-    }
+    this.logger.debug('POST generateurl status =', postResp.statusCode, 'effectiveUrl =', postResp.effectiveUrl);
 
     let subscribeUrl: string | undefined;
 
@@ -234,12 +199,9 @@ export class LexueCalendarClient {
 
     // 若没有 Location，再从 HTML 兜底解析
     if (!subscribeUrl) {
-      if (this.debug) {
+      {
         const preview = (postResp.bodyText ?? '').replace(/\s+/g, ' ').slice(0, 400);
-        console.log(
-          '[LexueCalendarClient] POST generateurl 无 Location，尝试从 HTML 解析。预览 =',
-          preview,
-        );
+        this.logger.debug('POST generateurl 无 Location，尝试从 HTML 解析。预览 =', preview);
       }
       subscribeUrl = this.extractExportUrl(postResp.bodyText ?? '');
     }
@@ -248,9 +210,7 @@ export class LexueCalendarClient {
       throw new Error('[LexueCalendarClient] 未获取到日历订阅 URL');
     }
     subscribeUrl = this.htmlDecode(subscribeUrl);
-    if (this.debug) {
-      console.log('[LexueCalendarClient] 订阅 URL =', subscribeUrl);
-    }
+    this.logger.debug('订阅 URL =', subscribeUrl);
     if (this.username) {
       try {
         await this.calendarStore.setCachedSubscribeUrl(
@@ -258,17 +218,9 @@ export class LexueCalendarClient {
           this.baseUrl,
           subscribeUrl,
         );
-        if (this.debug) {
-          console.log(
-            '[LexueCalendarClient] 已将订阅 URL 写入缓存用户名 =',
-            this.username,
-          );
-        }
+        this.logger.debug('已将订阅 URL 写入缓存，用户名 =', this.username);
       } catch (e) {
-        console.warn(
-          '[LexueCalendarClient] 写入订阅 URL 缓存失败：',
-          e,
-        );
+        this.logger.warn('写入订阅 URL 缓存失败：', e);
       }
     }
 
@@ -278,14 +230,7 @@ export class LexueCalendarClient {
       collectTimeInfo: false,
     });
 
-    if (this.debug) {
-      console.log(
-        '[LexueCalendarClient] GET ICS status =',
-        icsResp.statusCode,
-        'effectiveUrl =',
-        icsResp.effectiveUrl,
-      );
-    }
+    this.logger.debug('GET ICS status =', icsResp.statusCode, 'effectiveUrl =', icsResp.effectiveUrl);
 
     if (icsResp.statusCode !== 200) {
       throw new Error(
@@ -294,9 +239,9 @@ export class LexueCalendarClient {
     }
 
     const icsText = icsResp.bodyText ?? '';
-    if (this.debug) {
+    {
       const preview = icsText.replace(/\r?\n/g, '\\n').slice(0, 200);
-      console.log('[LexueCalendarClient] ICS 预览前 200 字符 =', preview);
+      this.logger.debug('ICS 预览前 200 字符 =', preview);
     }
 
     return {
