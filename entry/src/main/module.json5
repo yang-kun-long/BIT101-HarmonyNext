@@ -8,7 +8,10 @@
       "phone"
     ],
     "requestPermissions": [
-      { "name": "ohos.permission.INTERNET" }
+      {
+        "name": "ohos.permission.INTERNET"
+      },
+
     ],
     "deliveryWithInstall": true,
     "installationFree": false,

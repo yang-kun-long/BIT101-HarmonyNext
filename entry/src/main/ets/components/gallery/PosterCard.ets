@@ -4,6 +4,8 @@ import { RCP_BASE_URL } from '../../core/network/bit101Session';
 import promptAction from '@ohos.promptAction';
 import { AvatarWithVerified } from './AvatarWithVerified';
 import { UserNameWithIdentity } from './UserNameWithIdentity';
+import router from '@ohos.router';
+import { ImageViewer } from '../ImageViewer';
 
 @Component
 export struct PosterCard {
@@ -12,22 +14,46 @@ export struct PosterCard {
   // 外部传入的点击回调
   onClickPoster?: () => void;
 
-  // --- 交互逻辑：未实现接口用弹窗替代 ---
+  @State isPreviewOpen: boolean = false;
+  @State previewIndex: number = 0;
 
   private onUserClick() {
-    promptAction.showToast({
-      message: `跳转用户详情: ${this.getNickname()}\nID: ${this.poster.user?.id ?? '未知'}`,
-      duration: 1500,
-      bottom: 400
+    // 获取用户ID
+    const targetUid = this.poster.user?.id;
+
+    // 如果ID无效（比如是匿名用户），提示一下
+    if (!targetUid || targetUid === '0' || targetUid === '-1') {
+      promptAction.showToast({ message: '无法查看该用户详情' });
+      return;
+    }
+
+    // 2. 执行路由跳转
+    router.pushUrl({
+      url: 'pages/UserDetailPage',
+      params: {
+        uid: parseInt(targetUid) // 确保传过去的是数字
+      }
+    }, router.RouterMode.Standard, (err) => {
+      if (err) {
+        console.error(`跳转失败, code: ${err.code}, message: ${err.message}`);
+      }
     });
   }
 
   private onImageClick(index: number) {
-    promptAction.showToast({
-      message: `查看大图预览\n当前索引: ${index}\n图片总数: ${this.getImageCount()}`,
-      duration: 1500,
-      bottom: 400
-    });
+    this.previewIndex = index;
+    this.isPreviewOpen = true;
+  }
+
+  @Builder
+  PhotoViewerBuilder() {
+    ImageViewer({
+      images: this.poster.images || [],
+      initialIndex: this.previewIndex,
+      onClose: () => {
+        this.isPreviewOpen = false;
+      }
+    })
   }
 
   build() {
@@ -118,7 +144,14 @@ export struct PosterCard {
         promptAction.showToast({ message: `打开帖子详情 ID: ${this.poster.id}` });
       }
     })
+    // ✅ 补全这里：绑定全屏模态，实现大图预览
+    .bindContentCover(this.isPreviewOpen, this.PhotoViewerBuilder(), {
+      modalTransition: ModalTransition.ALPHA,
+      backgroundColor: Color.Black,
+      onDisappear: () => { this.isPreviewOpen = false }
+    })
   }
+
 
   // ---------- 逻辑辅助方法 ----------
 

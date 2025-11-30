@@ -1,3 +1,4 @@
+// entry/src/main/ets/utils/Logger.ts.
 import hilog from '@ohos.hilog';
 
 // 定义日志模式类型
@@ -24,6 +25,8 @@ export class Logger {
    */
   private static readonly TARGET_MODULES: string[] = [
     'WebPage',
+    'PosterRepository',
+    'PosterCard',
     // --- 可以在这里填入下方 ALL_MODULES 里的名字 ---
     // 'ScheduleGrid',
     // 'SchedulePage',
@@ -68,6 +71,7 @@ export class Logger {
     // [Services - 业务服务]
     CalendarService: 'CalendarService',
     GalleryService: 'GalleryService',
+    PosterRepository: 'PosterRepository',
     ReactionService: 'ReactionService',
     PosterListState: 'PosterListState',
     LexueCalendarClient: 'LexueCalendarClient',

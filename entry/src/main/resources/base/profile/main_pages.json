@@ -4,6 +4,7 @@
     "pages/LoginPage",
     "pages/PosterDetailPage",
     "pages/WebBrowserPage",
-    "pages/PostEditorPage"
+    "pages/PostEditorPage",
+    "pages/UserDetailPage"
   ]
 }

@@ -27,6 +27,10 @@
     {
       "name": "widget_display_name",
       "value": "widget"
+    },
+    {
+      "name": "reason_write_image",
+      "value": "需要保存图片到您的相册"
     }
   ]
 }
