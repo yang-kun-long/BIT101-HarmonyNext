@@ -10,6 +10,7 @@ import { UserNameWithIdentity } from './UserNameWithIdentity';
 export struct MoreCommentsSheet {
   // 核心参数
   @Prop parentComment: Comment; // 当前的主评论
+  @State subCommentsOrder: string = 'new'; // 'new' | 'old' | 'like'
 
   // 交互回调
   onClose: () => void = () => {};
@@ -27,6 +28,33 @@ export struct MoreCommentsSheet {
   aboutToAppear() {
     this.loadData(false);
   }
+  private getSubCommentsOrderLabel(): string {
+    switch (this.subCommentsOrder) {
+      case 'old':
+        return '最旧排序';
+      case 'like':
+        return '高赞排序';
+      case 'new':
+      default:
+        return '最新排序';
+    }
+  }
+
+  private switchSubCommentsOrder(): void {
+    if (this.subCommentsOrder === 'new') {
+      this.subCommentsOrder = 'old';
+    } else if (this.subCommentsOrder === 'old') {
+      this.subCommentsOrder = 'like';
+    } else {
+      this.subCommentsOrder = 'new';
+    }
+
+    // 重置分页状态，按新排序重新加载
+    this.page = 0;
+    this.hasMore = true;
+    this.loadData(false);
+  }
+
 
   async loadData(isLoadMore: boolean) {
     if (this.isLoading) return;
@@ -40,7 +68,7 @@ export struct MoreCommentsSheet {
       const newItems = await reactionService.getCommentsForComment(
         this.parentComment.id,
         requestPage,
-        'new' // 默认按最新排序
+        this.subCommentsOrder
       );
 
       if (isLoadMore) {
@@ -185,8 +213,25 @@ export struct MoreCommentsSheet {
           .width(20).height(20).fillColor('#9CA3AF')
           .onClick(() => this.onClose())
       }
-      .width('100%').height(48).padding({ left: 16, right: 16 })
+      .width('100%').height(48)
+      .padding({ left: 16, right: 16 })
       .border({ width: { bottom: 0.5 }, color: '#E5E7EB' })
+      .backgroundColor(Color.White)
+
+      // 1.5 子评论排序条
+      Row() {
+        Blank()
+        Row() {
+          Text(this.getSubCommentsOrderLabel())
+            .fontSize(13).fontColor('#6B7280')
+        }
+        .onClick(() => {
+          this.switchSubCommentsOrder();
+        })
+      }
+      .width('100%')
+      .height(40)
+      .padding({ left: 16, right: 16 })
       .backgroundColor(Color.White)
 
       // 2. 列表区域

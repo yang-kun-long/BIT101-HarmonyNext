@@ -24,6 +24,8 @@ interface ReplyContext {
 @Component
 export default struct PosterDetailPage {
   private logger = new Logger('PosterDetailPage');
+  @State commentsOrder: string = 'new'; // 'new' | 'old' | 'like'
+  @State showCommentsOrderDialog: boolean = false;
   @State postId: number = 0;
   @State poster: PosterDetail | null = null;
   @State loading: boolean = true;
@@ -148,9 +150,33 @@ export default struct PosterDetailPage {
 
   private async loadComments(): Promise<void> {
     this.commentsLoading = true;
-    const list = await reactionService.getCommentsForPoster(this.postId, 'new');
+    const list = await reactionService.getCommentsForPoster(this.postId, this.commentsOrder);
     this.comments = list;
     this.commentsLoading = false;
+  }
+  private getCommentsOrderLabel(): string {
+    switch (this.commentsOrder) {
+      case 'old':
+        return '最旧';
+      case 'like':
+        return '高赞';
+      case 'new':
+      default:
+        return '最新';
+    }
+  }
+
+
+
+  private switchCommentsOrder(): void {
+    if (this.commentsOrder === 'new') {
+      this.commentsOrder = 'old';
+    } else if (this.commentsOrder === 'old') {
+      this.commentsOrder = 'like';
+    } else {
+      this.commentsOrder = 'new';
+    }
+    this.loadComments(); // 按新的排序重新拉主评论
   }
 
   private async loadPoster(): Promise<void> {
@@ -327,6 +353,80 @@ export default struct PosterDetailPage {
         .height('100%')
         .backgroundColor(Color.Black)
         .zIndex(10000)
+      }
+      if (this.showCommentsOrderDialog) {
+        Column() {
+          // 上半部分透明区域，点一下也能关闭
+          Blank()
+            .layoutWeight(1)
+            .onClick(() => {
+              this.showCommentsOrderDialog = false;
+            })
+
+          // 底部面板
+          Column() {
+            Text('评论排序')
+              .fontSize(14)
+              .fontWeight(FontWeight.Bold)
+              .fontColor('#111827')
+              .margin({ bottom: 12 })
+
+            // 最新
+            Text('最新')
+              .fontSize(15)
+              .fontColor(this.commentsOrder === 'new' ? '#2563EB' : '#1F2937')
+              .padding({ top: 8, bottom: 8 })
+              .onClick(() => {
+                if (this.commentsOrder !== 'new') {
+                  this.commentsOrder = 'new';
+                  this.loadComments();
+                }
+                this.showCommentsOrderDialog = false;
+              })
+
+            // 最旧
+            Text('最旧')
+              .fontSize(15)
+              .fontColor(this.commentsOrder === 'old' ? '#2563EB' : '#1F2937')
+              .padding({ top: 8, bottom: 8 })
+              .onClick(() => {
+                if (this.commentsOrder !== 'old') {
+                  this.commentsOrder = 'old';
+                  this.loadComments();
+                }
+                this.showCommentsOrderDialog = false;
+              })
+
+            // 高赞
+            Text('高赞')
+              .fontSize(15)
+              .fontColor(this.commentsOrder === 'like' ? '#2563EB' : '#1F2937')
+              .padding({ top: 8, bottom: 8 })
+              .onClick(() => {
+                if (this.commentsOrder !== 'like') {
+                  this.commentsOrder = 'like';
+                  this.loadComments();
+                }
+                this.showCommentsOrderDialog = false;
+              })
+
+            // 取消
+            Text('取消')
+              .fontSize(14)
+              .fontColor('#6B7280')
+              .padding({ top: 12, bottom: 4 })
+              .onClick(() => {
+                this.showCommentsOrderDialog = false;
+              })
+          }
+          .width('100%')
+          .padding({ left: 20, right: 20, top: 16, bottom: 24 })
+          .backgroundColor(Color.White)
+        }
+        .width('100%')
+        .height('100%')
+        .backgroundColor('#80000000')
+        .zIndex(9000)
       }
     }
     .width('100%')
@@ -523,8 +623,12 @@ export default struct PosterDetailPage {
           .fontSize(16).fontWeight(FontWeight.Bold).fontColor('#111827');
         Blank();
         Row() {
-          Text('默认排序').fontSize(13).fontColor('#6B7280');
-        }.onClick(() => this.showToast('切换排序'));
+          Text(this.getCommentsOrderLabel())
+            .fontSize(13).fontColor('#6B7280');
+        }
+        .onClick(() => {
+          this.showCommentsOrderDialog = true;
+        });
       }
       .width('100%').height(48).alignItems(VerticalAlign.Center);
 
