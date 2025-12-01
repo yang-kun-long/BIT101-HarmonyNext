@@ -102,7 +102,11 @@ export interface PosterPostRequest {
   plugins: string;
 }
 
-
+export interface ImageUploadItem {
+  uri: string;
+  status: 'pending' | 'uploading' | 'success' | 'fail';
+  mid?: string;
+}
 
 export type CommentsOrder = 'new' | 'old' | 'like' | 'default';
 

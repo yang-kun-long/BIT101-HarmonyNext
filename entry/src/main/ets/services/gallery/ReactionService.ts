@@ -3,6 +3,17 @@ import { Logger } from '../../utils/Logger';
 import { bit101Session } from '../../core/network/bit101Session';
 import { Comment, GalleryImage, GalleryUser } from './GalleryModels';
 
+// ✅ [新增] 必须导出这个接口，PosterDetailPage 才能引用
+export interface PostCommentReq {
+  obj: string;
+  text: string;
+  reply_obj?: string;
+  reply_uid?: number;
+  anonymous?: boolean;
+  image_mids: string[];
+  rate?: number;
+}
+
 class ReactionService {
   private commentsPath = '/reaction/comments';
   private logger = new Logger('ReactionService');
@@ -16,6 +27,36 @@ class ReactionService {
     page?: number
   ): Promise<Comment[]> {
     return this.getComments(this.makeObj('poster', posterId), order, page);
+  }
+
+  async getCommentsForComment(
+    commentId: number,
+    page: number = 0,
+    order: string = 'new'
+  ): Promise<Comment[]> {
+    // 复用底层的 getComments，构造 obj = "comment123"
+    return this.getComments(this.makeObj('comment', commentId), order, page);
+  }
+
+  // ✅ [新增] 发送评论方法
+  async postComment(req: PostCommentReq): Promise<Comment | null> {
+    try {
+      this.logger.info(`Sending comment req: ${JSON.stringify(req)}`);
+
+      // 发送 POST 请求
+      // 使用 as unknown as Record... 规避类型检查，直接透传对象
+      const resp = await bit101Session.post(this.commentsPath, req as unknown as Record<string, Object>);
+
+      if (resp.statusCode === 200 && resp.bodyText) {
+        const json = JSON.parse(resp.bodyText);
+        // 复用你已有的安全解析方法，确保返回格式统一
+        return this.safeParseComment(json);
+      }
+      return null;
+    } catch (e) {
+      this.logger.error('postComment error', e);
+      return null;
+    }
   }
 
   private async getComments(
@@ -70,8 +111,10 @@ class ReactionService {
     }));
 
     const subRaw = Array.isArray(raw.sub) ? raw.sub : [];
-
-    const replyUserRaw = raw.replyUser;
+    if (raw.reply_user || raw.replyUser) {
+      this.logger.debug('Parsing replyUser:', JSON.stringify(raw.reply_user || raw.replyUser));
+    }
+    const replyUserRaw = raw.reply_user || raw.replyUser;
     let replyUser: GalleryUser | null = null;
     if (replyUserRaw) {
       const replyAvatarRaw = replyUserRaw.avatar || {};
@@ -79,6 +122,11 @@ class ReactionService {
         typeof replyAvatarRaw === 'string'
           ? replyAvatarRaw
           : (replyAvatarRaw.url || replyAvatarRaw.low_url || '');
+      let rawNick = replyUserRaw.nickname;
+      // 2. 如果是 null/undefined 或者是空字符串，就回退到 '匿名用户'
+      if (!rawNick || String(rawNick).trim() === '') {
+        rawNick = '匿名用户';
+      }
 
       replyUser = {
         id: String(replyUserRaw.id ?? '0'),
@@ -101,7 +149,7 @@ class ReactionService {
       own: Boolean(raw.own),
       rate: Number(raw.rate ?? 0),
       replyUser,
-      replyObj: raw.replyObj ? String(raw.replyObj) : '',
+      replyObj: raw.reply_obj ? String(raw.reply_obj) : '',
       text: String(raw.text ?? ''),
       sub: [],
     };

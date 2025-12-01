@@ -5,6 +5,7 @@ import picker from '@ohos.file.picker';
 import { galleryService } from '../services/gallery/GalleryService';
 import { PosterClaim, PosterPostRequest } from '../services/gallery/GalleryModels';
 import { Logger } from '../utils/Logger';
+// 确保引入了 common，用于获取 Context
 // ===============================================================
 // 1. 数据模型
 // ===============================================================
@@ -310,12 +311,41 @@ struct PostEditorPage {
       const photoSelectResult = await photoViewPicker.select(photoSelectOptions);
 
       if (photoSelectResult && photoSelectResult.photoUris.length > 0) {
+        // 1. 先把图片加进列表，状态设为 uploading
         const newItems: ImageUploadItem[] = photoSelectResult.photoUris.map((uri: string): ImageUploadItem => ({
           uri: uri,
-          status: 'success',
-          mid: 'mock_mid_' + Math.random()
+          status: 'uploading',
+          mid: undefined
         }));
         this.localImages.push(...newItems);
+
+        // 2. 这里的 context 需要获取一下
+
+
+        // 3. 遍历上传 (调用 Service)
+        newItems.forEach(async (item) => {
+          const mid = await galleryService.uploadImage(getContext(this), item.uri);
+
+          // 找到当前 item 在数组中的最新位置
+          const index = this.localImages.indexOf(item);
+          if (index !== -1) {
+            if (mid) {
+              // 上传成功
+              this.localImages[index] = {
+                uri: item.uri,
+                status: 'success',
+                mid: mid
+              };
+            } else {
+              // 上传失败
+              this.localImages[index] = {
+                uri: item.uri,
+                status: 'fail',
+                mid: undefined
+              };
+            }
+          }
+        });
       }
     } catch (err) {
       this.logger.error('PhotoViewPicker failed', err);

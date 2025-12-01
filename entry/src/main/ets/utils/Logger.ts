@@ -27,6 +27,11 @@ export class Logger {
     'WebPage',
     'PosterRepository',
     'PosterCard',
+    'GalleryService',  // 查看 uploadImage 和 postPoster 的日志 (关键)
+    'PostEditorPage',  // 查看页面层的数据收集和报错
+    'RcpSession',      // 查看网络请求的底层日志 (针对 postPoster)
+    'ReactionService', // 查看评论发送日志
+    'PosterDetailPage',
     // --- 可以在这里填入下方 ALL_MODULES 里的名字 ---
     // 'ScheduleGrid',
     // 'SchedulePage',

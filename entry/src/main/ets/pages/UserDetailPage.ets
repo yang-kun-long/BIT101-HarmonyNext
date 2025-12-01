@@ -1,3 +1,4 @@
+// entry/src/main/ets/pages/UserDetailPage.ets
 import router from '@ohos.router';
 import promptAction from '@ohos.promptAction';
 import { UserRepository, UserInfoResponse } from '../services/user/userRepository';
@@ -16,7 +17,7 @@ struct UserDetailPage {
   @State posters: Poster[] = [];
 
   // 分页状态
-  @State currentPage: number = 1;
+  @State currentPage: number = 0;
   @State hasMore: boolean = true;
   @State isPostersLoading: boolean = false;
 
@@ -66,11 +67,24 @@ struct UserDetailPage {
     if (isLoadMore && !this.hasMore) return;
 
     this.isPostersLoading = true;
-    const pageToFetch = isLoadMore ? this.currentPage + 1 : 1;
+
+    // ❌ [修复 2] 修正分页逻辑
+    // 刷新时(isLoadMore=false) 必须请求第 0 页
+    // 加载更多时，请求当前页 + 1
+    const pageToFetch = isLoadMore ? this.currentPage + 1 : 0;
 
     try {
       const posterRepo = new PosterRepository();
-      const newPosters = await posterRepo.getPostersOfUser(this.uid, pageToFetch);
+
+      // ✅ [修复 3] 核心修改：如果是自己，uid 传 0
+      let requestUid = this.uid;
+      // 依赖于 fetchData 中已经获取了 userInfo 并且有了 own 字段
+      if (this.userInfo && this.userInfo.own) {
+        requestUid = 0;
+      }
+
+      // 使用计算后的 requestUid 发请求
+      const newPosters = await posterRepo.getPostersOfUser(requestUid, pageToFetch);
 
       if (isLoadMore) {
         this.posters = [...this.posters, ...newPosters];
@@ -81,6 +95,7 @@ struct UserDetailPage {
       if (newPosters.length > 0) {
         this.currentPage = pageToFetch;
       }
+      // 简单判断是否有更多
       this.hasMore = newPosters.length >= 10;
 
     } catch (err) {
