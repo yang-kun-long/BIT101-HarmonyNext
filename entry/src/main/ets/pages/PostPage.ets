@@ -46,10 +46,11 @@ export default struct PostPage {
 
   // --- 业务逻辑：搜索 ---
   onSearchClick(): void {
-    promptAction.showToast({
-      message: '搜索功能开发中...\n用户ID: 待对接',
-      duration: 2000,
-      bottom: 400
+    // [修改] 之前是弹窗，现在改为跳转到 SearchPage
+    router.pushUrl({
+      url: 'pages/SearchPage'
+    }).catch((err: Error) => {
+      this.logger.error('Jump to SearchPage failed:', err);
     });
   }
 

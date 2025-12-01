@@ -1,8 +1,10 @@
+// entry/src/main/ets/services/user/userRepository.ts
 // 获取用户信息仓库（/user/info/{id}，需要 header: fake-cookie）
 // 依赖：HttpClient、TokenStore
 
 import { HttpClient } from '../../core/network/httpClient';
 import { TokenStore } from '../storage/tokenStore';
+import { Logger } from '../../utils/Logger';
 
 export interface Image {
   mid: string;
@@ -31,9 +33,18 @@ export interface UserInfoResponse {
   own: boolean;       // 是否是自己
 }
 
+// 关注接口返回结构
+export interface FollowResponse {
+  following: boolean;      // 是否被我关注
+  follower: boolean;       // 是否关注我
+  following_num: number;   // 关注数量
+  follower_num: number;    // 粉丝数量
+}
+
 export class UserRepository {
   private http: HttpClient;
   private store = new TokenStore();
+  private logger = new Logger('UserRepository');
 
   constructor(baseUrl: string = 'https://bit101.flwfdd.xyz') {
     this.http = new HttpClient(baseUrl, {
@@ -51,10 +62,8 @@ export class UserRepository {
     const fakeCookie = await this.store.getFakeCookie();
     const headers: Record<string, string> = {};
     if (fakeCookie) {
-      // 按 OpenAPI：header 名为 fake-cookie
       headers['fake-cookie'] = fakeCookie;
     } else if (String(id) === '0') {
-      // 取当前用户信息但没有 fake_cookie → 明确提示
       throw new Error('未登录 BIT101：缺少 fake_cookie，请先通过 /user/login 获取。');
     }
 
@@ -64,7 +73,6 @@ export class UserRepository {
       headers,
     });
 
-    // 兼容 data 包裹或直出
     if (typeof res.data === 'object' && res.data) {
       return res.data as UserInfoResponse;
     }
@@ -73,6 +81,60 @@ export class UserRepository {
       return (obj?.data ?? obj) as UserInfoResponse;
     } catch {
       throw new Error('获取用户信息：返回格式异常');
+    }
+  }
+
+  /**
+   * 关注/取消关注用户
+   */
+  async followUser(uid: string | number): Promise<FollowResponse | null> {
+    try {
+      const fakeCookie = await this.store.getFakeCookie();
+      const headers: Record<string, string> = {};
+      if (fakeCookie) {
+        headers['fake-cookie'] = fakeCookie;
+      } else {
+        this.logger.warn('关注操作缺少 fake-cookie');
+      }
+
+      this.logger.info(`发起关注请求: uid=${uid}`);
+
+      // 🔥【修正点】将 data 改为 json，因为你的 HttpClient 定义的是 json
+      const res = await this.http.request<any>({
+        url: `/user/follow/${uid}`,
+        method: 'POST',
+        headers: headers,
+        json: {} // <--- 这里改成了 json，对应 HttpRequest 接口
+      });
+
+      // 解析逻辑
+      let json = res.data;
+      if (!json && res.text) {
+        try {
+          json = JSON.parse(res.text);
+        } catch (e) {
+          this.logger.error('关注返回解析失败', e);
+        }
+      }
+
+      const data = json?.data ?? json;
+
+      if (data && typeof data.following === 'boolean') {
+        this.logger.info(`关注操作成功: following=${data.following}`);
+        return {
+          following: Boolean(data.following),
+          follower: Boolean(data.follower),
+          following_num: Number(data.following_num ?? 0),
+          follower_num: Number(data.follower_num ?? 0)
+        };
+      }
+
+      this.logger.warn('关注操作返回数据异常', JSON.stringify(data));
+      return null;
+
+    } catch (e) {
+      this.logger.error('关注网络异常', e);
+      return null;
     }
   }
 }

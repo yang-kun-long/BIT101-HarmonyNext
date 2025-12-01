@@ -14,7 +14,12 @@ class GalleryService {
   private logger = new Logger('GalleryService');
   private apiPath = '/posters';
 
-  async getPosters(mode: PostersMode, page: number = 0, keyword?: string): Promise<Poster[]> {
+  async getPosters(
+    mode: PostersMode,
+    page: number = 0,
+    // keyword?: string  <-- 旧的删掉
+    options?: { keyword?: string, order?: string, uid?: number } // <-- 新的
+  ): Promise<Poster[]> {
     try {
       const queryParams: Record<string, string | number> = { page: page };
 
@@ -24,16 +29,20 @@ class GalleryService {
         case PostersMode.Newest:
           queryParams['mode'] = 'search';
           queryParams['order'] = 'NEW';
-          queryParams['uid'] = -1; // 修正：最新板块用 -1
+          queryParams['uid'] = -1;
           break;
         case PostersMode.Search:
           queryParams['mode'] = 'search';
-          if (keyword) queryParams['search'] = keyword;
+          // [修改] 从 options 里取值
+          if (options?.keyword) queryParams['search'] = options.keyword;
+          if (options?.order) queryParams['order'] = options.order;
+          // 默认为 -1 (全站搜索)，如果 options 里有传则用 options 的
+          queryParams['uid'] = options?.uid !== undefined ? options.uid : -1;
           break;
-        default: break;
+        default: break; // Recommend 模式
       }
 
-      this.logger.debug('Requesting page', page, 'mode:', mode);
+      this.logger.debug('Requesting page', page, 'mode:', mode, 'params:', queryParams);
 
       const resp = await bit101Session.get(this.apiPath, { query: queryParams });
 

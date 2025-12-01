@@ -5,6 +5,8 @@
     "pages/PosterDetailPage",
     "pages/WebBrowserPage",
     "pages/PostEditorPage",
-    "pages/UserDetailPage"
+    "pages/UserDetailPage",
+    "pages/MapPage2",
+    "pages/SearchPage"
   ]
 }

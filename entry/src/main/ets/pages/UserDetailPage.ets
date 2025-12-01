@@ -22,8 +22,8 @@ struct UserDetailPage {
 
   // --- 🌟 滚动与导航栏状态 ---
   @State navOpacity: number = 0; // 导航栏背景透明度 (0.0 - 1.0)
-  @State showSmallTitle: boolean = false; // 是否显示小标题(昵称)
-  private scroller: Scroller = new Scroller(); // 列表滚动控制器
+  @State showSmallTitle: boolean = false; // 是否显示小标题
+  private scroller: Scroller = new Scroller();
 
   aboutToAppear() {
     const params = router.getParams() as Record<string, Object>;
@@ -61,27 +61,15 @@ struct UserDetailPage {
   }
 
   async loadPosters(isLoadMore: boolean) {
-    // 1. 防抖：正在加载中，直接退出
     if (this.isPostersLoading) return;
-
-    // ✅ 核心修复：竞态条件保护
-    // 如果是“加载更多”模式，但列表是空的，说明第一页还没加载完（或者没数据）。
-    // 此时禁止触发加载更多，防止 onReachEnd 抢在初始化之前请求第 2 页。
-    if (isLoadMore && this.posters.length === 0) {
-      return;
-    }
-
-    // 2. 如果没有更多数据了，也退出
+    if (isLoadMore && this.posters.length === 0) return;
     if (isLoadMore && !this.hasMore) return;
 
     this.isPostersLoading = true;
-
-    // 计算页码
     const pageToFetch = isLoadMore ? this.currentPage + 1 : 1;
 
     try {
       const posterRepo = new PosterRepository();
-      // ... 以下代码保持不变 ...
       const newPosters = await posterRepo.getPostersOfUser(this.uid, pageToFetch);
 
       if (isLoadMore) {
@@ -90,12 +78,9 @@ struct UserDetailPage {
         this.posters = newPosters;
       }
 
-      // 只有成功获取到数据才更新页码
       if (newPosters.length > 0) {
         this.currentPage = pageToFetch;
       }
-
-      // 判定是否还有更多 (BIT101 API 默认分页大小为 10)
       this.hasMore = newPosters.length >= 10;
 
     } catch (err) {
@@ -106,8 +91,42 @@ struct UserDetailPage {
   }
 
   // --- 逻辑区 ---
-  private handleFollow() {
-    promptAction.showToast({ message: '关注功能开发中...' });
+
+  // 🔥 [核心修改] 真实的关注逻辑
+  private async handleFollow() {
+    if (!this.userInfo || !this.uiUser) return;
+
+    const userRepo = new UserRepository();
+
+    try {
+      const result = await userRepo.followUser(this.uiUser.id);
+
+      if (result) {
+        // ArkTS 不支持 ...this.userInfo 写法，必须手动构建新对象
+        const newUserInfo: UserInfoResponse = {
+          user: this.userInfo.user, // 保持原有 user 对象
+          own: this.userInfo.own,   // 保持原有 own 状态
+
+          // 更新关注相关的 4 个字段
+          following: result.following,
+          follower: result.follower,
+          follower_num: result.follower_num,
+          following_num: result.following_num
+        };
+
+        this.userInfo = newUserInfo;
+
+        promptAction.showToast({
+          message: result.following ? '关注成功' : '已取消关注',
+          duration: 1500
+        });
+
+      } else {
+        promptAction.showToast({ message: '操作失败，请重试' });
+      }
+    } catch (e) {
+      promptAction.showToast({ message: '网络错误，请检查连接' });
+    }
   }
 
   private getButtonText(): string {
@@ -123,15 +142,16 @@ struct UserDetailPage {
       if (this.userInfo.own) {
         UserInfoButton({
           text: "我的主页",
-          isPrimary: true,
+          isPrimary: true, // 我的主页通常也用强调色
           onAction: () => {
             promptAction.showToast({ message: "即将跳转我的主页..." });
           }
         })
       } else {
+        // ✅ 这里的绑定是正确的，点击触发上面的 handleFollow
         UserInfoButton({
           text: this.getButtonText(),
-          isPrimary: !this.userInfo.following,
+          isPrimary: !this.userInfo.following, // 未关注时为 True (粉色)，已关注为 False (灰色)
           onAction: () => {
             this.handleFollow();
           }
@@ -140,17 +160,17 @@ struct UserDetailPage {
     }
   }
 
-  // --- 🌟 顶部导航栏 (仿 BasicTwoRowsTopAppBar 的折叠态) ---
+  // --- 🌟 顶部导航栏 (Fade 模式) ---
   @Builder
   CustomNavBar() {
     Stack({ alignContent: Alignment.Center }) {
-      // 1. 背景层 (白色，透明度随滚动变化)
+      // 1. 背景层
       Row()
         .width('100%')
         .height('100%')
         .backgroundColor(Color.White)
-        .opacity(this.navOpacity) // 控制背景透明度
-        .shadow(this.navOpacity > 0.8 ? { radius: 2, color: '#1a000000', offsetY: 1 } : undefined) // 只有完全显示时才有阴影
+        .opacity(this.navOpacity)
+        .shadow(this.navOpacity > 0.9 ? { radius: 3, color: '#0D000000', offsetY: 1 } : undefined)
 
       // 2. 内容层
       Row() {
@@ -169,7 +189,7 @@ struct UserDetailPage {
         })
         .margin({ left: 4 })
 
-        // 小标题 (昵称) - 渐变显示
+        // 小标题 (昵称)
         if (this.uiUser) {
           Text(this.uiUser.nickname)
             .fontSize(18)
@@ -179,8 +199,8 @@ struct UserDetailPage {
             .textOverflow({ overflow: TextOverflow.Ellipsis })
             .layoutWeight(1)
             .margin({ left: 16, right: 16 })
-            .opacity(this.showSmallTitle ? 1 : 0) // 控制文字可见性
-            .animation({ duration: 200 }) // 添加淡入淡出动画
+            .opacity(this.showSmallTitle ? 1 : 0)
+            .animation({ duration: 200 })
         }
       }
       .width('100%')
@@ -188,17 +208,14 @@ struct UserDetailPage {
       .alignItems(VerticalAlign.Center)
     }
     .width('100%')
-    .height(56) // 标准导航栏高度
+    .height(56)
   }
 
-  // --- 🌟 用户信息大卡片 (仿 BasicTwoRowsTopAppBar 的展开态) ---
+  // --- 🌟 用户信息大卡片 ---
   @Builder
   UserInfoHeader() {
     if (this.userInfo && this.uiUser) {
       Column() {
-        // 顶部留白，因为现在导航栏是悬浮的，防止内容被遮挡
-        // 同时配合白色背景，模拟出 Android 的 Surface 效果
-
         AvatarWithName({
           user: this.uiUser,
           createTime: this.userInfo.user.create_time,
@@ -226,10 +243,8 @@ struct UserDetailPage {
           .margin({ bottom: 16 })
       }
       .width('100%')
-      .backgroundColor(Color.White) // 关键：白色背景，对应 Surface
-      .padding({ top: 12 })
-      // 去掉圆角，让它看起来更像是一个延伸下来的 App Bar
-      // .borderRadius({ bottomLeft: 12, bottomRight: 12 })
+      .backgroundColor(Color.White)
+      .padding({ top: 56 + 12 })
     }
   }
 
@@ -251,30 +266,18 @@ struct UserDetailPage {
   build() {
     Stack({ alignContent: Alignment.TopStart }) {
 
-      // 1. 底层内容列表
+      // 1. 底层列表
       List({ scroller: this.scroller }) {
-        // 占位符：给悬浮导航栏留出初始高度 (56vp)
-        // 这样初始状态下，UserInfoHeader 会在导航栏下方显示，而不是被压住
-        // 如果想模仿安卓那种内容可以滚到透明栏底下的效果，可以把这个高度设为 0，然后在 UserInfoHeader 里加 padding
-        ListItem() {
-          Column().height(56).width('100%').backgroundColor(Color.White)
-        }
-
-        // 大标题区域 (用户信息)
         ListItem() {
           this.UserInfoHeader()
         }
 
-        // 帖子列表
         if (this.posters.length > 0) {
+          ListItem().height(8)
+
           ForEach(this.posters, (item: Poster) => {
             ListItem() {
               Column() {
-                // 加一个间隔条，区分用户信息和帖子，以及帖子之间
-                if (item === this.posters[0]) {
-                  Divider().color($r('sys.color.ohos_id_color_sub_background')).height(8).width('100%')
-                }
-
                 PosterCard({
                   poster: item,
                   onClickPoster: () => {
@@ -284,7 +287,10 @@ struct UserDetailPage {
                     });
                   }
                 })
-                Divider().color($r('sys.color.ohos_id_color_sub_background')).height(8).width('100%')
+                Divider()
+                  .color(Color.Transparent)
+                  .height(8)
+                  .width('100%')
               }
             }
           })
@@ -304,28 +310,26 @@ struct UserDetailPage {
       }
       .width('100%')
       .height('100%')
-      .scrollBar(BarState.Auto)
+      .scrollBar(BarState.Off)
       .edgeEffect(EdgeEffect.Spring)
       .onReachEnd(() => {
         this.loadPosters(true);
       })
-      // 🌟 核心：监听滚动，计算渐变效果
-      .onScroll(() => {
-        const yOffset = this.scroller.currentOffset().yOffset;
-
-        // 设定渐变阈值：比如滚动 100vp 后完全变白
-        const threshold = 100;
-
-        // 计算透明度 0 ~ 1
-        let opacity = 0;
-        if (yOffset > 0) {
-          opacity = Math.min(yOffset / threshold, 1);
+      .onDidScroll(() => {
+        const headerRect = this.scroller.getItemRect(0);
+        if (headerRect.width > 0) {
+          const yOffset = -headerRect.y;
+          const threshold = 120;
+          let opacity = 0;
+          if (yOffset > 0) {
+            opacity = Math.min(yOffset / threshold, 1);
+          }
+          this.navOpacity = opacity;
+          this.showSmallTitle = opacity > 0.85;
+        } else {
+          this.navOpacity = 1;
+          this.showSmallTitle = true;
         }
-
-        this.navOpacity = opacity;
-
-        // 当透明度超过 0.8 时，显示小标题
-        this.showSmallTitle = opacity > 0.8;
       })
 
       // 2. 顶层悬浮导航栏

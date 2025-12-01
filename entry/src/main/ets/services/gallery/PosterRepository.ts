@@ -113,6 +113,101 @@ export class PosterRepository {
       throw err;
     }
   }
+  async getPosters(mode: string, page: number): Promise<Poster[]> {
+    try {
+      const headers: Record<string, string> = {};
+      const fakeCookie = await this.tokenStore.getFakeCookie();
+      if (fakeCookie) headers['fake-cookie'] = fakeCookie;
+
+      const queryParams: Record<string, string | number> = {
+        mode: mode,
+        page: page
+      };
+
+      // 特殊处理：如果 mode 是 "newest" (UI层的概念)，对应 API 的 recommend/hot?
+      // 实际上根据之前的分析，"最新"通常是 mode=search & order=new & uid=-1
+      // 这里为了兼容你的 Tab，我们做个简单的判断：
+      if (mode === 'newest') {
+        queryParams['mode'] = 'search';
+        queryParams['order'] = 'new';
+        queryParams['uid'] = -1;
+      }
+
+      logger.info(`通用列表请求: mode=${mode}, page=${page}`);
+
+      const response = await this.rcp.get('/posters', {
+        headers: headers,
+        query: queryParams
+      });
+
+      return this.handleResponse(response);
+    } catch (err) {
+      logger.error(`getPosters 异常 (mode=${mode})`, err);
+      return [];
+    }
+  }
+
+  // ==========================================================
+  // [新增] 2. 搜索专用方法
+  // ==========================================================
+  async getSearchPosters(
+    keyword: string,
+    page: number,
+    order: string = 'new', // new | like | comment
+    uid: number = -1       // -1 为全站
+  ): Promise<Poster[]> {
+    try {
+      const headers: Record<string, string> = {};
+      const fakeCookie = await this.tokenStore.getFakeCookie();
+      if (fakeCookie) headers['fake-cookie'] = fakeCookie;
+
+      const queryParams: Record<string, string | number> = {
+        mode: 'search',
+        search: keyword,
+        order: order,
+        uid: uid,
+        page: page
+      };
+
+      logger.info(`搜索请求: keyword=${keyword}, order=${order}, page=${page}`);
+
+      const response = await this.rcp.get('/posters', {
+        headers: headers,
+        query: queryParams
+      });
+
+      return this.handleResponse(response);
+    } catch (err) {
+      logger.error(`getSearchPosters 异常: ${keyword}`, err);
+      return [];
+    }
+  }
+
+  // ==========================================================
+  // [优化] 抽取公共响应处理逻辑 (复用现有代码)
+  // ==========================================================
+  private handleResponse(response: any): Poster[] {
+    if (response.statusCode !== 200) {
+      logger.error(`请求失败: code=${response.statusCode}`);
+      return [];
+    }
+
+    let rawList: PosterApiRaw[] = [];
+    try {
+      const json = JSON.parse(response.bodyText);
+      if (Array.isArray(json)) {
+        rawList = json;
+      } else if (json && Array.isArray(json.data)) {
+        rawList = json.data;
+      }
+    } catch (e) {
+      logger.error('JSON解析失败', e);
+      return [];
+    }
+
+    return rawList.map(item => this.mapApiToModel(item));
+  }
+
 
   private mapApiToModel(raw: PosterApiRaw): Poster {
     const avatarUrl = raw.user?.avatar?.url || '';

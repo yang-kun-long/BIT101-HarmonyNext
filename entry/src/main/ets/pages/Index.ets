@@ -2,6 +2,7 @@
 import { Logger } from '../utils/Logger';
 import ScheduleShellPage from './ScheduleShellPage'
 import MapPage from './MapPage'
+import MapPage2 from './MapPage2'
 import ForumPage from './ForumPage'
 import PostPage from './PostPage'
 import MePage from './MePage'
