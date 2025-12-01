@@ -52,6 +52,86 @@ export default struct PosterDetailPage {
     autoCancel: true,
     offset: { dx: 0, dy: -12 }
   });
+  private async togglePosterLike(): Promise<void> {
+    if (!this.poster) {
+      return;
+    }
+
+    const oldLike = this.poster.like;
+    const oldNum = this.poster.likeNum || 0;
+
+    // 乐观更新：先改本地，提升手感
+    this.poster.like = !oldLike;
+    this.poster.likeNum = oldLike ? oldNum - 1 : oldNum + 1;
+
+    const toastMsg = this.poster.like ? '点赞中...' : '取消点赞中...';
+    this.showToast(toastMsg);
+
+    const res = await reactionService.likePoster(this.poster.id);
+
+    if (res) {
+      // 以服务器结果为准，和 Android 一致
+      this.poster.like = res.like;
+      this.poster.likeNum = res.likeNum;
+      this.showToast(res.like ? '点赞成功' : '已取消点赞');
+    } else {
+      // 失败就回滚
+      this.poster.like = oldLike;
+      this.poster.likeNum = oldNum;
+      this.showToast('操作失败，请重试');
+    }
+  }
+  private updateCommentLikeInList(
+    list: Comment[],
+    id: number,
+    like: boolean,
+    likeNum: number
+  ): void {
+    for (let i = 0; i < list.length; i++) {
+      const item = list[i];
+
+      if (item.id === id) {
+        item.like = like;
+        item.likeNum = likeNum;
+      }
+
+      if (item.sub && item.sub.length > 0) {
+        this.updateCommentLikeInList(item.sub, id, like, likeNum);
+      }
+    }
+  }
+
+  // 点赞 / 取消点赞 某条评论（包括子评论）
+  private async toggleCommentLike(target: Comment): Promise<void> {
+    const id = target.id;
+    const oldLike = target.like;
+    const oldNum = target.likeNum || 0;
+
+    // 乐观更新：原地改，再重新赋值触发 UI
+    this.updateCommentLikeInList(
+      this.comments,
+      id,
+      !oldLike,
+      oldLike ? oldNum - 1 : oldNum + 1
+    );
+    this.comments = [...this.comments]; // 触发刷新
+
+    this.showToast(oldLike ? '取消点赞中...' : '点赞中...');
+
+    const res = await reactionService.likeComment(id);
+
+    if (res) {
+      this.updateCommentLikeInList(this.comments, id, res.like, res.likeNum);
+      this.comments = [...this.comments];
+      this.showToast(res.like ? '点赞成功' : '已取消点赞');
+    } else {
+      // 失败回滚
+      this.updateCommentLikeInList(this.comments, id, oldLike, oldNum);
+      this.comments = [...this.comments];
+      this.showToast('操作失败，请重试');
+    }
+  }
+
 
   aboutToAppear(): void {
     const params = router.getParams() as Record<string, Object>;
@@ -339,11 +419,7 @@ export default struct PosterDetailPage {
           .width(26).height(26)
           .fillColor(this.poster?.like ? '#EF4444' : '#6B7280')
           .onClick(() => {
-            if (this.poster) {
-              this.poster.like = !this.poster.like;
-              this.poster.likeNum += this.poster.like ? 1 : -1;
-              this.showToast(this.poster.like ? '点赞成功' : '取消点赞');
-            }
+            this.togglePosterLike();
           })
           .animation({ duration: 300, curve: curves.springCurve(10, 1, 228, 30) })
 
@@ -494,7 +570,9 @@ export default struct PosterDetailPage {
             Text(this.formatNumber(c.likeNum))
               .fontSize(12).fontColor('#6B7280').margin({ left: 4 });
           }
-          .onClick(() => { /* 点赞省略 */ })
+          .onClick(() => {
+            this.toggleCommentLike(c);
+          })
         }
         .width('100%').alignItems(VerticalAlign.Center);
 
@@ -567,7 +645,18 @@ export default struct PosterDetailPage {
         Row() {
           Text(this.getCommentNickname(subComment))
             .fontSize(14).fontWeight(FontWeight.Bold).fontColor('#4B5563').layoutWeight(1);
-          // 点赞省略...
+
+          Row() {
+            Image(subComment.like ? $r('app.media.ic_public_heart_filled') : $r('app.media.ic_public_heart_outline'))
+              .width(14).height(14)
+              .fillColor(subComment.like ? '#EF4444' : '#9CA3AF')
+              .animation({ duration: 300, curve: Curve.FastOutSlowIn })
+            Text(this.formatNumber(subComment.likeNum))
+              .fontSize(12).fontColor('#6B7280').margin({ left: 4 });
+          }
+          .onClick(() => {
+            this.toggleCommentLike(subComment);
+          })
         }
         .width('100%').alignItems(VerticalAlign.Center);
 

@@ -13,9 +13,14 @@ export interface PostCommentReq {
   image_mids: string[];
   rate?: number;
 }
+interface PostLikeResp {
+  like: boolean;
+  likeNum: number;
+}
 
 class ReactionService {
   private commentsPath = '/reaction/comments';
+  private likePath = '/reaction/like';
   private logger = new Logger('ReactionService');
   private makeObj(type: 'poster' | 'comment', id: number): string {
     return `${type}${id}`;
@@ -57,6 +62,39 @@ class ReactionService {
       this.logger.error('postComment error', e);
       return null;
     }
+  }
+  private async postLike(obj: string): Promise<PostLikeResp | null> {
+    try {
+      this.logger.info(`[like] POST ${this.likePath}, obj=${obj}`);
+
+      const body = { obj } as Record<string, Object>;
+      const resp = await bit101Session.post(this.likePath, body);
+
+      if (resp.statusCode === 200 && resp.bodyText) {
+        const json = JSON.parse(resp.bodyText);
+        // 直接按 Android 的结构解析
+        return {
+          like: Boolean(json.like),
+          likeNum: Number(json.likeNum ?? json.like_num ?? 0)
+        };
+      }
+
+      this.logger.error(`[like] bad status: ${resp.statusCode}`);
+      return null;
+    } catch (e) {
+      this.logger.error('[like] postLike error', e);
+      return null;
+    }
+  }
+
+  // 帖子点赞
+  async likePoster(id: number): Promise<PostLikeResp | null> {
+    return this.postLike(`poster${id}`);
+  }
+
+  // 评论点赞（先留好，后面用）
+  async likeComment(id: number): Promise<PostLikeResp | null> {
+    return this.postLike(`comment${id}`);
   }
 
   private async getComments(
