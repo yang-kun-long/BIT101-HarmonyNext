@@ -10,6 +10,9 @@ import { AvatarWithVerified } from '../components/gallery/AvatarWithVerified';
 import { UserNameWithIdentity } from '../components/gallery/UserNameWithIdentity';
 import curves from '@ohos.curves';
 import { Logger } from '../utils/Logger';
+// 添加 ImageViewer 组件
+import { ImageViewer } from '../components/ImageViewer';
+
 
 // ✅ 1. 引入支持链接点击的文本组件
 import { LinkableText } from '../components/gallery/LinkableText';
@@ -23,6 +26,8 @@ export default struct PosterDetailPage {
   @State loading: boolean = true;
   @State comments: Comment[] = [];
   @State commentsLoading: boolean = false;
+  @State isPreviewOpen: boolean = false;
+  @State previewIndex: number = 0;
 
   // UI 状态
   @State isTitleVisibleInTopBar: boolean = false; // 控制 TopBar 显示状态
@@ -39,6 +44,37 @@ export default struct PosterDetailPage {
       this.loadComments();
     } else {
       this.loading = false;
+    }
+  }
+  private jumpToUser(user?: GalleryUser): void {
+    const targetUid = user?.id;
+    // 简单校验，过滤匿名或无效ID
+    if (!targetUid || targetUid === '0' || targetUid === '-1') {
+      this.showToast('无法查看该用户详情');
+      return;
+    }
+
+    router.pushUrl({
+      url: 'pages/UserDetailPage',
+      params: {
+        uid: parseInt(targetUid) // 确保传递数字类型
+      }
+    }, router.RouterMode.Standard, (err) => {
+      if (err) {
+        this.logger.error(`跳转失败: ${err.message}`);
+      }
+    });
+  }
+  @Builder
+  PhotoViewerBuilder() {
+    if (this.poster && this.poster.images) {
+      ImageViewer({
+        images: this.poster.images,
+        initialIndex: this.previewIndex,
+        onClose: () => {
+          this.isPreviewOpen = false;
+        }
+      })
     }
   }
 
@@ -104,6 +140,11 @@ export default struct PosterDetailPage {
     .width('100%')
     .height('100%')
     .backgroundColor(Color.White)
+    .bindContentCover(this.isPreviewOpen, this.PhotoViewerBuilder(), {
+      modalTransition: ModalTransition.ALPHA,
+      backgroundColor: Color.Black,
+      onDisappear: () => { this.isPreviewOpen = false }
+    })
   }
 
   // =============== 组件：加载/错误 ===============
@@ -134,29 +175,26 @@ export default struct PosterDetailPage {
       // 中间动态内容
       Stack() {
         if (this.poster) {
-          // 状态 A: 显示用户信息 (默认)
+          // 状态 A: 显示用户信息
           Row() {
-            // ✅ 1. 替换头像
             AvatarWithVerified({
               user: this.poster.user,
-              avatarSize: 32, // TopBar 头像稍大
-              onClickUser: () => this.showToast(`查看用户: ${this.poster?.user?.id}`)
+              avatarSize: 32,
+              // ✅ 修改：点击头像跳转
+              onClickUser: () => this.jumpToUser(this.poster?.user)
             })
 
             Column() {
-              // ✅ 2. 替换昵称和身份
-              // 注意：UserNameWithIdentity 已经包含了身份标签，所以这里只需要放这一个组件
               UserNameWithIdentity({
                 user: this.poster.user,
                 fontSize: 14,
                 fontColor: '#1F2937'
               })
-
-              // 如果想保留原来的副标题逻辑（比如 "身份: 管理员"），由于新组件已经集成了标签，
-              // 这里通常不需要再额外显示身份文本了，除非你有其他信息（比如时间）要显示。
             }
             .alignItems(HorizontalAlign.Start)
             .margin({ left: 8 })
+            // ✅ 修改：点击名字也能跳转
+            .onClick(() => this.jumpToUser(this.poster?.user))
           }
           .width('100%')
           .opacity(this.isTitleVisibleInTopBar ? 0 : 1) // 渐隐
@@ -315,17 +353,19 @@ export default struct PosterDetailPage {
 
   // =============== 组件：图片网格 (保持不变) ===============
   @Builder
+  @Builder
   ImageGrid(images: GalleryImage[]): void {
     Grid() {
       ForEach(images, (img: GalleryImage, index: number) => {
         GridItem() {
           Image(this.getImageUrl(img.url))
-            .width('100%')
-            .aspectRatio(1)
-            .objectFit(ImageFit.Cover)
-            .borderRadius(6)
+          // ... 样式保持不变 ...
             .backgroundColor('#F3F4F6')
-            .onClick(() => this.showToast(`查看大图 ${index + 1}`));
+            // ✅ 修改：点击打开预览
+            .onClick(() => {
+              this.previewIndex = index;
+              this.isPreviewOpen = true;
+            });
         }
       })
     }
@@ -400,7 +440,7 @@ export default struct PosterDetailPage {
         .backgroundColor('#F3F4F6')
         .objectFit(ImageFit.Cover)
         .margin({ right: 12 })
-        .onClick(() => this.showToast(`跳转用户: ${c.user?.nickname}`));
+        .onClick(() => this.jumpToUser(c.user))
 
       Column() {
         // 2. 昵称栏
@@ -490,7 +530,8 @@ export default struct PosterDetailPage {
         .borderRadius(12)
         .backgroundColor('#E5E7EB')
         .margin({ right: 8 })
-        .objectFit(ImageFit.Cover);
+        .objectFit(ImageFit.Cover)
+        .onClick(() => this.jumpToUser(subComment.user));
 
       Column() {
         // 昵称栏 + 点赞
