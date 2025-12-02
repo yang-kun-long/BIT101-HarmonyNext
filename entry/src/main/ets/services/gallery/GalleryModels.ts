@@ -2,6 +2,7 @@
 // 1. 定义图片结构
 // 对应 Android 中的 Image 类
 export interface GalleryImage {
+  mid?: string;
   id: string;
   url: string;
   w: number;

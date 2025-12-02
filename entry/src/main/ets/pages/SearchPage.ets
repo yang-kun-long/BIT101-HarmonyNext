@@ -25,7 +25,7 @@ struct SearchPage {
   // 排序选项配置
   @State orderOptions: SearchOrderOption[] = [
     { value: 'new', label: '最新' },
-    { value: 'like', label: '高赞' },
+    { value: 'like', label: '相似' },
     { value: 'comment', label: '热评' }
   ];
 
@@ -40,7 +40,7 @@ struct SearchPage {
 
     // 调用 ViewModel 发起请求
     // 注意：uid 暂时传 -1 (全站搜索)，后续对接用户系统时可从 UserStore 获取
-    this.searchState.doSearch(this.searchKeyword, this.currentOrder, -1);
+    this.searchState.doSearch(this.searchKeyword, this.currentOrder, 0);
   }
 
   // 跳转详情页 (复用 PostPage 的逻辑)

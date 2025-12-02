@@ -63,6 +63,25 @@ class ReactionService {
       return null;
     }
   }
+  async deleteComment(id: number): Promise<boolean> {
+    try {
+      this.logger.info(`[deleteComment] id=${id}`);
+
+      // ✅ 直接用你已经有的 fetch，method = 'DELETE'
+      const resp = await bit101Session.fetch('DELETE', `${this.commentsPath}/${id}`);
+
+      if (resp.statusCode === 200) {
+        return true;
+      }
+
+      this.logger.error(`[deleteComment] bad status: ${resp.statusCode}`);
+      return false;
+    } catch (e) {
+      this.logger.error('[deleteComment] error', e);
+      return false;
+    }
+  }
+
   private async postLike(obj: string): Promise<PostLikeResp | null> {
     try {
       this.logger.info(`[like] POST ${this.likePath}, obj=${obj}`);

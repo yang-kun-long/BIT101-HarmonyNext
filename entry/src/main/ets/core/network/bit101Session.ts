@@ -1,5 +1,6 @@
 // 引用基础类（注意路径，假设类定义在同级目录的 RcpSession.ts 或 rcpSession.ts 中）
 // 如果你的文件名是小写 rcpSession.ts，请保持 import { RcpSession } from './rcpSession';
+// entry/src/main/ets/core/network/bit101Session.ts
 import { RcpSession, RcpRequestOptions, RcpResponseData } from './rcpSession';
 import { TokenStore } from '../../services/storage/tokenStore';
 

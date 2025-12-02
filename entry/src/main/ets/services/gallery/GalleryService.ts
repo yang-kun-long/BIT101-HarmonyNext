@@ -16,6 +16,17 @@ export enum PostersMode {
   Newest = 'newest',
   Search = 'search'
 }
+export interface UpdatePosterReq {
+  id: number;
+  title: string;
+  text: string;
+  imageMids: string[];
+  anonymous: boolean;
+  tags: string[];
+  claimId: number;
+  public: boolean;
+  plugins: string; // 和安卓一样默认 "[]"
+}
 
 class GalleryService {
   private logger = new Logger('GalleryService');
@@ -107,6 +118,17 @@ class GalleryService {
         try { fs.closeSync(fileFd); } catch (e) {}
       }
     }
+  }
+
+  async deletePosterById(id: number): Promise<boolean> {
+    const path = `/posters/${id}`;
+
+    const res = await bit101Session.fetch('DELETE', path);
+
+    if (res.statusCode === 200) {
+      return true;
+    }
+    return false;
   }
 
   private stringToBuffer(str: string): ArrayBuffer {
@@ -236,20 +258,26 @@ class GalleryService {
   }
 
   async updatePoster(id: number, req: PosterPostRequest): Promise<boolean> {
+    // 打印要发送的 JSON
     try {
-      const resp = await bit101Session.put(`${this.apiPath}/${id}`, {
-        body: req
-      });
-      if (resp.statusCode === 200) {
-        return true;
-      } else {
-        this.logger.warn('Update failed:', resp.statusCode, resp.bodyText);
-        return false;
-      }
+      this.logger.info('[updatePoster] id=' + id + ', body=' + JSON.stringify(req));
     } catch (e) {
-      this.logger.error('updatePoster exception:', e);
-      return false;
+      this.logger.error('[updatePoster] JSON.stringify error', e);
     }
+
+    const res = await bit101Session.fetch('PUT', `/posters/${id}`, {
+      body: req
+    });
+
+    this.logger.info('[updatePoster] status=' + res.statusCode);
+    this.logger.info('[updatePoster] respBody=' + res.bodyText);
+
+    if (res.statusCode === 200) {
+      return true;
+    }
+
+    this.logger.error('[updatePoster] failed, status=' + res.statusCode + ', body=' + res.bodyText);
+    return false;
   }
 
   private safeParsePoster(raw: any): Poster {

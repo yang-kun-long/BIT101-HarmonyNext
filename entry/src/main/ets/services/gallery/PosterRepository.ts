@@ -154,7 +154,7 @@ export class PosterRepository {
     keyword: string,
     page: number,
     order: string = 'new', // new | like | comment
-    uid: number = -1       // -1 为全站
+    uid: number = 0       // -1 为全站
   ): Promise<Poster[]> {
     try {
       const headers: Record<string, string> = {};

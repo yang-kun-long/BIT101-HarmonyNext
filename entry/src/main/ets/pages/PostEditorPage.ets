@@ -276,9 +276,29 @@ struct PostEditorPage {
       if (detail.claim) {
         this.selectedClaim = this.claimsList.find(c => c.id === detail.claim!.id) || detail.claim;
       }
+
+      // ✅ 把旧图也填回编辑页
+      const imgs: ImageUploadItem[] = [];
+      if (detail.images && detail.images.length > 0) {
+        for (let i = 0; i < detail.images.length; i++) {
+          const img = detail.images[i];
+
+          // 优先用 img.mid，如果没有就退回 img.id（兜底）
+          const mid = img.mid ? img.mid : img.id;
+
+          imgs.push({
+            uri: img.url,
+            status: 'success',
+            mid: mid
+          });
+        }
+      }
+      this.localImages = imgs;
     }
     this.isLoading = false;
   }
+
+
 
   handleTagResult(newTags: string[]) {
     if (this.editingTagIndex === -1) {
@@ -408,9 +428,32 @@ struct PostEditorPage {
       return;
     }
 
-    const imageMids = this.localImages
-      .filter((img) => img.status === 'success' && img.mid)
-      .map((img) => img.mid!);
+    // ✅ 1. 本地校验：是否存在未上传成功的图片
+    const hasNotSuccess = this.localImages.some((img: ImageUploadItem) =>
+    img.status !== 'success'
+    );
+    if (hasNotSuccess) {
+      promptAction.showToast({ message: '存在未上传成功的图片，请稍后再试' });
+      return;
+    }
+
+    // ✅ 2. 只取成功图片的 mid，并去重
+    const midsRaw: string[] = [];
+    for (let i = 0; i < this.localImages.length; i++) {
+      const item = this.localImages[i];
+      if (item.status === 'success' && item.mid) {
+        midsRaw.push(item.mid);
+      }
+    }
+
+    // 去重（保持顺序）
+    const imageMids: string[] = [];
+    for (let i = 0; i < midsRaw.length; i++) {
+      const m = midsRaw[i];
+      if (imageMids.indexOf(m) < 0) {
+        imageMids.push(m);
+      }
+    }
 
     const req: PosterPostRequest = {
       title: this.title,
@@ -419,14 +462,17 @@ struct PostEditorPage {
       anonymous: this.isAnonymous,
       public: this.isPublic,
       claim_id: this.selectedClaim ? this.selectedClaim.id : 0,
-      image_mids: imageMids,
-      plugins: "[]"
+      image_mids: imageMids,   // ✅ 用去重后的列表
+      plugins: '[]'
     };
 
     this.isLoading = true;
     let success = false;
-    if (this.posterId === 0) success = await galleryService.postPoster(req);
-    else success = await galleryService.updatePoster(this.posterId, req);
+    if (this.posterId === 0) {
+      success = await galleryService.postPoster(req);
+    } else {
+      success = await galleryService.updatePoster(this.posterId, req);
+    }
     this.isLoading = false;
 
     if (success) {
@@ -436,6 +482,7 @@ struct PostEditorPage {
       promptAction.showToast({ message: '失败，请重试' });
     }
   }
+
 
   build() {
     Column() {

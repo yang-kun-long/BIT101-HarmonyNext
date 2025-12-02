@@ -7,6 +7,7 @@
     "pages/PostEditorPage",
     "pages/UserDetailPage",
     "pages/MapPage2",
-    "pages/SearchPage"
+    "pages/SearchPage",
+    "pages/ReportPage"
   ]
 }

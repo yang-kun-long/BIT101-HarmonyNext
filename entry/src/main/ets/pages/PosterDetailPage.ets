@@ -13,6 +13,10 @@ import { ImageViewer } from '../components/ImageViewer';
 import { Logger } from '../utils/Logger';
 import { CommentInputDialog } from '../components/gallery/CommentInputDialog';
 import { MoreCommentsSheet } from '../components/gallery/MoreCommentsSheet';
+import pasteboard from '@ohos.pasteboard';
+import { common, OpenLinkOptions } from '@kit.AbilityKit';
+import { BusinessError } from '@kit.BasicServicesKit';
+
 
 interface ReplyContext {
   type: 'poster' | 'comment';
@@ -31,8 +35,11 @@ export default struct PosterDetailPage {
   @State loading: boolean = true;
   @State comments: Comment[] = [];
   @State commentsLoading: boolean = false;
-
+  @State commentMoreActionTarget: Comment | null = null;
+  @State showPosterMoreActions: boolean = false;
   @State isTitleVisibleInTopBar: boolean = false;
+  @State deletingPoster: boolean = false;
+
   private scroller: Scroller = new Scroller();
   private readonly SCROLL_THRESHOLD = 60;
 
@@ -54,6 +61,171 @@ export default struct PosterDetailPage {
     autoCancel: true,
     offset: { dx: 0, dy: -12 }
   });
+  private async deletePoster(): Promise<void> {
+    if (!this.poster) {
+      this.showToast('暂无帖子信息');
+      return;
+    }
+    if (!this.poster.own) {
+      this.showToast('只能删除自己发布的帖子');
+      return;
+    }
+    if (this.deletingPoster) {
+      return;
+    }
+
+    this.deletingPoster = true;
+    this.showToast('正在删除帖子...');
+
+    try {
+      const ok = await galleryService.deletePosterById(this.poster.id);
+      if (ok) {
+        this.showToast('帖子删除成功了！');
+        try {
+          router.back();
+        } catch (_) {
+          // ignore
+        }
+      } else {
+        this.showToast('帖子删除失败Orz');
+      }
+    } catch (e) {
+      this.logger.error('[PosterDetailPage] deletePoster error', e);
+      this.showToast('帖子删除失败Orz');
+    } finally {
+      this.deletingPoster = false;
+      this.showPosterMoreActions = false;
+    }
+  }
+
+  /**
+   * 外部打开帖子：
+   * - 构造帖子在 Web 前端的完整 URL
+   * - 跳转到通用 WebBrowserPage 展示
+   */
+  private openPosterExternally(): void {
+    if (!this.poster) {
+      this.showToast('暂无帖子信息');
+      return;
+    }
+
+    // H5 帖子详情地址 —— 和 Android 对齐
+    const url = `https://bit101.cn/gallery/${this.poster.id}`;
+
+    // 优先尝试用系统浏览器（App Linking / Deep Linking）
+    let uiContext = this.getUIContext();
+    let hostContext = uiContext.getHostContext() as common.UIAbilityContext;
+
+    const options: OpenLinkOptions = {
+      // false 表示：优先用 AppLinking，没匹配应用就退化为 DeepLinking → 浏览器打开
+      appLinkingOnly: false,
+      parameters: {}
+    };
+
+    try {
+      hostContext.openLink(url, options)
+        .then(() => {
+          // 拉起成功，这里不用做额外处理
+          this.logger.info('[PosterDetailPage] openLink success: ' + url);
+        })
+        .catch((err: BusinessError) => {
+          this.logger.error('[PosterDetailPage] openLink failed', err.code, err.message);
+          // 失败时回退到应用内 WebBrowserPage
+          this.openPosterInInnerWeb(url);
+        });
+    } catch (e) {
+      const err = e as BusinessError;
+      this.logger.error('[PosterDetailPage] openLink exception', err.code, err.message);
+      this.openPosterInInnerWeb(url);
+    }
+  }
+
+  // 回退方案：用你自己的 WebBrowserPage 打开
+  private openPosterInInnerWeb(url: string): void {
+    this.showToast('未能拉起浏览器，已在应用内打开');
+    router.pushUrl({
+      url: 'pages/WebBrowserPage',
+      params: {
+        url: url
+      }
+    });
+  }
+
+
+
+  private copyCommentText(c: Comment | null): void {
+    if (!c || !c.text) {
+      this.showToast('没有可复制的内容');
+      return;
+    }
+
+    try {
+      // 构造纯文本剪贴板数据
+      const pasteData = pasteboard.createData(pasteboard.MIMETYPE_TEXT_PLAIN, c.text);
+      const systemPasteboard = pasteboard.getSystemPasteboard();
+
+      systemPasteboard.setData(pasteData);
+      this.showToast('已复制评论内容');
+    } catch (e) {
+      this.logger.error('[PosterDetailPage] copyCommentText error', e);
+      this.showToast('复制失败，请重试');
+    }
+  }
+  private copyTagText(tag: string | null): void {
+    if (!tag) {
+      this.showToast('没有可复制的标签');
+      return;
+    }
+
+    // 要写入剪贴板的文本，例如：#心情
+    const text = `#${tag}`;
+
+    try {
+      const pasteData = pasteboard.createData(pasteboard.MIMETYPE_TEXT_PLAIN, text);
+      const systemPasteboard = pasteboard.getSystemPasteboard();
+      systemPasteboard.setData(pasteData);
+      this.showToast(`已复制标签：${text}`);
+    } catch (e) {
+      this.logger.error('[PosterDetailPage] copyTagText error', e);
+      this.showToast('复制失败，请重试');
+    }
+  }
+
+
+  // 递归从评论树中删除某条评论，返回新的列表
+  private removeCommentFromList(list: Comment[], id: number): Comment[] {
+    for (let i = list.length - 1; i >= 0; i--) {
+      const item = list[i];
+
+      // 如果命中要删除的评论，直接从当前列表移除
+      if (item.id === id) {
+        list.splice(i, 1);
+        continue;
+      }
+
+      // 递归处理子评论
+      if (item.sub && item.sub.length > 0) {
+        this.removeCommentFromList(item.sub, id);
+      }
+    }
+    return list;
+  }
+
+  private async deleteComment(target: Comment): Promise<void> {
+    const id = target.id;
+    const ok = await reactionService.deleteComment(id);
+    if (ok) {
+      this.comments = this.removeCommentFromList(this.comments, id);
+      if (this.poster && this.poster.commentNum !== undefined) {
+        this.poster.commentNum = Math.max(0, (this.poster.commentNum || 0) - 1);
+      }
+      this.showToast('评论删除成功');
+    } else {
+      this.showToast('评论删除失败，请重试');
+    }
+  }
+
+
   private async togglePosterLike(): Promise<void> {
     if (!this.poster) {
       return;
@@ -354,6 +526,217 @@ export default struct PosterDetailPage {
         .backgroundColor(Color.Black)
         .zIndex(10000)
       }
+
+      // --- 帖子更多操作弹窗 ---
+      if (this.showPosterMoreActions && this.poster) {
+        Column() {
+          // 上半部分遮罩，点击关闭
+          Blank()
+            .layoutWeight(1)
+            .onClick(() => {
+              this.showPosterMoreActions = false;
+            })
+
+          // 底部操作区域
+          Column() {
+            if (this.poster && this.poster.own) {
+              // 自己的帖子：修改 / 删除 / 外部打开 / 举报
+              Text('修改')
+                .fontSize(15)
+                .fontColor('#1F2937')
+                .padding({ top: 10, bottom: 10 })
+                .onClick(() => {
+                  if (this.poster) {
+                    router.pushUrl({
+                      url: 'pages/PostEditorPage',
+                      params: {
+                        id: this.poster.id
+                      }
+                    });
+                  }
+                  this.showPosterMoreActions = false;
+                });
+
+              Text('删除')
+                .fontSize(15)
+                .fontColor('#EF4444')
+                .padding({ top: 10, bottom: 10 })
+                .onClick(() => {
+                  this.deletePoster();
+                });
+
+              Text('外部打开')
+                .fontSize(15)
+                .fontColor('#1F2937')
+                .padding({ top: 10, bottom: 10 })
+                .onClick(() => {
+                  this.openPosterExternally();
+                  this.showPosterMoreActions = false;
+                });
+
+              Text('举报')
+                .fontSize(15)
+                .fontColor('#1F2937')
+                .padding({ top: 10, bottom: 10 })
+                .onClick(() => {
+                  router.pushUrl({
+                    url: 'pages/ReportPage',
+                    params: {
+                      type: 'poster',
+                      id: this.poster ? this.poster.id : 0
+                    }
+                  });
+                  this.showPosterMoreActions = false;
+                });
+            } else {
+              // 别人的帖子：外部打开 / 举报
+              Text('外部打开')
+                .fontSize(15)
+                .fontColor('#1F2937')
+                .padding({ top: 10, bottom: 10 })
+                .onClick(() => {
+                  this.openPosterExternally();
+                  this.showPosterMoreActions = false;
+                });
+
+              Text('举报')
+                .fontSize(15)
+                .fontColor('#1F2937')
+                .padding({ top: 10, bottom: 10 })
+                .onClick(() => {
+                  router.pushUrl({
+                    url: 'pages/ReportPage',
+                    params: {
+                      type: 'poster',
+                      id: this.poster ? this.poster.id : 0
+                    }
+                  });
+                  this.showPosterMoreActions = false;
+                });
+            }
+
+            Text('取消')
+              .fontSize(14)
+              .fontColor('#6B7280')
+              .padding({ top: 12, bottom: 4 })
+              .onClick(() => {
+                this.showPosterMoreActions = false;
+              });
+          }
+          .width('100%')
+          .padding({ left: 20, right: 20, top: 16, bottom: 24 })
+          .backgroundColor(Color.White);
+        }
+        .width('100%')
+        .height('100%')
+        .backgroundColor('#80000000')
+        .zIndex(9200);
+      }
+
+      // --- 评论更多操作弹窗 ---
+      if (this.commentMoreActionTarget) {
+        Column() {
+          // 半透明遮罩，点击关闭
+          Blank()
+            .layoutWeight(1)
+            .onClick(() => {
+              this.commentMoreActionTarget = null;
+            })
+
+          // 底部操作区域
+          Column() {
+            if (this.commentMoreActionTarget && this.commentMoreActionTarget.own) {
+              // 自己的评论：删除 → 复制 → 举报
+              Text('删除评论')
+                .fontSize(15)
+                .fontColor('#EF4444')
+                .padding({ top: 10, bottom: 10 })
+                .onClick(() => {
+                  if (this.commentMoreActionTarget) {
+                    this.deleteComment(this.commentMoreActionTarget);
+                  }
+                  this.commentMoreActionTarget = null;
+                });
+
+              Text('复制内容')
+                .fontSize(15)
+                .fontColor('#1F2937')
+                .padding({ top: 10, bottom: 10 })
+                .onClick(() => {
+                  this.copyCommentText(this.commentMoreActionTarget);
+                  this.commentMoreActionTarget = null;
+                });
+
+              Text('举报')
+                .fontSize(15)
+                .fontColor('#1F2937')
+                .padding({ top: 10, bottom: 10 })
+                .onClick(() => {
+                  const target = this.commentMoreActionTarget;
+                  if (target) {
+                    router.pushUrl({
+                      url: 'pages/ReportPage', // 如果你注册的是别的路由名，这里改成对应的
+                      params: {
+                        type: 'comment',
+                        id: target.id
+                      }
+                    });
+                  } else {
+                    this.showToast('未找到要举报的评论');
+                  }
+                  this.commentMoreActionTarget = null;
+                });
+            } else {
+              // 他人评论：复制 → 举报
+              Text('复制内容')
+                .fontSize(15)
+                .fontColor('#1F2937')
+                .padding({ top: 10, bottom: 10 })
+                .onClick(() => {
+                  this.copyCommentText(this.commentMoreActionTarget);
+                  this.commentMoreActionTarget = null;
+                });
+
+              Text('举报')
+                .fontSize(15)
+                .fontColor('#1F2937')
+                .padding({ top: 10, bottom: 10 })
+                .onClick(() => {
+                  const target = this.commentMoreActionTarget;
+                  if (target) {
+                    router.pushUrl({
+                      url: 'pages/ReportPage', // 如果你注册的是别的路由名，这里改成对应的
+                      params: {
+                        type: 'comment',
+                        id: target.id
+                      }
+                    });
+                  } else {
+                    this.showToast('未找到要举报的评论');
+                  }
+                  this.commentMoreActionTarget = null;
+                });
+            }
+
+            // 「取消」这个 Android 没有，如果你觉得好用，可以先保留
+            Text('取消')
+              .fontSize(14)
+              .fontColor('#6B7280')
+              .padding({ top: 12, bottom: 4 })
+              .onClick(() => {
+                this.commentMoreActionTarget = null;
+              });
+          }
+          .width('100%')
+          .padding({ left: 20, right: 20, top: 12, bottom: 20 })
+          .backgroundColor(Color.White);
+        }
+        .width('100%')
+        .height('100%')
+        .backgroundColor('#80000000')
+        .zIndex(9500);
+      }
+
       if (this.showCommentsOrderDialog) {
         Column() {
           // 上半部分透明区域，点一下也能关闭
@@ -493,7 +876,9 @@ export default struct PosterDetailPage {
 
       Image($r('app.media.ic_public_more'))
         .width(24).height(24).fillColor('#1F2937').margin({ left: 12 })
-        .onClick(() => this.showToast('更多操作'));
+        .onClick(() => {
+          this.showPosterMoreActions = true;
+        });
     }
     .width('100%').height(56).padding({ left: 16, right: 16 })
     .alignItems(VerticalAlign.Center).backgroundColor(Color.White)
@@ -559,11 +944,17 @@ export default struct PosterDetailPage {
         Flex({ wrap: FlexWrap.Wrap }) {
           ForEach(p.tags, (tag: string) => {
             Text('#' + tag)
-              .fontSize(15).fontColor('#2563EB').margin({ right: 12, bottom: 6 })
-              .onClick(() => this.showToast(`复制标签: #${tag}`));
+              .fontSize(15)
+              .fontColor('#2563EB')
+              .margin({ right: 12, bottom: 6 })
+              .onClick(() => {
+                this.copyTagText(tag);
+              });
           })
-        }.margin({ top: 4, bottom: 4 });
+        }
+        .margin({ top: 4, bottom: 4 });
       }
+
 
       Text(`最后编辑于：${this.getTimeText(p)}`)
         .fontSize(12).fontColor('#9CA3AF').margin({ top: 4, bottom: 16 });
@@ -690,9 +1081,23 @@ export default struct PosterDetailPage {
         this.CommentImageGrid(c.images);
 
         Row() {
-          Text(this.getCommentTimeText(c)).fontSize(12).fontColor('#9CA3AF').margin({ right: 12 });
-          Text('回复').fontSize(12).fontColor('#4B5563').fontWeight(FontWeight.Bold);
-        }.margin({ top: 6, bottom: 6 });
+          Text(this.getCommentTimeText(c))
+            .fontSize(12).fontColor('#9CA3AF').margin({ right: 12 });
+
+          Text('回复')
+            .fontSize(12).fontColor('#4B5563').fontWeight(FontWeight.Bold)
+            .onClick(() => {
+              this.replyContext = { type: 'comment', mainCommentId: c.id, replyComment: c };
+              this.dialogController.open();
+            });
+
+          Text('更多')
+            .fontSize(12).fontColor('#9CA3AF').margin({ left: 16 })
+            .onClick(() => {
+              this.commentMoreActionTarget = c;
+            });
+        }
+        .margin({ top: 6, bottom: 6 });
 
         if (c.sub && c.sub.length > 0) {
           Column() {
@@ -716,8 +1121,17 @@ export default struct PosterDetailPage {
       }
       .layoutWeight(1).alignItems(HorizontalAlign.Start);
     }
-    .width('100%').alignItems(VerticalAlign.Top).padding({ top: 12 });
+    .width('100%')
+    .alignItems(VerticalAlign.Top)
+    .padding({ top: 12 })
+    .gesture(
+      LongPressGesture({ repeat: false })
+        .onAction(() => {
+          this.commentMoreActionTarget = c;
+        })
+    );
   }
+
   private isLevel3(parentComment: Comment, subComment: Comment): boolean {
     const hasReplyUser = !!(subComment.replyUser && subComment.replyUser.nickname);
     const hasReplyObj = !!subComment.replyObj;
@@ -737,8 +1151,6 @@ export default struct PosterDetailPage {
 
   @Builder
   SubCommentItem(parentComment: Comment, subComment: Comment): void {
-    // 💡 [关键修复]：将变量定义移到 UI 组件外
-
     Row() {
       Image(this.getCommentAvatarUrl(subComment))
         .width(24).height(24).borderRadius(12).backgroundColor('#E5E7EB')
@@ -788,7 +1200,15 @@ export default struct PosterDetailPage {
       }
       .alignItems(HorizontalAlign.Start).layoutWeight(1);
     }
-    .width('100%').margin({ bottom: 12 }).alignItems(VerticalAlign.Top);
+    .width('100%')
+    .margin({ bottom: 12 })
+    .alignItems(VerticalAlign.Top)
+    .gesture(
+      LongPressGesture({ repeat: false })
+        .onAction(() => {
+          this.commentMoreActionTarget = subComment;
+        })
+    );
   }
 
   private formatNumber(num: number | undefined): string {
