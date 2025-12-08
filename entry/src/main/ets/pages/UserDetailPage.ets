@@ -41,6 +41,17 @@ struct UserDetailPage {
       const data = await userRepo.getUserInfo(this.uid.toString());
       this.userInfo = data;
 
+      // ✅ 新增/修改：如果是当前登录用户，跳到 Index 的“我”Tab（tab = 4）
+      if (data.own) {
+        router.replaceUrl({
+          url: 'pages/Index',
+          params: {
+            tab: 4   // 对应 Index 里的 TabKey.Me = 4
+          }
+        });
+        return;
+      }
+
       this.uiUser = {
         id: data.user.id.toString(),
         nickname: data.user.nickname,
@@ -55,11 +66,12 @@ struct UserDetailPage {
       this.loadPosters(false);
 
     } catch (err) {
-      promptAction.showToast({ message: '获取用户信息失败: ' + err.message });
+      promptAction.showToast({ message: '获取用户信息失败: ' + (err as Error).message });
     } finally {
       this.isLoading = false;
     }
   }
+
 
   async loadPosters(isLoadMore: boolean) {
     if (this.isPostersLoading) return;

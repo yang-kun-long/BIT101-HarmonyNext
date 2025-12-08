@@ -1,3 +1,4 @@
+// entry/src/main/ets/components/gallery/PosterCard.ets
 import { Poster, GalleryImage } from '../../services/gallery/GalleryModels';
 import { TimeUtils } from '../../utils/TimeUtils';
 import { RCP_BASE_URL } from '../../core/network/bit101Session';

@@ -1,3 +1,4 @@
+// entry/src/main/ets/pages/PosterDetailPage.ets
 import router from '@ohos.router';
 import promptAction from '@ohos.promptAction';
 import curves from '@ohos.curves';

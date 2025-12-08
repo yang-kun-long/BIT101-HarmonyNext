@@ -30,6 +30,21 @@ struct Index {
   @State isForumLoaded: boolean = false
   @State isPostLoaded: boolean = false
   @State isMeLoaded: boolean = false
+  aboutToAppear() {
+    const params = router.getParams() as Record<string, Object>;
+    const tabParam = params?.['tab'] as number | undefined;
+
+    if (tabParam !== undefined) {
+      const t = tabParam as TabKey;
+      this.current = t;
+
+      // 同时把对应页面标记为已加载，避免 tab 切不过去
+      if (t === TabKey.Map) this.isMapLoaded = true;
+      if (t === TabKey.Forum) this.isForumLoaded = true;
+      if (t === TabKey.Post) this.isPostLoaded = true;
+      if (t === TabKey.Me) this.isMeLoaded = true;
+    }
+  }
 
   private async goto(tab: TabKey) {
     const needAuth = (tab === TabKey.Schedule || tab === TabKey.Forum || tab === TabKey.Post)
