@@ -32,6 +32,7 @@ export class Logger {
     'RcpSession',      // 查看网络请求的底层日志 (针对 postPoster)
     'ReactionService', // 查看评论发送日志
     'PosterDetailPage',
+    'DebugCase'
     // --- 可以在这里填入下方 ALL_MODULES 里的名字 ---
     // 'ScheduleGrid',
     // 'SchedulePage',

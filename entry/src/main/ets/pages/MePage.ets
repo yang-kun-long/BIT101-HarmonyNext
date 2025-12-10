@@ -168,10 +168,28 @@ export default struct MePage {
         }
 
         // 右侧占位
-        Row() { }
-        .width(48)
-        .height(48)
-        .margin({ right: 4 })
+        Row() {
+          Image($r('app.media.ic_settings'))
+            .width(20) // 图标稍微调小一点，显得精致
+            .height(20)
+            // 颜色逻辑：
+            // 滚动下来(白底) -> 图标变黑
+            // 未滚动(透明底) -> 图标变白
+            .fillColor(this.navOpacity > 0.8 ? $r('sys.color.ohos_id_color_text_primary') : Color.White)
+        }
+        .width(32)
+        .height(32)
+        .justifyContent(FlexAlign.Center)
+        .alignItems(VerticalAlign.Center)
+        .borderRadius(16) // 圆形背景
+        // 背景色逻辑 (关键修正)：
+        // 滚动下来(白底) -> 背景透明
+        // 未滚动(透明底) -> 背景加半透明黑罩 (#4D000000)，防止背景图太白导致看不见
+        .backgroundColor(this.navOpacity > 0.8 ? Color.Transparent : '#4D000000')
+        .margin({ right: 12 })
+        .onClick(() => {
+          router.pushUrl({ url: 'pages/settings/Settings' });
+        })
       }
       .width('100%')
       .height('100%')

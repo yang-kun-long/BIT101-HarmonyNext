@@ -8,6 +8,13 @@
     "pages/UserDetailPage",
     "pages/MapPage2",
     "pages/SearchPage",
-    "pages/ReportPage"
+    "pages/ReportPage",
+    "pages/settings/Settings",
+    "pages/settings/AccountPage",
+    "pages/settings/PagesSettingPage",
+    "pages/settings/ThemeSettingPage",
+    "pages/settings/CalendarSettingPage",
+    "pages/settings/DDLSettingPage",
+    "pages/settings/AboutPage"
   ]
 }
