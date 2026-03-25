@@ -5,6 +5,7 @@ import SimpleCookieJar from '../../core/network/cookieJar';
 import { encryptPassword } from '../auth/encryptPassword';
 import { LexueCookieStore } from '../storage/LexueCookieStore';
 import { loginViaWebvpn } from './BitSsoWebvpn';
+import { SchoolAuthService } from '../school/SchoolAuthService';
 
 const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36';
@@ -60,6 +61,27 @@ function extractSaltAndExecution(html: string): { salt: string; execution: strin
   return { salt, execution };
 }
 
+function parseLexueSesskey(html: string): string | undefined {
+  let m = html.match(
+    /<input[^>]+name=["']sesskey["'][^>]+value=["']([^"']+)["']/i,
+  );
+  if (m && m[1]) {
+    return m[1];
+  }
+
+  m = html.match(/M\.cfg\s*=\s*\{[^}]*"sesskey"\s*:\s*"([^"]+)"/i);
+  if (m && m[1]) {
+    return m[1];
+  }
+
+  m = html.match(/"sesskey"\s*:\s*"([^"]+)"/i);
+  if (m && m[1]) {
+    return m[1];
+  }
+
+  return undefined;
+}
+
 function toFormUrlEncoded(data: Record<string, string>): string {
   const parts: string[] = [];
   for (const [k, v] of Object.entries(data)) {
@@ -101,6 +123,7 @@ export class BitSsoSession {
   private readonly debug: boolean;
   private readonly jar: SimpleCookieJar;
   private readonly client: RcpSession;
+  private readonly schoolAuth?: SchoolAuthService;
   private loggedInSso = false;
   private loggedInLexue = false;
   private readonly cookieStore: LexueCookieStore;
@@ -124,6 +147,12 @@ export class BitSsoSession {
       },
       cookieJar: this.jar,
     });
+    this.schoolAuth = this.useWebvpn
+      ? new SchoolAuthService({
+          debug: this.debug,
+          userAgent: UA,
+        })
+      : undefined;
     this.cookieStore = new LexueCookieStore(
       this.useWebvpn ? 'webvpn' : 'inner',
     );
@@ -132,6 +161,10 @@ export class BitSsoSession {
 
   getHttpClient(): RcpSession {
     return this.client;
+  }
+
+  getCookieHeaderFor(url: string): string | undefined {
+    return this.jar.getCookieHeader(url);
   }
 
   isFullyLoggedIn(): boolean {
@@ -191,7 +224,11 @@ export class BitSsoSession {
       let hasLexue = false;
 
       if (this.useWebvpn) {
-        // WebVPN 模式：看有没有 WebVPN ticket
+        // WebVPN 模式：
+        // 仅恢复到 portal cookie，并不代表当前进程还持有可复用的 TGT。
+        // 新的 school-auth 链路在 target 登录阶段需要 TGT -> ST，
+        // 因此这里不能把 hasSso 直接判成 true，否则后续会跳过 loginSso()
+        // 并在 loginWebvpnTarget() 时缺少 TGT。
         const all = this.jar.dump() as any[];
         const hasVpnTicket = all.some(
           (c) =>
@@ -200,9 +237,15 @@ export class BitSsoSession {
             typeof c.value === 'string' &&
             c.value.length > 0,
         );
-        hasSso = hasVpnTicket;
-        // Lexue 会话交给 ensureLexueSession 再跑一遍，不在这里强行认为已登录
+        hasSso = false;
         hasLexue = false;
+        if (this.debug) {
+          this.logger.info(
+            'restoreFromStorage: WebVPN cookie restored, but TGT is not reusable across process restarts.',
+            'hasVpnTicket =',
+            hasVpnTicket,
+          );
+        }
       } else {
         // 内网模式：沿用原逻辑，用 MoodleSession 判定
         const hasMoodle = this.hasMoodleSession();
@@ -290,7 +333,12 @@ export class BitSsoSession {
   }
   private async loginSso(username: string, password: string): Promise<void> {
     if (this.useWebvpn) {
-      await loginViaWebvpn(this.client, username, password, { debug: this.debug });
+      if (!this.schoolAuth) {
+        throw new Error('[BitSsoSession] schoolAuth is not initialized for WebVPN mode');
+      }
+      await this.schoolAuth.loginWebvpnPortal(username, password);
+      const dump = this.schoolAuth.getCookieDump();
+      this.jar.restoreFromDump(dump);
     } else {
       await this.loginSsoInner(username, password);
     }
@@ -376,9 +424,57 @@ export class BitSsoSession {
           '[BitSsoSession] WebVPN 模式需要提供 webvpnLexueBase（例如 Python 输出里的 base）',
         );
       }
-      // 去掉尾部多余的 /，再拼 /calendar/export.php
+      if (!this.schoolAuth) {
+        throw new Error('[BitSsoSession] schoolAuth is not initialized for WebVPN mode');
+      }
       const base = this.webvpnLexueBase.replace(/\/+$/, '');
-      targetUrl = `${base}/calendar/export.php`;
+      const targetResult = await this.schoolAuth.loginWebvpnTarget(
+        `${base}/calendar/export.php`,
+        'lexue',
+      );
+      this.jar.restoreFromDump(this.schoolAuth.getCookieDump());
+
+      const exportResp = await this.client.get(`${base}/calendar/export.php`, {
+        autoRedirect: true,
+        collectTimeInfo: false,
+        headers: {
+          Referer: 'https://webvpn.bit.edu.cn/',
+        },
+      });
+
+      if (exportResp.statusCode !== 200) {
+        throw new Error(
+          `[BitSsoSession] WebVPN Lexue 导出页校验失败：HTTP ${exportResp.statusCode}`,
+        );
+      }
+
+      if (isLoginPage(exportResp.bodyText)) {
+        throw new Error(
+          '[BitSsoSession] WebVPN Lexue 导出页仍然是统一身份认证登录页',
+        );
+      }
+
+      const sesskey = parseLexueSesskey(exportResp.bodyText ?? '');
+      if (!sesskey) {
+        const preview = (exportResp.bodyText ?? '').replace(/\s+/g, ' ').slice(0, 300);
+        throw new Error(
+          `[BitSsoSession] WebVPN Lexue 导出页未解析到 sesskey，preview=${preview}`,
+        );
+      }
+
+      this.loggedInLexue = true;
+      if (this.debug) {
+        this.logger.info('ensureLexueSession via SchoolAuthService effectiveUrl =', targetResult.effectiveUrl);
+        this.logger.info('ensureLexueSession verify export.php effectiveUrl =', exportResp.effectiveUrl);
+        this.logger.debug('sesskey =', sesskey);
+        this.logger.debug('cookies snapshot =', this.jar.dump());
+      }
+      try {
+        await this.cookieStore.saveCookieDump(this.jar.dump());
+      } catch (e) {
+        this.logger.warn('持久化 cookie 失败：', e);
+      }
+      return;
     } else {
       targetUrl = `${LEXUE_BASE}/`;
     }

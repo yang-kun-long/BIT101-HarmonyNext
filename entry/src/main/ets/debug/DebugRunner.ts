@@ -9,6 +9,12 @@ import { LexueCalendarFastPathCase } from './LexueCalendarFastPathCase';
 import BitSsoLexueWebvpnCase from './BitSsoLexueWebvpnCase';
 import { MapDebugCase } from './MapDebugCase';
 import { GalleryServiceCase } from './GalleryServiceCase'
+import { SchoolWebvpnPortalCase } from './SchoolWebvpnPortalCase';
+import { SchoolLexueWebvpnCase } from './SchoolLexueWebvpnCase';
+import { TimetableWebvpnCase } from './TimetableWebvpnCase';
+import { Logger } from '../utils/Logger';
+
+const logger = new Logger('DebugRunner');
 
 export enum DebugTarget {
   NONE = 'NONE',
@@ -20,7 +26,10 @@ export enum DebugTarget {
   LEXUE_CALENDAR_FASTPATH = 'LEXUE_CALENDAR_FASTPATH',
   BIT_SSO_LEXUE_WEBVPN = 'BIT_SSO_LEXUE_WEBVPN',
   MAP = 'MAP',
-  GALLERY_SERVICE = 'GALLERY_SERVICE'
+  GALLERY_SERVICE = 'GALLERY_SERVICE',
+  SCHOOL_WEBVPN_PORTAL = 'SCHOOL_WEBVPN_PORTAL',
+  SCHOOL_LEXUE_WEBVPN = 'SCHOOL_LEXUE_WEBVPN',
+  TIMETABLE_WEBVPN = 'TIMETABLE_WEBVPN'
 }
 
 /**
@@ -28,7 +37,7 @@ export enum DebugTarget {
  * - 开发/调试时：改成你想跑的那个
  * - 发布正式包：改成 DebugTarget.NONE（或在 EntryAbility 里关掉调试入口）
  */
-const CURRENT_DEBUG_TARGET: DebugTarget = DebugTarget.NONE;
+const CURRENT_DEBUG_TARGET: DebugTarget = DebugTarget.TIMETABLE_WEBVPN;
 // 你想测别的就改成 DebugTarget.BIT_SSO_SESSION / BIT_SSO_LEXUE 等
 
 function createCase(target: DebugTarget): DebugCase | null {
@@ -51,6 +60,12 @@ function createCase(target: DebugTarget): DebugCase | null {
       return new MapDebugCase();
     case DebugTarget.GALLERY_SERVICE:
       return new GalleryServiceCase();
+    case DebugTarget.SCHOOL_WEBVPN_PORTAL:
+      return new SchoolWebvpnPortalCase();
+    case DebugTarget.SCHOOL_LEXUE_WEBVPN:
+      return new SchoolLexueWebvpnCase();
+    case DebugTarget.TIMETABLE_WEBVPN:
+      return new TimetableWebvpnCase();
     case DebugTarget.NONE:
     default:
       return null;
@@ -61,7 +76,6 @@ export async function runCurrentDebugCase(): Promise<void> {
   const testCase = createCase(CURRENT_DEBUG_TARGET);
   if (!testCase) return;
 
-  // 这里也可以顺便打一行日志，表明跑的是哪个 case
-  console.info('[DebugRunner] Running debug case:', testCase.name);
+  logger.info('Running debug case:', testCase.name);
   await testCase.run();
 }

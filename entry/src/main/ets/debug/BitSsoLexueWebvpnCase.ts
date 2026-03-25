@@ -3,6 +3,7 @@
 import { DebugCase } from './DebugCase';
 import { TEST_USERNAME, TEST_PASSWORD } from './local.secret';
 import BitSsoSession from '../services/lexue/BitSsoSession';
+import LexueCalendarClient from '../services/lexue/LexueCalendarClient';
 
 export class BitSsoLexueWebvpnCase extends DebugCase {
   readonly name = 'Bit SSO + Lexue (via WebVPN)';
@@ -34,17 +35,28 @@ export class BitSsoLexueWebvpnCase extends DebugCase {
         this.logInfo('已从持久化 cookie 恢复登录态，跳过重新登录');
       }
 
-      const client = sso.getHttpClient();
-      const resp = await client.get(`${webvpnLexueBase}/`, {
-        autoRedirect: true,
-        collectTimeInfo: false,
+      const calClient = new LexueCalendarClient(sso, {
+        baseUrl: webvpnLexueBase,
+        debug: true,
+        username,
       });
 
+      const result = await calClient.exportCalendar({
+        what: 'all',
+        time: 'recentupcoming',
+      });
+
+      const icsPreview = result.icsText.replace(/\r?\n/g, '\\n').slice(0, 200);
       this.logInfo(
-        'Lexue via WebVPN 最终响应:',
-        'HTTP', resp.statusCode,
-        'effectiveUrl =', resp.effectiveUrl,
+        'Lexue via WebVPN 导出结果:',
+        'subscribeUrl =', result.subscribeUrl,
+        'icsLength =', result.icsText.length,
+        'icsPreview =', icsPreview,
       );
+
+      if (!result.icsText.trimStart().startsWith('BEGIN:VCALENDAR')) {
+        throw new Error('ICS 内容不是有效的 VCALENDAR 文本');
+      }
     } catch (e) {
       this.logInfo('BitSsoLexueWebvpnCase 发生异常：', `${e}`);
     }

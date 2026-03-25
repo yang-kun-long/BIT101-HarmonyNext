@@ -5,6 +5,7 @@ import { createBitSsoSessionAuto } from '../services/lexue/BitSsoAuto';
 import { syncUserCalendar } from '../services/lexue/CalendarService';
 import { BusinessError } from '@kit.BasicServicesKit'; // 引入系统错误类型
 import { Logger } from '../utils/Logger';
+import { TokenStore } from '../services/storage/tokenStore';
 
 interface RedirectParams {
   redirect?: string
@@ -12,6 +13,7 @@ interface RedirectParams {
 
 const WEBVPN_LEXUE_BASE =
   'https://webvpn.bit.edu.cn/https/77726476706e69737468656265737421fcf25989227e6a596a468ca88d1b203b';
+const WEBVPN_PORTAL_URL = 'https://webvpn.bit.edu.cn/';
 
 @Entry
 @Component
@@ -25,6 +27,7 @@ export default struct LoginPage {
   @State showRaw: boolean = false // 开发开关：是否打印原始返回
 
   private auth = new AuthRepository()
+  private tokenStore = new TokenStore()
 
   private async onLogin() {
     if (this.busy) return
@@ -32,24 +35,23 @@ export default struct LoginPage {
     this.msg = ''
 
     try {
-      // 1. BIT101 + WebVPN 基础登录
-      const ret = await this.auth.loginBoth({
+      // 1. BIT101 后端登录
+      const bit101FakeCookie = await this.auth.loginBit101({
         sid: this.sid.trim(),
         password: this.password,
-        captcha: this.captcha.trim(),
       })
 
       if (this.showRaw) {
-        this.logger.debug('loginBoth result:', ret);
+        this.logger.debug('bit101FakeCookie saved:', !!bit101FakeCookie);
       }
 
-      const okBit101 = !!(ret.bit101FakeCookie && ret.bit101FakeCookie.length > 0)
-      const okWebvpn = !!ret.webvpn && !!ret.webvpn.ok
+      const okBit101 = !!(bit101FakeCookie && bit101FakeCookie.length > 0)
 
-      // 2. 乐学 SSO 登录流程
+      // 2. 学校登录流程（inner / webvpn 自动选择）
       const GeneratedDestructObj_1 = await createBitSsoSessionAuto({
         debug: true,
         webvpnLexueBase: WEBVPN_LEXUE_BASE,
+        forceMode: 'webvpn',
       });
 
       const mode = GeneratedDestructObj_1.mode;
@@ -57,9 +59,20 @@ export default struct LoginPage {
 
       // 执行登录
       await sso.loginToLexue(this.sid.trim(), this.password);
+      const okSchool = sso.isFullyLoggedIn();
+
+      if (mode === 'webvpn') {
+        const webvpnCookie = sso.getCookieHeaderFor(WEBVPN_PORTAL_URL) ?? '';
+        if (webvpnCookie) {
+          await this.tokenStore.saveWebvpnCookie(webvpnCookie);
+          this.logger.info('已写入 WebVPN cookie 到 TokenStore');
+        } else {
+          this.logger.warn('WebVPN 模式下未取到 cookie header');
+        }
+      }
 
       // 3. 判定登录结果并同步数据
-      if (okBit101 && okWebvpn) {
+      if (okBit101 && okSchool) {
         this.msg = '登录成功，正在同步课表...';
 
         try {
@@ -98,8 +111,8 @@ export default struct LoginPage {
 
       // 失败处理
       const bit101Text = okBit101 ? 'OK' : 'FAIL'
-      const webvpnText = okWebvpn ? 'OK' : 'FAIL'
-      this.msg = `登录失败：BIT101=${bit101Text}，WebVPN=${webvpnText}`
+      const schoolText = okSchool ? 'OK' : 'FAIL'
+      this.msg = `登录失败：BIT101=${bit101Text}，School=${schoolText}`
 
     } catch (e) {
       // 🔥 核心修复：不再盲目转字符串，而是尝试提取有用信息

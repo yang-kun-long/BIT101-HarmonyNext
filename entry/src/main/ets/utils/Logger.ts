@@ -32,7 +32,14 @@ export class Logger {
     'RcpSession',      // 查看网络请求的底层日志 (针对 postPoster)
     'ReactionService', // 查看评论发送日志
     'PosterDetailPage',
-    'DebugCase'
+    'DebugCase',
+    'DebugRunner',
+    'SchoolCasClient',
+    'SchoolNetworkProbe',
+    'WebvpnCodec',
+    'WebvpnJumpBuilder',
+    'SchoolServiceResolver',
+    'SchoolAuthService'
     // --- 可以在这里填入下方 ALL_MODULES 里的名字 ---
     // 'ScheduleGrid',
     // 'SchedulePage',
@@ -73,6 +80,12 @@ export class Logger {
     BitSsoWebvpn: 'BitSsoWebvpn',
     BitSsoAuto: 'BitSsoAuto',
     EncryptPassword: 'EncryptPassword',
+    SchoolCasClient: 'SchoolCasClient',
+    SchoolNetworkProbe: 'SchoolNetworkProbe',
+    WebvpnCodec: 'WebvpnCodec',
+    WebvpnJumpBuilder: 'WebvpnJumpBuilder',
+    SchoolServiceResolver: 'SchoolServiceResolver',
+    SchoolAuthService: 'SchoolAuthService',
 
     // [Services - 业务服务]
     CalendarService: 'CalendarService',
@@ -92,6 +105,7 @@ export class Logger {
 
     // [Debug - 调试]
     DebugCase: 'DebugCase',
+    DebugRunner: 'DebugRunner',
   };
 
   // ================= 逻辑实现区域 (无需修改) =================
