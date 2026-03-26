@@ -31,7 +31,7 @@ export struct CourseDetailDialog {
     this.scaleVal = 0.96
     this.offsetY = 24
 
-    animateTo({ duration: 220, curve: Curve.EaseOut }, () => {
+    this.getUIContext().animateTo({ duration: 220, curve: Curve.EaseOut }, () => {
       this.opacityVal = 1
       this.scaleVal = 1
       this.offsetY = 0
@@ -40,7 +40,7 @@ export struct CourseDetailDialog {
 
   private closeAnim(): void {
     // 退场动画：淡出 + 下沉 + 略缩小
-    animateTo({ duration: 200, curve: Curve.EaseIn }, () => {
+    this.getUIContext().animateTo({ duration: 200, curve: Curve.EaseIn }, () => {
       this.opacityVal = 0
       this.scaleVal = 0.96
       this.offsetY = 24

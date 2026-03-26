@@ -1,4 +1,5 @@
 // 文件路径：ets/components/web/WebUtils.ets
+import photoAccessHelper from '@ohos.file.photoAccessHelper';
 import picker from '@ohos.file.picker';
 
 // 1. 手动定义我们需要用到的接口，不再依赖 SDK 导出
@@ -28,10 +29,10 @@ export async function handleFileSelect(event: WebFileSelectorEvent): Promise<voi
 
   if (isImage) {
     // === 情况 A：选择图片 ===
-    const photoPicker = new picker.PhotoViewPicker();
+    const photoPicker = new photoAccessHelper.PhotoViewPicker();
     try {
       const result = await photoPicker.select({
-        MIMEType: picker.PhotoViewMIMETypes.IMAGE_TYPE,
+        MIMEType: photoAccessHelper.PhotoViewMIMETypes.IMAGE_TYPE,
         maxSelectNumber: 1
       });
 

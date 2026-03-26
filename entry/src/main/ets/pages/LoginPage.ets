@@ -6,6 +6,7 @@ import { syncUserCalendar } from '../services/lexue/CalendarService';
 import { BusinessError } from '@kit.BasicServicesKit'; // 引入系统错误类型
 import { Logger } from '../utils/Logger';
 import { TokenStore } from '../services/storage/tokenStore';
+import { uiGetParams, uiReplaceUrl } from '../utils/uiContextBridge';
 
 interface RedirectParams {
   redirect?: string
@@ -17,7 +18,7 @@ const WEBVPN_PORTAL_URL = 'https://webvpn.bit.edu.cn/';
 
 @Entry
 @Component
-export default struct LoginPage {
+struct LoginPage {
   private logger = new Logger('LoginPage');
   @State sid: string = ''        // 学号
   @State password: string = ''   // 明文密码
@@ -51,7 +52,6 @@ export default struct LoginPage {
       const GeneratedDestructObj_1 = await createBitSsoSessionAuto({
         debug: true,
         webvpnLexueBase: WEBVPN_LEXUE_BASE,
-        forceMode: 'webvpn',
       });
 
       const mode = GeneratedDestructObj_1.mode;
@@ -96,7 +96,7 @@ export default struct LoginPage {
         AppStorage.setOrCreate('current_username', this.sid)
 
         // 4. 页面跳转
-        const p = router.getParams() as object
+        const p = uiGetParams(this.getUIContext()) as object
         let target = 'pages/Index'
         if (p && typeof p === 'object') {
           const maybe = p as RedirectParams
@@ -105,7 +105,7 @@ export default struct LoginPage {
           }
         }
 
-        await router.replaceUrl({ url: target })
+        await uiReplaceUrl(this.getUIContext(), { url: target })
         return
       }
 

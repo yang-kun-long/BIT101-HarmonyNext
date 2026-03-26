@@ -1,9 +1,8 @@
 // entry/src/main/ets/pages/SearchPage.ets
-import router from '@ohos.router';
-import promptAction from '@ohos.promptAction';
 import { PostersTabPage } from '../components/gallery/PostersTabPage'; // ✅ 复用列表组件
 import { PosterListState } from '../services/gallery/PosterListState'; // ✅ 引入状态管理
 import { PostersMode } from '../services/gallery/GalleryService';      // ✅ 引入模式枚举
+import { uiBack, uiPushUrl, uiShowToast } from '../utils/uiContextBridge';
 
 // 定义下拉菜单的数据模型
 class SearchOrderOption {
@@ -34,7 +33,7 @@ struct SearchPage {
   // 执行搜索
   private doSearch() {
     if (!this.searchKeyword.trim()) {
-      promptAction.showToast({ message: '请输入搜索内容', duration: 1500 });
+      uiShowToast(this.getUIContext(), { message: '请输入搜索内容', duration: 1500 });
       return;
     }
 
@@ -45,7 +44,7 @@ struct SearchPage {
 
   // 跳转详情页 (复用 PostPage 的逻辑)
   private openPosterDetail(id: number): void {
-    router.pushUrl({
+    uiPushUrl(this.getUIContext(), {
       url: 'pages/PosterDetailPage',
       params: { id }
     });
@@ -87,7 +86,7 @@ struct SearchPage {
         .height(40)
         .margin({ right: 8 })
         .onClick(() => {
-          router.back();
+          uiBack(this.getUIContext());
         })
 
         // 搜索框容器
@@ -161,7 +160,7 @@ struct SearchPage {
             onOpenPoster: (id: number) => this.openPosterDetail(id),
             // 搜索页通常不需要显示“发帖”入口，或者跳转去发帖
             onOpenPostOrEdit: () => {
-              router.pushUrl({ url: 'pages/PostEditorPage' });
+              uiPushUrl(this.getUIContext(), { url: 'pages/PostEditorPage' });
             }
           })
         }

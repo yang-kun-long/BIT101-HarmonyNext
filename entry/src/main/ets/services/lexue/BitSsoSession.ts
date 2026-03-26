@@ -6,6 +6,11 @@ import { encryptPassword } from '../auth/encryptPassword';
 import { LexueCookieStore } from '../storage/LexueCookieStore';
 import { loginViaWebvpn } from './BitSsoWebvpn';
 import { SchoolAuthService } from '../school/SchoolAuthService';
+import {
+  inferRestoredBitSsoState,
+  isBitSsoSessionReady,
+  isRestoredLexueExportUsable,
+} from './BitSsoSessionState';
 
 const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36';
@@ -168,10 +173,17 @@ export class BitSsoSession {
   }
 
   isFullyLoggedIn(): boolean {
-    return this.loggedInSso && this.loggedInLexue;
+    return isBitSsoSessionReady(this.useWebvpn, this.loggedInSso, this.loggedInLexue);
   }
 
   async loginToLexue(username: string, password: string): Promise<void> {
+    if (this.loggedInLexue) {
+      if (this.debug) {
+        this.logger.info('loginToLexue: skip login because Lexue session is already restored');
+      }
+      return;
+    }
+
     try {
       if (!this.loggedInSso) {
         await this.loginSso(username, password);
@@ -199,7 +211,8 @@ export class BitSsoSession {
   /**
    * 从本地持久化存储中恢复 cookie：
    * - 把 LexueCookieStore 里保存的 dump 填回 SimpleCookieJar
-   * - 根据 MoodleSession 粗略判断是否已经登录过
+   * - inner 模式：沿用 MoodleSession 粗略判断
+   * - webvpn 模式：先恢复 portal cookie，再用 export.php 活性校验决定乐学是否可用
    *
    * 使用方式：
    *   const s = new BitSsoSession({ debug: true });
@@ -220,47 +233,79 @@ export class BitSsoSession {
 
       this.jar.restoreFromDump(dump);
 
-      let hasSso = false;
-      let hasLexue = false;
+      const restored = inferRestoredBitSsoState(this.useWebvpn, this.jar.dump());
+      this.loggedInSso = restored.hasSso;
+      this.loggedInLexue = restored.hasLexue;
 
-      if (this.useWebvpn) {
-        // WebVPN 模式：
-        // 仅恢复到 portal cookie，并不代表当前进程还持有可复用的 TGT。
-        // 新的 school-auth 链路在 target 登录阶段需要 TGT -> ST，
-        // 因此这里不能把 hasSso 直接判成 true，否则后续会跳过 loginSso()
-        // 并在 loginWebvpnTarget() 时缺少 TGT。
-        const all = this.jar.dump() as any[];
-        const hasVpnTicket = all.some(
-          (c) =>
-          c &&
-            c.name === 'wengine_vpn_ticketwebvpn_bit_edu_cn' &&
-            typeof c.value === 'string' &&
-            c.value.length > 0,
-        );
-        hasSso = false;
-        hasLexue = false;
-        if (this.debug) {
-          this.logger.info(
-            'restoreFromStorage: WebVPN cookie restored, but TGT is not reusable across process restarts.',
-            'hasVpnTicket =',
-            hasVpnTicket,
-          );
-        }
-      } else {
-        // 内网模式：沿用原逻辑，用 MoodleSession 判定
-        const hasMoodle = this.hasMoodleSession();
-        hasSso = hasMoodle;
-        hasLexue = hasMoodle;
+      if (this.useWebvpn && this.loggedInLexue) {
+        const stillUsable = await this.validateRestoredWebvpnLexueSession();
+        this.loggedInLexue = stillUsable;
       }
 
-      this.loggedInSso = hasSso;
-      this.loggedInLexue = hasLexue;
-
       if (this.debug) {
-        this.logger.info('restoreFromStorage: 已恢复 cookie', 'hasSso=', hasSso, 'hasLexue=', hasLexue);
+        this.logger.info(
+          'restoreFromStorage: 已恢复 cookie',
+          'hasSso=',
+          restored.hasSso,
+          'hasLexue=',
+          restored.hasLexue,
+          'requiresTicketRefresh=',
+          restored.requiresTicketRefresh,
+        );
+        this.logger.info(
+          'restoreFromStorage: final state',
+          'loggedInSso=',
+          this.loggedInSso,
+          'loggedInLexue=',
+          this.loggedInLexue,
+          'ready=',
+          this.isFullyLoggedIn(),
+        );
       }
     } catch (e) {
       this.logger.warn('restoreFromStorage 出错：', e);
+    }
+  }
+
+  private async validateRestoredWebvpnLexueSession(): Promise<boolean> {
+    if (!this.webvpnLexueBase) {
+      if (this.debug) {
+        this.logger.warn('validateRestoredWebvpnLexueSession: webvpnLexueBase missing, skip live validation');
+      }
+      return true;
+    }
+
+    try {
+      const base = this.webvpnLexueBase.replace(/\/+$/, '');
+      const resp = await this.client.get(`${base}/calendar/export.php`, {
+        autoRedirect: true,
+        collectTimeInfo: false,
+        headers: {
+          Referer: 'https://webvpn.bit.edu.cn/',
+        },
+      });
+      const usable = isRestoredLexueExportUsable(
+        resp.statusCode,
+        String(resp.effectiveUrl ?? ''),
+        resp.bodyText ?? '',
+      );
+      if (this.debug) {
+        this.logger.info(
+          'validateRestoredWebvpnLexueSession:',
+          'usable=',
+          usable,
+          'status=',
+          resp.statusCode,
+          'effectiveUrl=',
+          resp.effectiveUrl,
+        );
+      }
+      return usable;
+    } catch (e) {
+      if (this.debug) {
+        this.logger.warn('validateRestoredWebvpnLexueSession failed:', e);
+      }
+      return false;
     }
   }
 
@@ -413,7 +458,7 @@ export class BitSsoSession {
    * - 要求 HTTP 200
    * - 最终不能是统一身份认证登录页
    * - 内网模式：Cookie 中必须包含 MoodleSession
-   * - WebVPN 模式：对齐 Python 脚本，访问 webvpnLexueBase + /calendar/export.php
+   * - WebVPN 模式：以 webvpnLexueBase + /calendar/export.php 的业务可用性为准
    */
   private async ensureLexueSession(): Promise<void> {
     let targetUrl: string;

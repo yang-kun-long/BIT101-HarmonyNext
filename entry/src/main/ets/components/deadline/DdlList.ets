@@ -9,6 +9,7 @@ import BitSsoSession from '../../services/lexue/BitSsoSession';
 import promptAction from '@ohos.promptAction'; // [新增] 用于 UI 提示
 import router from '@ohos.router'; // [新增] 用于过期跳转
 import { Logger } from '../../utils/Logger';
+import { uiPushUrl, uiShowToast } from '../../utils/uiContextBridge';
 
 // 定义 WebVPN Base (需要与 Login 页保持一致，或者单独提取常量文件)
 const WEBVPN_LEXUE_BASE =
@@ -113,14 +114,14 @@ export default struct DdlList {
       // [新增] 检查恢复后的登录态
       if (!sso.isFullyLoggedIn()) {
         console.warn('[DdlList] Session 恢复失败或已过期，需重新登录');
-        promptAction.showToast({
+        uiShowToast(this.getUIContext(), {
           message: '登录已过期，请重新登录',
           duration: 2000
         });
 
         // 稍微延迟后跳转，让用户看清提示
         setTimeout(() => {
-          router.pushUrl({ url: 'pages/LoginPage' });
+          uiPushUrl(this.getUIContext(), { url: 'pages/LoginPage' });
         }, 1000);
 
         this.loading = false;
@@ -155,7 +156,7 @@ export default struct DdlList {
       });
 
       console.info(`[DdlList] 刷新成功，同步了 ${count} 条事件`);
-      promptAction.showToast({ message: `同步成功，更新了 ${count} 条 DDL` });
+      uiShowToast(this.getUIContext(), { message: `同步成功，更新了 ${count} 条 DDL` });
 
       // 5. 同步完成后，重新从数据库读取到 UI
       await this.loadDdl();
@@ -172,7 +173,7 @@ export default struct DdlList {
         msg += ': ' + (e as Error).message;
       }
 
-      promptAction.showToast({ message: msg });
+      uiShowToast(this.getUIContext(), { message: msg });
       // 即使失败，也重新加载一下本地数据，并恢复 UI 状态
       this.loading = false;
     }

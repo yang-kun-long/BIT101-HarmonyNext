@@ -1,11 +1,10 @@
 // entry/src/main/ets/pages/UserDetailPage.ets
-import router from '@ohos.router';
-import promptAction from '@ohos.promptAction';
 import { UserRepository, UserInfoResponse } from '../services/user/userRepository';
 import { PosterRepository } from '../services/gallery/PosterRepository';
 import { GalleryUser, Poster } from '../services/gallery/GalleryModels';
 import { AvatarWithName, FollowInfo, UserInfoButton } from '../components/user/UserInfoComponents';
 import { PosterCard } from '../components/gallery/PosterCard';
+import { uiBack, uiGetParams, uiPushUrl, uiReplaceUrl, uiShowToast } from '../utils/uiContextBridge';
 
 @Entry
 @Component
@@ -27,7 +26,7 @@ struct UserDetailPage {
   private scroller: Scroller = new Scroller();
 
   aboutToAppear() {
-    const params = router.getParams() as Record<string, Object>;
+    const params = uiGetParams(this.getUIContext()) as Record<string, Object>;
     if (params && params['uid']) {
       this.uid = params['uid'] as number;
       this.fetchData();
@@ -43,7 +42,7 @@ struct UserDetailPage {
 
       // ✅ 新增/修改：如果是当前登录用户，跳到 Index 的“我”Tab（tab = 4）
       if (data.own) {
-        router.replaceUrl({
+        uiReplaceUrl(this.getUIContext(), {
           url: 'pages/Index',
           params: {
             tab: 4   // 对应 Index 里的 TabKey.Me = 4
@@ -66,7 +65,7 @@ struct UserDetailPage {
       this.loadPosters(false);
 
     } catch (err) {
-      promptAction.showToast({ message: '获取用户信息失败: ' + (err as Error).message });
+      uiShowToast(this.getUIContext(), { message: '获取用户信息失败: ' + (err as Error).message });
     } finally {
       this.isLoading = false;
     }
@@ -143,16 +142,16 @@ struct UserDetailPage {
 
         this.userInfo = newUserInfo;
 
-        promptAction.showToast({
+        uiShowToast(this.getUIContext(), {
           message: result.following ? '关注成功' : '已取消关注',
           duration: 1500
         });
 
       } else {
-        promptAction.showToast({ message: '操作失败，请重试' });
+        uiShowToast(this.getUIContext(), { message: '操作失败，请重试' });
       }
     } catch (e) {
-      promptAction.showToast({ message: '网络错误，请检查连接' });
+      uiShowToast(this.getUIContext(), { message: '网络错误，请检查连接' });
     }
   }
 
@@ -171,7 +170,7 @@ struct UserDetailPage {
           text: "我的主页",
           isPrimary: true, // 我的主页通常也用强调色
           onAction: () => {
-            promptAction.showToast({ message: "即将跳转我的主页..." });
+            uiShowToast(this.getUIContext(), { message: "即将跳转我的主页..." });
           }
         })
       } else {
@@ -212,7 +211,7 @@ struct UserDetailPage {
         .height(48)
         .justifyContent(FlexAlign.Center)
         .onClick(() => {
-          router.back();
+          uiBack(this.getUIContext());
         })
         .margin({ left: 4 })
 
@@ -308,7 +307,7 @@ struct UserDetailPage {
                 PosterCard({
                   poster: item,
                   onClickPoster: () => {
-                    router.pushUrl({
+                    uiPushUrl(this.getUIContext(), {
                       url: 'pages/PosterDetailPage',
                       params: { id: item.id }
                     });

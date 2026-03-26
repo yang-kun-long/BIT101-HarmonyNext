@@ -2,6 +2,7 @@
 
 import preferences from '@ohos.data.preferences';
 import type { LexueCalendarEvent } from '../lexue/LexueCalendarParser';
+import { guardAsyncStorage } from './storageGuard';
 
 const PREF_FILE = 'bit101_prefs';
 
@@ -39,30 +40,40 @@ export class LexueCalendarStore {
 
   private async getPref() {
     const ctx = this.getAbilityContextOrThrow();
-    return await preferences.getPreferences(ctx, PREF_FILE);
+    return await guardAsyncStorage('preferences.getPreferences', async () =>
+      await preferences.getPreferences(ctx, PREF_FILE),
+    );
   }
 
   async saveRawIcs(ics: string): Promise<void> {
     const pref = await this.getPref();
-    await pref.put(KEY_ICS_RAW, ics ?? '');
-    await pref.flush();
+    await guardAsyncStorage('LexueCalendarStore.saveRawIcs', async () => {
+      await pref.put(KEY_ICS_RAW, ics ?? '');
+      await pref.flush();
+    });
   }
 
   async getRawIcs(): Promise<string | null> {
     const pref = await this.getPref();
-    return (await pref.get(KEY_ICS_RAW, null)) as string | null;
+    return await guardAsyncStorage('LexueCalendarStore.getRawIcs', async () =>
+      (await pref.get(KEY_ICS_RAW, null)) as string | null,
+    );
   }
 
   async saveEvents(events: LexueCalendarEvent[]): Promise<void> {
     const pref = await this.getPref();
-    await pref.put(KEY_EVENTS_JSON, JSON.stringify(events ?? []));
-    await pref.put(KEY_LAST_SYNC_TS, Date.now().toString());
-    await pref.flush();
+    await guardAsyncStorage('LexueCalendarStore.saveEvents', async () => {
+      await pref.put(KEY_EVENTS_JSON, JSON.stringify(events ?? []));
+      await pref.put(KEY_LAST_SYNC_TS, Date.now().toString());
+      await pref.flush();
+    });
   }
 
   async getEvents(): Promise<LexueCalendarEvent[]> {
     const pref = await this.getPref();
-    const raw = (await pref.get(KEY_EVENTS_JSON, '[]')) as string;
+    const raw = await guardAsyncStorage('LexueCalendarStore.getEvents', async () =>
+      (await pref.get(KEY_EVENTS_JSON, '[]')) as string,
+    );
     try {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
@@ -78,7 +89,9 @@ export class LexueCalendarStore {
   }
   private async loadUrlCache(): Promise<CalendarUrlCache> {
     const pref = await this.getPref();
-    const raw = (await pref.get(KEY_SUBSCRIBE_URL_CACHE, '')) as string;
+    const raw = await guardAsyncStorage('LexueCalendarStore.loadUrlCache', async () =>
+      (await pref.get(KEY_SUBSCRIBE_URL_CACHE, '')) as string,
+    );
     if (!raw) return {};
     try {
       const obj = JSON.parse(raw);
@@ -93,8 +106,10 @@ export class LexueCalendarStore {
 
   private async saveUrlCache(cache: CalendarUrlCache): Promise<void> {
     const pref = await this.getPref();
-    await pref.put(KEY_SUBSCRIBE_URL_CACHE, JSON.stringify(cache));
-    await pref.flush();
+    await guardAsyncStorage('LexueCalendarStore.saveUrlCache', async () => {
+      await pref.put(KEY_SUBSCRIBE_URL_CACHE, JSON.stringify(cache));
+      await pref.flush();
+    });
   }
   /**
    * 读缓存订阅 URL：
@@ -129,7 +144,9 @@ export class LexueCalendarStore {
   }
   async getLastSyncTimestamp(): Promise<number | null> {
     const pref = await this.getPref();
-    const raw = (await pref.get(KEY_LAST_SYNC_TS, null)) as string | null;
+    const raw = await guardAsyncStorage('LexueCalendarStore.getLastSyncTimestamp', async () =>
+      (await pref.get(KEY_LAST_SYNC_TS, null)) as string | null,
+    );
     if (!raw) return null;
     const n = Number(raw);
     return Number.isFinite(n) ? n : null;
@@ -137,11 +154,13 @@ export class LexueCalendarStore {
 
   async clear(): Promise<void> {
     const pref = await this.getPref();
-    await pref.delete(KEY_ICS_RAW);
-    await pref.delete(KEY_EVENTS_JSON);
-    await pref.delete(KEY_LAST_SYNC_TS);
-    await pref.delete(KEY_SUBSCRIBE_URL_CACHE); // 新增这一行，顺便清掉 URL 缓存
-    await pref.flush();
+    await guardAsyncStorage('LexueCalendarStore.clear', async () => {
+      await pref.delete(KEY_ICS_RAW);
+      await pref.delete(KEY_EVENTS_JSON);
+      await pref.delete(KEY_LAST_SYNC_TS);
+      await pref.delete(KEY_SUBSCRIBE_URL_CACHE); // 新增这一行，顺便清掉 URL 缓存
+      await pref.flush();
+    });
   }
 }
 

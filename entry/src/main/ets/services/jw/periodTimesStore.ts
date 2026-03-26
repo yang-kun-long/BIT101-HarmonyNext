@@ -90,7 +90,7 @@ export class PeriodTimesStore {
       const fd = fileIo.openSync(p, fileIo.OpenMode.CREATE | fileIo.OpenMode.TRUNC | fileIo.OpenMode.WRITE_ONLY)
       try {
         const encoder = new util.TextEncoder()
-        const bytes = encoder.encode(json)
+        const bytes = encoder.encodeInto(json)
         this.logger.debug('save bytes:', bytes.byteLength);
         fileIo.writeSync(fd.fd, bytes.buffer)
       } finally {

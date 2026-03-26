@@ -233,7 +233,7 @@ export class SemesterStore {
     try {
       const json = JSON.stringify(obj);
       const enc = new util.TextEncoder();
-      const bytes = enc.encode(json);
+      const bytes = enc.encodeInto(json);
       this.logger.debug('writeJson.bytes =', bytes.byteLength);
 
       stage = 'open';
@@ -278,7 +278,7 @@ export class SemesterStore {
         // 2) 重新以 READ_WRITE + TRUNC 打开并写入
         const json2 = JSON.stringify(obj);
         const enc2 = new util.TextEncoder();
-        const bytes2 = enc2.encode(json2);
+        const bytes2 = enc2.encodeInto(json2);
 
         const fd2 = fs.openSync(path, fs.OpenMode.READ_WRITE | fs.OpenMode.TRUNC);
         try {

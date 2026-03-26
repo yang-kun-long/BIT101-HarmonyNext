@@ -7,6 +7,7 @@ import { AvatarWithVerified } from './AvatarWithVerified';
 import { UserNameWithIdentity } from './UserNameWithIdentity';
 import router from '@ohos.router';
 import { ImageViewer } from '../ImageViewer';
+import { uiPushUrl, uiShowToast } from '../../utils/uiContextBridge';
 
 @Component
 export struct PosterCard {
@@ -24,20 +25,18 @@ export struct PosterCard {
 
     // 如果ID无效（比如是匿名用户），提示一下
     if (!targetUid || targetUid === '0' || targetUid === '-1') {
-      promptAction.showToast({ message: '无法查看该用户详情' });
+      uiShowToast(this.getUIContext(), { message: '无法查看该用户详情' });
       return;
     }
 
     // 2. 执行路由跳转
-    router.pushUrl({
+    uiPushUrl(this.getUIContext(), {
       url: 'pages/UserDetailPage',
       params: {
         uid: parseInt(targetUid) // 确保传过去的是数字
       }
-    }, router.RouterMode.Standard, (err) => {
-      if (err) {
-        console.error(`跳转失败, code: ${err.code}, message: ${err.message}`);
-      }
+    }).catch((err: Error) => {
+      console.error(`跳转失败, message: ${err.message}`);
     });
   }
 
@@ -142,7 +141,7 @@ export struct PosterCard {
         this.onClickPoster();
       } else {
         // 默认卡片点击行为
-        promptAction.showToast({ message: `打开帖子详情 ID: ${this.poster.id}` });
+        uiShowToast(this.getUIContext(), { message: `打开帖子详情 ID: ${this.poster.id}` });
       }
     })
     // ✅ 补全这里：绑定全屏模态，实现大图预览

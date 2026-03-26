@@ -2,6 +2,7 @@
 import { TextUtils, TextSegment } from '../../utils/TextUtils';
 import router from '@ohos.router';
 import { Logger } from '../../utils/Logger';
+import { uiPushUrl } from '../../utils/uiContextBridge';
 
 @Component
 export struct LinkableText {
@@ -25,7 +26,7 @@ export struct LinkableText {
             .onClick(() => {
               // 💡 点击链接，跳转到 WebView 页面
               this.logger.info('点击了链接:', seg.content);
-              router.pushUrl({
+              uiPushUrl(this.getUIContext(), {
                 url: 'pages/WebBrowserPage', // 确保你创建了这个页面（上一条回答里的）
                 params: {
                   url: seg.content,

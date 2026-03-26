@@ -3,6 +3,7 @@
 // 依赖：@ohos.data.preferences
 
 import preferences from '@ohos.data.preferences';
+import { guardAsyncStorage } from './storageGuard';
 
 const PREF_FILE = 'bit101_prefs';
 
@@ -53,31 +54,41 @@ export class TokenStore {
 
   private async getPref() {
     const ctx = this.getAbilityContextOrThrow();
-    return await preferences.getPreferences(ctx, PREF_FILE);
+    return await guardAsyncStorage('preferences.getPreferences', async () =>
+      await preferences.getPreferences(ctx, PREF_FILE),
+    );
   }
 
   // ---------- Access Token ----------
   async saveToken(token: string) {
     const pref = await this.getPref();
-    await pref.put(KEY_TOKEN, token);
-    await pref.flush();
+    await guardAsyncStorage('TokenStore.saveToken', async () => {
+      await pref.put(KEY_TOKEN, token);
+      await pref.flush();
+    });
   }
 
   async getToken(): Promise<string | null> {
     const pref = await this.getPref();
-    return (await pref.get(KEY_TOKEN, null)) as (string | null);
+    return await guardAsyncStorage('TokenStore.getToken', async () =>
+      (await pref.get(KEY_TOKEN, null)) as (string | null),
+    );
   }
 
   // ---------- User Info ----------
   async saveUserInfo(user: unknown) {
     const pref = await this.getPref();
-    await pref.put(KEY_USER, JSON.stringify(user ?? {}));
-    await pref.flush();
+    await guardAsyncStorage('TokenStore.saveUserInfo', async () => {
+      await pref.put(KEY_USER, JSON.stringify(user ?? {}));
+      await pref.flush();
+    });
   }
 
   async getUserInfo<T = any>(): Promise<T | null> {
     const pref = await this.getPref();
-    const raw = (await pref.get(KEY_USER, null)) as (string | null);
+    const raw = await guardAsyncStorage('TokenStore.getUserInfo', async () =>
+      (await pref.get(KEY_USER, null)) as (string | null),
+    );
     if (!raw) return null;
     try {
       return JSON.parse(raw) as T;
@@ -89,25 +100,33 @@ export class TokenStore {
   // ---------- BIT101 fake_cookie ----------
   async saveFakeCookie(v: string) {
     const pref = await this.getPref();
-    await pref.put(KEY_FAKE_COOKIE, v);
-    await pref.flush();
+    await guardAsyncStorage('TokenStore.saveFakeCookie', async () => {
+      await pref.put(KEY_FAKE_COOKIE, v);
+      await pref.flush();
+    });
   }
 
   async getFakeCookie(): Promise<string | null> {
     const pref = await this.getPref();
-    return (await pref.get(KEY_FAKE_COOKIE, null)) as (string | null);
+    return await guardAsyncStorage('TokenStore.getFakeCookie', async () =>
+      (await pref.get(KEY_FAKE_COOKIE, null)) as (string | null),
+    );
   }
 
   // ---------- WebVPN cookie ----------
   async saveWebvpnCookie(v: string) {
     const pref = await this.getPref();
-    await pref.put(KEY_WEBVPN_COOKIE, v);
-    await pref.flush();
+    await guardAsyncStorage('TokenStore.saveWebvpnCookie', async () => {
+      await pref.put(KEY_WEBVPN_COOKIE, v);
+      await pref.flush();
+    });
   }
 
   async getWebvpnCookie(): Promise<string | null> {
     const pref = await this.getPref();
-    return (await pref.get(KEY_WEBVPN_COOKIE, null)) as (string | null);
+    return await guardAsyncStorage('TokenStore.getWebvpnCookie', async () =>
+      (await pref.get(KEY_WEBVPN_COOKIE, null)) as (string | null),
+    );
   }
 
   // ---------- Helpers ----------
@@ -126,11 +145,13 @@ export class TokenStore {
    */
   async clear() {
     const pref = await this.getPref();
-    await pref.delete(KEY_TOKEN);
-    await pref.delete(KEY_USER);
-    await pref.delete(KEY_FAKE_COOKIE);
-    await pref.delete(KEY_WEBVPN_COOKIE);
-    await pref.flush();
+    await guardAsyncStorage('TokenStore.clear', async () => {
+      await pref.delete(KEY_TOKEN);
+      await pref.delete(KEY_USER);
+      await pref.delete(KEY_FAKE_COOKIE);
+      await pref.delete(KEY_WEBVPN_COOKIE);
+      await pref.flush();
+    });
   }
 
   /**
@@ -143,7 +164,9 @@ export class TokenStore {
       this.getWebvpnCookie(),
       (async () => {
         const pref = await this.getPref();
-        return (await pref.get(KEY_USER, null)) as (string | null);
+        return await guardAsyncStorage('TokenStore.dumpSnapshot.userInfo', async () =>
+          (await pref.get(KEY_USER, null)) as (string | null),
+        );
       })()
     ]);
 

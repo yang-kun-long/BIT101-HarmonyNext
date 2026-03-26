@@ -173,7 +173,7 @@ export struct ScheduleGrid {
     // 整个网格 Stack 填满父容器 (h=633.84)
     .height('100%')
     // ✅ 添加日志
-    .onAreaChange(this.onGridAreaChange.bind(this))
+    .onAreaChange((oldValue: Area, newValue: Area) => this.onGridAreaChange(newValue))
     // ✅ 修复 3：将日志移动到 onAppear 钩子中
     .onAppear(() => {
       this.logger.info(

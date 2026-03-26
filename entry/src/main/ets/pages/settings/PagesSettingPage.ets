@@ -1,4 +1,5 @@
 import { router, promptAction } from '@kit.ArkUI';
+import { uiBack, uiShowToast } from '../../utils/uiContextBridge';
 // 注意：这里改为上一级目录，因为 PageEnum 在 pages/ 下
 import { PageShowOnNav, getPageName } from '../PageEnum';
 
@@ -46,19 +47,19 @@ struct PagesSettingPage {
     ];
     this.editingHomePage = PageShowOnNav.Home;
     this.editingHiddenPages = [];
-    promptAction.showToast({ message: "已恢复默认配置，请点击保存生效" });
+    uiShowToast(this.getUIContext(), { message: "已恢复默认配置，请点击保存生效" });
   }
 
   // 保存逻辑
   saveSettings() {
     // 1. 校验逻辑：主页不能隐藏
     if (this.editingHiddenPages.includes(this.editingHomePage)) {
-      promptAction.showToast({ message: "主页不能被隐藏" });
+      uiShowToast(this.getUIContext(), { message: "主页不能被隐藏" });
       return;
     }
     // 2. 校验逻辑：我的页面不能隐藏
     if (this.editingHiddenPages.includes(PageShowOnNav.Mine)) {
-      promptAction.showToast({ message: "“我的”页面不能被隐藏" });
+      uiShowToast(this.getUIContext(), { message: "“我的”页面不能被隐藏" });
       return;
     }
 
@@ -72,8 +73,8 @@ struct PagesSettingPage {
     PersistentStorage.persistProp('home_page', this.editingHomePage);
     PersistentStorage.persistProp('pages_hidden', this.editingHiddenPages);
 
-    promptAction.showToast({ message: "保存成功" });
-    router.back();
+    uiShowToast(this.getUIContext(), { message: "保存成功" });
+    uiBack(this.getUIContext());
   }
 
   build() {
@@ -84,7 +85,7 @@ struct PagesSettingPage {
           .width(24)
           .height(24)
           .fillColor($r('sys.color.ohos_id_color_text_primary'))
-          .onClick(() => { router.back(); })
+          .onClick(() => { uiBack(this.getUIContext()); })
 
         Text("页面设置")
           .fontSize(20)

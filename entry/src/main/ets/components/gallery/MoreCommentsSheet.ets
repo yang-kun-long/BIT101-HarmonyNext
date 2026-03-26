@@ -6,6 +6,7 @@ import promptAction from '@ohos.promptAction';
 import pasteboard from '@ohos.pasteboard';
 import router from '@ohos.router';
 import curves from '@ohos.curves';
+import { uiPushUrl, uiShowToast } from '../../utils/uiContextBridge';
 
 @Component
 export struct MoreCommentsSheet {
@@ -65,7 +66,7 @@ export struct MoreCommentsSheet {
   // --- 交互逻辑 ---
 
   private showToast(msg: string) {
-    promptAction.showToast({ message: msg, duration: 1500 });
+    uiShowToast(this.getUIContext(), { message: msg, duration: 1500 });
   }
 
   private copyCommentText(text: string) {
@@ -98,7 +99,7 @@ export struct MoreCommentsSheet {
     this.onClose();
 
     // 稍微延迟一点跳转（可选），让关闭动画更自然，或者直接跳转
-    router.pushUrl({
+    uiPushUrl(this.getUIContext(), {
       url: 'pages/ReportPage',
       params: { type: 'comment', id: id }
     });

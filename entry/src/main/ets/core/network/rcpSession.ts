@@ -4,6 +4,7 @@
 import { rcp } from '@kit.RemoteCommunicationKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { Logger } from '../../utils/Logger';
+import { guardAsyncStorage } from '../../services/storage/storageGuard';
 const logger = new Logger('RcpSession');
 // ================= 对外类型定义 =================
 
@@ -206,7 +207,9 @@ export class RcpSession {
     (request as any).configuration = cfg; // 使用 any，避免依赖未导出的 RequestConfiguration 类型
 
     // 6) 创建 session，发请求
-    const session = rcp.createSession(); // 先用默认配置；后面如果需要拦截器等再扩展
+    const session = await guardAsyncStorage('RcpSession.createSession', async () =>
+      rcp.createSession(),
+    ); // 先用默认配置；后面如果需要拦截器等再扩展
 
     try {
       const resp: rcp.Response = await session.fetch(request);

@@ -1,29 +1,30 @@
 // entry/src/main/ets/components/gallery/ImagePickerGrid.ets
-import picker from '@ohos.file.picker';
+import photoAccessHelper from '@ohos.file.photoAccessHelper';
 import promptAction from '@ohos.promptAction';
 import common from '@ohos.app.ability.common';
 import { ImageUploadItem } from '../../services/gallery/GalleryModels';
 import { galleryService } from '../../services/gallery/GalleryService';
+import { uiShowToast } from '../../utils/uiContextBridge';
 
 @Component
 export struct ImagePickerGrid {
   @Link images: ImageUploadItem[];
   maxCount: number = 9;
 
-  private context = getContext(this) as common.UIAbilityContext;
+  private context = this.getUIContext().getHostContext() as common.UIAbilityContext;
 
   async pickImages(): Promise<void> {
     try {
-      const photoSelectOptions = new picker.PhotoSelectOptions();
-      photoSelectOptions.MIMEType = picker.PhotoViewMIMETypes.IMAGE_TYPE;
+      const photoSelectOptions = new photoAccessHelper.PhotoSelectOptions();
+      photoSelectOptions.MIMEType = photoAccessHelper.PhotoViewMIMETypes.IMAGE_TYPE;
       photoSelectOptions.maxSelectNumber = this.maxCount - this.images.length;
 
       if (photoSelectOptions.maxSelectNumber <= 0) {
-        promptAction.showToast({ message: `最多只能上传${this.maxCount}张图片` });
+        uiShowToast(this.getUIContext(), { message: `最多只能上传${this.maxCount}张图片` });
         return;
       }
 
-      const photoViewPicker = new picker.PhotoViewPicker();
+      const photoViewPicker = new photoAccessHelper.PhotoViewPicker();
       const photoSelectResult = await photoViewPicker.select(photoSelectOptions);
 
       if (photoSelectResult && photoSelectResult.photoUris.length > 0) {

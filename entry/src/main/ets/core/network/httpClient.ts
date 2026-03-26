@@ -1,5 +1,6 @@
 // entry/src/main/ets/core/network/httpClient.ts
 import http from '@ohos.net.http';
+import { guardAsyncStorage } from '../../services/storage/storageGuard';
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
 
@@ -63,13 +64,15 @@ export class HttpClient {
 
     const client = http.createHttp();
     try {
-      const res = await client.request(url, {
-        method,
-        header: headers,
-        extraData,
-        connectTimeout: req.connectTimeoutMs ?? 15000,
-        readTimeout: req.readTimeoutMs ?? 15000
-      });
+      const res = await guardAsyncStorage('HttpClient.request', async () =>
+        await client.request(url, {
+          method,
+          header: headers,
+          extraData,
+          connectTimeout: req.connectTimeoutMs ?? 15000,
+          readTimeout: req.readTimeoutMs ?? 15000
+        }),
+      );
 
       const status = res.responseCode ?? 0;
       const text = (res.result as string) ?? '';

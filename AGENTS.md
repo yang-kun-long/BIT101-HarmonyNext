@@ -23,6 +23,10 @@ There are two major auth domains in this app:
 
 `LoginPage.ets` currently orchestrates both domains. `AuthRepository` handles BIT101 login and WebVPN verification. `BitSsoAuto` + `BitSsoSession` handle school-side SSO / Lexue session establishment and auto-select `inner` vs `webvpn`.
 
+For current WebVPN + Lexue behavior:
+- successful business recovery is validated by `calendar/export.php` usability plus parsed `sesskey`
+- WebVPN Lexue recovery does not currently rely on `MoodleSession` being present in the persisted cookie dump
+
 For school-auth protocol changes and migration work, read:
 - `docs/2026-03-25-school-login-analysis.md`
 - `docs/plans/2026-03-25-school-login-migration.md`

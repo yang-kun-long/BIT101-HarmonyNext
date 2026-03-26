@@ -17,6 +17,7 @@ import { MoreCommentsSheet } from '../components/gallery/MoreCommentsSheet';
 import pasteboard from '@ohos.pasteboard';
 import { common, OpenLinkOptions } from '@kit.AbilityKit';
 import { BusinessError } from '@kit.BasicServicesKit';
+import { uiBack, uiGetParams, uiPushUrl, uiShowToast } from '../utils/uiContextBridge';
 
 
 interface ReplyContext {
@@ -27,7 +28,7 @@ interface ReplyContext {
 
 @Entry
 @Component
-export default struct PosterDetailPage {
+struct PosterDetailPage {
   private logger = new Logger('PosterDetailPage');
   @State commentsOrder: string = 'new'; // 'new' | 'old' | 'like'
   @State showCommentsOrderDialog: boolean = false;
@@ -83,7 +84,7 @@ export default struct PosterDetailPage {
       if (ok) {
         this.showToast('帖子删除成功了！');
         try {
-          router.back();
+          uiBack(this.getUIContext());
         } catch (_) {
           // ignore
         }
@@ -144,7 +145,7 @@ export default struct PosterDetailPage {
   // 回退方案：用你自己的 WebBrowserPage 打开
   private openPosterInInnerWeb(url: string): void {
     this.showToast('未能拉起浏览器，已在应用内打开');
-    router.pushUrl({
+    uiPushUrl(this.getUIContext(), {
       url: 'pages/WebBrowserPage',
       params: {
         url: url
@@ -309,7 +310,7 @@ export default struct PosterDetailPage {
 
 
   aboutToAppear(): void {
-    const params = router.getParams() as Record<string, Object>;
+    const params = uiGetParams(this.getUIContext()) as Record<string, Object>;
     const idParam = params?.['id'];
 
     if (idParam !== undefined) {
@@ -362,7 +363,7 @@ export default struct PosterDetailPage {
   }
 
   private showToast(msg: string): void {
-    promptAction.showToast({ message: msg, duration: 1500 });
+    uiShowToast(this.getUIContext(), { message: msg, duration: 1500 });
   }
 
   private getDialogTitle(): string {
@@ -383,7 +384,7 @@ export default struct PosterDetailPage {
       this.showToast('无法查看该用户详情');
       return;
     }
-    router.pushUrl({
+    uiPushUrl(this.getUIContext(), {
       url: 'pages/UserDetailPage',
       params: { uid: parseInt(targetUid) }
     });
@@ -492,7 +493,7 @@ export default struct PosterDetailPage {
           .width('100%')
           .backgroundColor(Color.White)
           .align(Alignment.TopStart)
-          .onScroll(() => {
+          .onDidScroll(() => {
             const yOffset = this.scroller.currentOffset().yOffset;
             if (yOffset > this.SCROLL_THRESHOLD && !this.isTitleVisibleInTopBar) {
               this.isTitleVisibleInTopBar = true;
@@ -548,7 +549,7 @@ export default struct PosterDetailPage {
                 .padding({ top: 10, bottom: 10 })
                 .onClick(() => {
                   if (this.poster) {
-                    router.pushUrl({
+                    uiPushUrl(this.getUIContext(), {
                       url: 'pages/PostEditorPage',
                       params: {
                         id: this.poster.id
@@ -580,7 +581,7 @@ export default struct PosterDetailPage {
                 .fontColor('#1F2937')
                 .padding({ top: 10, bottom: 10 })
                 .onClick(() => {
-                  router.pushUrl({
+                  uiPushUrl(this.getUIContext(), {
                     url: 'pages/ReportPage',
                     params: {
                       type: 'poster',
@@ -605,7 +606,7 @@ export default struct PosterDetailPage {
                 .fontColor('#1F2937')
                 .padding({ top: 10, bottom: 10 })
                 .onClick(() => {
-                  router.pushUrl({
+                  uiPushUrl(this.getUIContext(), {
                     url: 'pages/ReportPage',
                     params: {
                       type: 'poster',
@@ -675,7 +676,7 @@ export default struct PosterDetailPage {
                 .onClick(() => {
                   const target = this.commentMoreActionTarget;
                   if (target) {
-                    router.pushUrl({
+                    uiPushUrl(this.getUIContext(), {
                       url: 'pages/ReportPage', // 如果你注册的是别的路由名，这里改成对应的
                       params: {
                         type: 'comment',
@@ -705,7 +706,7 @@ export default struct PosterDetailPage {
                 .onClick(() => {
                   const target = this.commentMoreActionTarget;
                   if (target) {
-                    router.pushUrl({
+                    uiPushUrl(this.getUIContext(), {
                       url: 'pages/ReportPage', // 如果你注册的是别的路由名，这里改成对应的
                       params: {
                         type: 'comment',
@@ -842,7 +843,7 @@ export default struct PosterDetailPage {
     Row() {
       Image($r('app.media.ic_public_back'))
         .width(24).height(24).fillColor('#1F2937')
-        .onClick(() => router.back())
+        .onClick(() => uiBack(this.getUIContext()))
         .margin({ right: 12 });
 
       Stack() {

@@ -3,6 +3,7 @@ import { PosterCard } from './PosterCard';
 import { PosterListState } from '../../services/gallery/PosterListState';
 import { Poster } from '../../services/gallery/GalleryModels';
 import promptAction from '@ohos.promptAction';
+import { uiShowToast } from '../../utils/uiContextBridge';
 
 
 @Component
@@ -33,7 +34,7 @@ export struct PostersTabPage {
     if (this.onOpenPostOrEdit) {
       this.onOpenPostOrEdit();
     } else {
-      promptAction.showToast({
+      uiShowToast(this.getUIContext(), {
         message: '发帖功能开发中...\nUI 已对齐',
         duration: 1500,
         bottom: 400

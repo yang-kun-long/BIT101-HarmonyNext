@@ -2,6 +2,7 @@ import { router, promptAction } from '@kit.ArkUI';
 import { common, Want } from '@kit.AbilityKit';
 import bundleManager from '@ohos.bundle.bundleManager';
 import { util } from '@kit.ArkTS';
+import { uiBack, uiShowToast } from '../../utils/uiContextBridge';
 
 // ----------------------------------------------------------------------------
 // 1. 主页面结构
@@ -46,7 +47,7 @@ struct AboutPage {
           .width(24)
           .height(24)
           .fillColor($r('sys.color.ohos_id_color_text_primary'))
-          .onClick(() => { router.back(); })
+          .onClick(() => { uiBack(this.getUIContext()); })
 
         Text("关于")
           .fontSize(20)
@@ -204,11 +205,11 @@ struct AboutPage {
   // 2. 读取开源声明文件 (RawFile)
   async loadLicenses() {
     try {
-      const context = getContext(this);
+      const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
       const resourceManager = context.resourceManager;
       const fileData = await resourceManager.getRawFileContent("open_source_licenses.txt");
       const textDecoder = util.TextDecoder.create("utf-8");
-      this.licensesText = textDecoder.decodeWithStream(fileData);
+      this.licensesText = textDecoder.decodeToString(fileData);
     } catch (err) {
       this.licensesText = "暂无开源声明或文件读取失败。\n(请确保 resources/rawfile/ 目录下存在 open_source_licenses.txt)";
     }
@@ -220,19 +221,19 @@ struct AboutPage {
 
     if (!isAuto) {
       this.isDetectingUpgrade = true;
-      promptAction.showToast({ message: "正在检查更新..." });
+      uiShowToast(this.getUIContext(), { message: "正在检查更新..." });
 
       // 模拟请求延迟
       setTimeout(() => {
         this.isDetectingUpgrade = false;
-        promptAction.showToast({ message: "当前已是最新版本" });
+        uiShowToast(this.getUIContext(), { message: "当前已是最新版本" });
       }, 1500);
     }
   }
 
   // 4. 打开外部链接
   openUrl(url: string) {
-    const context = getContext(this) as common.UIAbilityContext;
+    const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
     const want: Want = {
       action: 'ohos.want.action.viewData',
       entities: ['entity.system.browsable'],
@@ -240,7 +241,7 @@ struct AboutPage {
     };
     context.startAbility(want).catch((err: object) => {
       console.error("Start ability failed", err);
-      promptAction.showToast({ message: "无法打开链接" });
+      uiShowToast(this.getUIContext(), { message: "无法打开链接" });
     });
   }
 }
@@ -366,13 +367,16 @@ struct AboutAppDialog {
   }
 
   openUrl(url: string) {
-    const context = getContext(this) as common.UIAbilityContext;
+    const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
     const want: Want = {
       action: 'ohos.want.action.viewData',
       entities: ['entity.system.browsable'],
       uri: url
     };
-    context.startAbility(want);
+    context.startAbility(want).catch((err: object) => {
+      console.error("Start ability failed", err);
+      uiShowToast(this.getUIContext(), { message: "无法打开链接" });
+    });
   }
 
   generatePyramid(): string {

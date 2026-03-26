@@ -13,6 +13,10 @@ import { TEST_PASSWORD, TEST_USERNAME } from './local.secret';
  * 1. BitSsoSession 登录乐学后，cookie 是否成功持久化到 Preferences
  * 2. 新建一个 BitSsoSession 实例，通过 restoreFromStorage() 能否直接复用登录态
  *
+ * 注意：
+ * - 这个 case 更偏向 inner / 旧语义验证
+ * - 对 WebVPN 乐学恢复，请优先使用 WebvpnLexueRestoreCase
+ *
  * 运行步骤（日志中会清晰展示）：
  *  step 0: 检查本地是否配置了调试账号
  *  step 1: 清空已有的 Lexue 持久化 cookie

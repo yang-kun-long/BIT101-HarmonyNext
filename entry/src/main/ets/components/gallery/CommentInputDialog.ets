@@ -1,10 +1,11 @@
 // entry/src/main/ets/components/gallery/CommentInputDialog.ets
-import picker from '@ohos.file.picker';
+import photoAccessHelper from '@ohos.file.photoAccessHelper';
 import promptAction from '@ohos.promptAction';
 import common from '@ohos.app.ability.common';
 import { ImageUploadItem } from '../../services/gallery/GalleryModels';
 import { ImagePickerGrid } from './ImagePickerGrid';
 import { galleryService } from '../../services/gallery/GalleryService';
+import { uiShowToast } from '../../utils/uiContextBridge';
 
 @CustomDialog
 export struct CommentInputDialog {
@@ -17,23 +18,23 @@ export struct CommentInputDialog {
   @State isAnonymous: boolean = false;
   @State images: ImageUploadItem[] = [];
 
-  private context = getContext(this) as common.UIAbilityContext;
+  private context = this.getUIContext().getHostContext() as common.UIAbilityContext;
 
   // ⚠️ 这里的逻辑是为了复用 ImagePickerGrid 的功能
   // 由于无法直接调用子组件方法，我们将 pickImages 逻辑在这里重新实现一遍
   async triggerPickImages(): Promise<void> {
     try {
       const maxCount = 9;
-      const photoSelectOptions = new picker.PhotoSelectOptions();
-      photoSelectOptions.MIMEType = picker.PhotoViewMIMETypes.IMAGE_TYPE;
+      const photoSelectOptions = new photoAccessHelper.PhotoSelectOptions();
+      photoSelectOptions.MIMEType = photoAccessHelper.PhotoViewMIMETypes.IMAGE_TYPE;
       photoSelectOptions.maxSelectNumber = maxCount - this.images.length;
 
       if (photoSelectOptions.maxSelectNumber <= 0) {
-        promptAction.showToast({ message: `最多只能上传${maxCount}张图片` });
+        uiShowToast(this.getUIContext(), { message: `最多只能上传${maxCount}张图片` });
         return;
       }
 
-      const photoViewPicker = new picker.PhotoViewPicker();
+      const photoViewPicker = new photoAccessHelper.PhotoViewPicker();
       const photoSelectResult = await photoViewPicker.select(photoSelectOptions);
 
       if (photoSelectResult && photoSelectResult.photoUris.length > 0) {

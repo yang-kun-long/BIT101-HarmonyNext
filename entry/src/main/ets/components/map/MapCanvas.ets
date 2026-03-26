@@ -35,12 +35,20 @@ export struct MapCanvas {
 
   goToLocation(pos: MapPosition) {
     const zoom = 16;
-    this.controller.runJavaScript(`flyToPosition(${pos.x}, ${pos.y}, ${zoom})`);
+    try {
+      this.controller.runJavaScript(`flyToPosition(${pos.x}, ${pos.y}, ${zoom})`);
+    } catch (error) {
+      this.logger.error('goToLocation runJavaScript failed:', error);
+    }
     this.currentZoom = zoom;
   }
 
   setMapZoom(zoom: number) {
-    this.controller.runJavaScript(`setZoom(${zoom})`);
+    try {
+      this.controller.runJavaScript(`setZoom(${zoom})`);
+    } catch (error) {
+      this.logger.error('setMapZoom runJavaScript failed:', error);
+    }
   }
 
   @Builder SettingsPanel() {

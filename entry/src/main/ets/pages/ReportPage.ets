@@ -1,13 +1,12 @@
 // entry/src/main/ets/pages/ReportPage.ets
 
-import router from '@ohos.router';
-import promptAction from '@ohos.promptAction';
 import { reportService, ReportType } from '../services/manage/ReportService';
 import { Logger } from '../utils/Logger';
+import { uiBack, uiGetParams, uiShowToast } from '../utils/uiContextBridge';
 
 @Entry
 @Component
-export default struct ReportPage {
+struct ReportPage {
   private logger: Logger = new Logger('ReportPage');
 
   // 路由参数
@@ -25,7 +24,7 @@ export default struct ReportPage {
   @State private submitting: boolean = false;
 
   aboutToAppear(): void {
-    const params = router.getParams() as Record<string, Object>;
+    const params = uiGetParams(this.getUIContext()) as Record<string, Object>;
     const typeParam = params && params['type'];
     const idParam = params && params['id'];
 
@@ -49,7 +48,7 @@ export default struct ReportPage {
       this.showToast('举报参数不正确');
       // 参数有问题就直接返回上一页，避免页面空挂着
       try {
-        router.back();
+        uiBack(this.getUIContext());
       } catch (_) {
         // ignore
       }
@@ -117,7 +116,7 @@ export default struct ReportPage {
   }
 
   private showToast(msg: string): void {
-    promptAction.showToast({
+    uiShowToast(this.getUIContext(), {
       message: msg,
       duration: 1500
     });
@@ -146,7 +145,7 @@ export default struct ReportPage {
       if (ok) {
         this.showToast('举报成功');
         try {
-          router.back();
+          uiBack(this.getUIContext());
         } catch (_) {
           // ignore
         }
@@ -170,7 +169,7 @@ export default struct ReportPage {
           .fontColor('#2563EB')
           .onClick(() => {
             try {
-              router.back();
+              uiBack(this.getUIContext());
             } catch (_) {
               // ignore
             }

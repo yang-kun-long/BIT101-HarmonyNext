@@ -7,6 +7,7 @@ import { GalleryUser, Poster } from '../services/gallery/GalleryModels';
 import { AvatarWithName, FollowInfo, UserInfoButton } from '../components/user/UserInfoComponents';
 import { PosterCard } from '../components/gallery/PosterCard';
 import { TokenStore } from '../services/storage/tokenStore';
+import { uiPushUrl, uiShowToast } from '../utils/uiContextBridge';
 
 @Component
 export default struct MePage {
@@ -124,11 +125,11 @@ export default struct MePage {
     this.hasMore = true;
     this.err = '';
 
-    promptAction.showToast({ message: '已退出登录' });
+    uiShowToast(this.getUIContext(), { message: '已退出登录' });
   }
 
   private async gotoLogin() {
-    await router.pushUrl({ url: 'pages/LoginPage', params: { redirect: 'pages/Index' } });
+    await uiPushUrl(this.getUIContext(), { url: 'pages/LoginPage', params: { redirect: 'pages/Index' } });
   }
 
   // ---------------- UI 片段 ----------------
@@ -188,7 +189,7 @@ export default struct MePage {
         .backgroundColor(this.navOpacity > 0.8 ? Color.Transparent : '#4D000000')
         .margin({ right: 12 })
         .onClick(() => {
-          router.pushUrl({ url: 'pages/settings/Settings' });
+          uiPushUrl(this.getUIContext(), { url: 'pages/settings/Settings' });
         })
       }
       .width('100%')
@@ -333,7 +334,7 @@ export default struct MePage {
                   PosterCard({
                     poster: item,
                     onClickPoster: () => {
-                      router.pushUrl({
+                      uiPushUrl(this.getUIContext(), {
                         url: 'pages/PosterDetailPage',
                         params: { id: item.id }
                       });

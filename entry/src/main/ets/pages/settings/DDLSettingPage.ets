@@ -1,4 +1,5 @@
 import { router, promptAction } from '@kit.ArkUI';
+import { uiBack, uiShowToast } from '../../utils/uiContextBridge';
 
 // ----------------------------------------------------------------------------
 // 1. Main Page Structure
@@ -25,7 +26,7 @@ struct DDLSettingPage {
       onConfirm: (val: number) => {
         this.beforeDay = val;
         // TODO: Save to Preferences
-        promptAction.showToast({ message: "设置成功OvO" });
+        uiShowToast(this.getUIContext(), { message: "设置成功OvO" });
       }
     }),
     alignment: DialogAlignment.Center,
@@ -42,7 +43,7 @@ struct DDLSettingPage {
       onConfirm: (val: number) => {
         this.afterDay = val;
         // TODO: Save to Preferences
-        promptAction.showToast({ message: "设置成功OvO" });
+        uiShowToast(this.getUIContext(), { message: "设置成功OvO" });
       }
     }),
     alignment: DialogAlignment.Center,
@@ -58,7 +59,7 @@ struct DDLSettingPage {
           .width(24)
           .height(24)
           .fillColor($r('sys.color.ohos_id_color_text_primary'))
-          .onClick(() => { router.back(); })
+          .onClick(() => { uiBack(this.getUIContext()); })
 
         Text("DDL设置")
           .fontSize(20)
@@ -134,19 +135,19 @@ struct DDLSettingPage {
 
   handleUpdateLexueCalendarUrl() {
     this.isUpdatingLexueCalendarUrl = true;
-    promptAction.showToast({ message: "正在获取订阅链接..." });
+    uiShowToast(this.getUIContext(), { message: "正在获取订阅链接..." });
     setTimeout(() => {
       this.isUpdatingLexueCalendarUrl = false;
-      promptAction.showToast({ message: "获取成功" });
+      uiShowToast(this.getUIContext(), { message: "获取成功" });
     }, 1500);
   }
 
   handleUpdateLexueCalendar() {
     this.isUpdatingLexueCalendar = true;
-    promptAction.showToast({ message: "正在拉取日程..." });
+    uiShowToast(this.getUIContext(), { message: "正在拉取日程..." });
     setTimeout(() => {
       this.isUpdatingLexueCalendar = false;
-      promptAction.showToast({ message: "拉取成功" });
+      uiShowToast(this.getUIContext(), { message: "拉取成功" });
     }, 1500);
   }
 }

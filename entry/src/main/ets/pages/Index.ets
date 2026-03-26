@@ -3,6 +3,7 @@ import router from '@ohos.router';
 import { isAuthedBit101 } from '../services/auth/authGuard';
 // 引入 PageEnum 用于和设置页数据对接
 import { PageShowOnNav } from './PageEnum';
+import { uiGetParams, uiPushUrl } from '../utils/uiContextBridge';
 
 import ScheduleShellPage from './ScheduleShellPage';
 import MapPage from './MapPage';
@@ -50,7 +51,7 @@ struct Index {
   };
 
   aboutToAppear() {
-    const params = router.getParams() as Record<string, Object>;
+    const params = uiGetParams(this.getUIContext()) as Record<string, Object>;
     const tabParam = params?.['tab'] as number | undefined;
 
     if (tabParam !== undefined) {
@@ -67,7 +68,7 @@ struct Index {
     // 权限检查
     const needAuth = (tab === TabKey.Schedule || tab === TabKey.Forum || tab === TabKey.Post);
     if (checkAuth && needAuth && !(await isAuthedBit101())) {
-      await router.pushUrl({ url: 'pages/LoginPage', params: { redirect: 'pages/Index' } });
+      await uiPushUrl(this.getUIContext(), { url: 'pages/LoginPage', params: { redirect: 'pages/Index' } });
       return;
     }
 

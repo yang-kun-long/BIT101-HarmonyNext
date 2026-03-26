@@ -1,6 +1,7 @@
 import http from '@ohos.net.http';
 import { SchoolStError, SchoolTgtError } from './SchoolAuthErrors';
 import { Logger } from '../../utils/Logger';
+import { guardAsyncStorage } from '../storage/storageGuard';
 
 const CAS_TICKET_URL = 'https://sso.bit.edu.cn/cas/v1/tickets';
 const DEFAULT_UA =
@@ -63,16 +64,18 @@ export class SchoolCasClient {
     try {
       const body =
         `username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`;
-      const res = await client.request(CAS_TICKET_URL, {
-        method: http.RequestMethod.POST,
-        header: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'User-Agent': this.userAgent,
-        },
-        extraData: body,
-        connectTimeout: timeoutMs,
-        readTimeout: timeoutMs,
-      });
+      const res = await guardAsyncStorage('SchoolCasClient.getTgt', async () =>
+        await client.request(CAS_TICKET_URL, {
+          method: http.RequestMethod.POST,
+          header: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'User-Agent': this.userAgent,
+          },
+          extraData: body,
+          connectTimeout: timeoutMs,
+          readTimeout: timeoutMs,
+        }),
+      );
       logger.debug('getTgt status =', res.responseCode);
       return parseTgtUrl(res.responseCode, res.header as Record<string, Object>, String(res.result ?? ''));
     } finally {
@@ -88,16 +91,18 @@ export class SchoolCasClient {
     const client = http.createHttp();
     try {
       const body = `service=${encodeURIComponent(service)}`;
-      const res = await client.request(tgtUrl, {
-        method: http.RequestMethod.POST,
-        header: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'User-Agent': this.userAgent,
-        },
-        extraData: body,
-        connectTimeout: timeoutMs,
-        readTimeout: timeoutMs,
-      });
+      const res = await guardAsyncStorage('SchoolCasClient.getSt', async () =>
+        await client.request(tgtUrl, {
+          method: http.RequestMethod.POST,
+          header: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'User-Agent': this.userAgent,
+          },
+          extraData: body,
+          connectTimeout: timeoutMs,
+          readTimeout: timeoutMs,
+        }),
+      );
 
       if (res.responseCode < 200 || res.responseCode >= 300) {
         throw new SchoolStError(`Unexpected ST status: ${res.responseCode}`);

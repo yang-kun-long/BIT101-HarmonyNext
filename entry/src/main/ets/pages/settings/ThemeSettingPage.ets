@@ -1,4 +1,5 @@
 import { router } from '@kit.ArkUI';
+import { uiBack } from '../../utils/uiContextBridge';
 
 // 对应 Android 的 DarkThemeMode 枚举
 enum DarkThemeMode {
@@ -48,7 +49,7 @@ struct ThemeSettingPage {
           .width(24)
           .height(24)
           .fillColor($r('sys.color.ohos_id_color_text_primary'))
-          .onClick(() => { router.back(); })
+          .onClick(() => { uiBack(this.getUIContext()); })
 
         Text("外观设置")
           .fontSize(20)

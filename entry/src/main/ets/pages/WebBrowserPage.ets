@@ -1,6 +1,7 @@
 // entry/src/main/ets/pages/WebBrowserPage.ets
 import router from '@ohos.router';
 import web_webview from '@ohos.web.webview';
+import { uiBack, uiGetParams } from '../utils/uiContextBridge';
 
 @Entry
 @Component
@@ -15,7 +16,7 @@ struct WebBrowserPage {
 
   aboutToAppear() {
     // 获取传递过来的参数
-    const params = router.getParams() as Record<string, string>;
+    const params = uiGetParams(this.getUIContext()) as Record<string, string>;
     if (params) {
       this.url = params['url'] || '';
       // 如果没有传标题，默认显示 "加载中..."，等网页加载完再更新标题
@@ -37,7 +38,7 @@ struct WebBrowserPage {
             if (this.controller.accessBackward()) {
               this.controller.backward();
             } else {
-              router.back();
+              uiBack(this.getUIContext());
             }
           })
 
@@ -55,7 +56,7 @@ struct WebBrowserPage {
           .width(24)
           .height(24)
           .margin({ left: 16 })
-          .onClick(() => router.back())
+          .onClick(() => uiBack(this.getUIContext()))
       }
       .height(56)
       .width('100%')

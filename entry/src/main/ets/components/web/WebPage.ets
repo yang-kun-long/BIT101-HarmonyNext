@@ -6,6 +6,7 @@ import common from '@ohos.app.ability.common';
 import Want from '@ohos.app.ability.Want';
 // 引入工具类
 import { handleFileSelect, WebFileSelectorEvent } from './WebUtils';
+import { uiShowToast } from '../../utils/uiContextBridge';
 
 @Component
 export struct WebPage {
@@ -27,7 +28,7 @@ export struct WebPage {
   controller: web_webview.WebviewController = new web_webview.WebviewController();
 
   // 上下文
-  private context = getContext(this) as common.UIAbilityContext;
+  private context = this.getUIContext().getHostContext() as common.UIAbilityContext;
 
   build() {
     Stack({ alignContent: Alignment.Top }) {
@@ -188,7 +189,7 @@ export struct WebPage {
       // 【修复点】增加 try-catch，消除黄色警告
       try {
         this.controller.runJavaScript(fillScript);
-        promptAction.showToast({ message: '已为您自动填充学号密码' });
+        uiShowToast(this.getUIContext(), { message: '已为您自动填充学号密码' });
       } catch (error) {
         this.logger.error('AutoFill failed:', error);
       }

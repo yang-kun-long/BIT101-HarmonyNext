@@ -12,6 +12,8 @@ import { GalleryServiceCase } from './GalleryServiceCase'
 import { SchoolWebvpnPortalCase } from './SchoolWebvpnPortalCase';
 import { SchoolLexueWebvpnCase } from './SchoolLexueWebvpnCase';
 import { TimetableWebvpnCase } from './TimetableWebvpnCase';
+import { WebvpnLexueRestoreCase } from './WebvpnLexueRestoreCase';
+import { SchoolNetworkProbeCase } from './SchoolNetworkProbeCase';
 import { Logger } from '../utils/Logger';
 
 const logger = new Logger('DebugRunner');
@@ -29,15 +31,18 @@ export enum DebugTarget {
   GALLERY_SERVICE = 'GALLERY_SERVICE',
   SCHOOL_WEBVPN_PORTAL = 'SCHOOL_WEBVPN_PORTAL',
   SCHOOL_LEXUE_WEBVPN = 'SCHOOL_LEXUE_WEBVPN',
-  TIMETABLE_WEBVPN = 'TIMETABLE_WEBVPN'
+  TIMETABLE_WEBVPN = 'TIMETABLE_WEBVPN',
+  WEBVPN_LEXUE_RESTORE = 'WEBVPN_LEXUE_RESTORE',
+  SCHOOL_NETWORK_PROBE = 'SCHOOL_NETWORK_PROBE'
 }
 
 /**
  * 当前要跑哪个调试用例
  * - 开发/调试时：改成你想跑的那个
  * - 发布正式包：改成 DebugTarget.NONE（或在 EntryAbility 里关掉调试入口）
+ * - 自动探活回归：优先跑 DebugTarget.SCHOOL_NETWORK_PROBE
  */
-const CURRENT_DEBUG_TARGET: DebugTarget = DebugTarget.TIMETABLE_WEBVPN;
+const CURRENT_DEBUG_TARGET: DebugTarget = DebugTarget.SCHOOL_NETWORK_PROBE;
 // 你想测别的就改成 DebugTarget.BIT_SSO_SESSION / BIT_SSO_LEXUE 等
 
 function createCase(target: DebugTarget): DebugCase | null {
@@ -66,6 +71,10 @@ function createCase(target: DebugTarget): DebugCase | null {
       return new SchoolLexueWebvpnCase();
     case DebugTarget.TIMETABLE_WEBVPN:
       return new TimetableWebvpnCase();
+    case DebugTarget.WEBVPN_LEXUE_RESTORE:
+      return new WebvpnLexueRestoreCase();
+    case DebugTarget.SCHOOL_NETWORK_PROBE:
+      return new SchoolNetworkProbeCase();
     case DebugTarget.NONE:
     default:
       return null;

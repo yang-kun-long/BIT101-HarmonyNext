@@ -1,4 +1,5 @@
 import { router, promptAction } from '@kit.ArkUI';
+import { uiBack, uiShowToast } from '../../utils/uiContextBridge';
 
 // ----------------------------------------------------------------------------
 // 1. 数据模型定义
@@ -52,7 +53,7 @@ struct CalendarSettingPage {
       isLoading: this.isGettingTermList,
       onSelect: (term: string) => {
         this.currentTerm = term;
-        promptAction.showToast({ message: "切换学期成功" });
+        uiShowToast(this.getUIContext(), { message: "切换学期成功" });
       }
     }),
     alignment: DialogAlignment.Center,
@@ -65,7 +66,7 @@ struct CalendarSettingPage {
       content: this.timeTableString,
       onConfirm: (val: string) => {
         this.timeTableString = val;
-        promptAction.showToast({ message: "时间表已保存" });
+        uiShowToast(this.getUIContext(), { message: "时间表已保存" });
       }
     }),
     alignment: DialogAlignment.Center,
@@ -81,7 +82,7 @@ struct CalendarSettingPage {
           .width(24)
           .height(24)
           .fillColor($r('sys.color.ohos_id_color_text_primary'))
-          .onClick(() => { router.back(); })
+          .onClick(() => { uiBack(this.getUIContext()); })
 
         Text("课程表设置")
           .fontSize(20)
@@ -202,20 +203,20 @@ struct CalendarSettingPage {
 
   handleGetFirstDay() {
     this.isGettingFirstDay = true;
-    promptAction.showToast({ message: "正在获取学期起始日期..." });
+    uiShowToast(this.getUIContext(), { message: "正在获取学期起始日期..." });
     setTimeout(() => {
       this.isGettingFirstDay = false;
       this.firstDay = "2024-08-26";
-      promptAction.showToast({ message: "获取成功" });
+      uiShowToast(this.getUIContext(), { message: "获取成功" });
     }, 1500);
   }
 
   handleGetCourses() {
     this.isGettingCourses = true;
-    promptAction.showToast({ message: "正在获取课表..." });
+    uiShowToast(this.getUIContext(), { message: "正在获取课表..." });
     setTimeout(() => {
       this.isGettingCourses = false;
-      promptAction.showToast({ message: "获取成功" });
+      uiShowToast(this.getUIContext(), { message: "获取成功" });
     }, 1500);
   }
 

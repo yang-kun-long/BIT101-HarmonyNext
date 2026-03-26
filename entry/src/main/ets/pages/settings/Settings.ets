@@ -3,7 +3,7 @@ import { router } from '@kit.ArkUI';
 
 @Entry
 @Component
-export struct Settings {
+struct Settings {
   build() {
     Column() {
       // 顶部标题栏 (模拟 Android SettingPage 的 Scaffold 顶部)

@@ -1,10 +1,12 @@
 // entry/src/main/ets/pages/PostEditorPage.ets
 import router from '@ohos.router';
 import promptAction from '@ohos.promptAction';
-import picker from '@ohos.file.picker';
+import photoAccessHelper from '@ohos.file.photoAccessHelper';
 import { galleryService } from '../services/gallery/GalleryService';
 import { PosterClaim, PosterPostRequest } from '../services/gallery/GalleryModels';
 import { Logger } from '../utils/Logger';
+import common from '@ohos.app.ability.common';
+import { uiBack, uiGetParams, uiShowAlertDialog, uiShowToast } from '../utils/uiContextBridge';
 // 确保引入了 common，用于获取 Context
 // ===============================================================
 // 1. 数据模型
@@ -92,7 +94,7 @@ struct TagInputDialog {
   handleConfirm() {
     const rawText = this.textValue.trim();
     if (rawText.length === 0) {
-      promptAction.showToast({ message: '标签不能为空' });
+      uiShowToast(this.getUIContext(), { message: '标签不能为空' });
       return;
     }
     const splitTags = rawText.split(/\s+/)
@@ -248,7 +250,7 @@ struct PostEditorPage {
   }
 
   async aboutToAppear() {
-    const params = router.getParams() as Record<string, Object>;
+    const params = uiGetParams(this.getUIContext()) as Record<string, Object>;
     if (params && params['id']) {
       this.posterId = params['id'] as number;
     }
@@ -305,7 +307,7 @@ struct PostEditorPage {
       const uniqueNew = newTags.filter((t: string) => !this.tags.includes(t));
       this.tags.push(...uniqueNew);
       if(uniqueNew.length < newTags.length) {
-        promptAction.showToast({ message: '已过滤重复标签' });
+        uiShowToast(this.getUIContext(), { message: '已过滤重复标签' });
       }
     } else {
       this.tags.splice(this.editingTagIndex, 1, ...newTags);
@@ -318,16 +320,16 @@ struct PostEditorPage {
 
   async pickImages() {
     try {
-      const photoSelectOptions = new picker.PhotoSelectOptions();
-      photoSelectOptions.MIMEType = picker.PhotoViewMIMETypes.IMAGE_TYPE;
+      const photoSelectOptions = new photoAccessHelper.PhotoSelectOptions();
+      photoSelectOptions.MIMEType = photoAccessHelper.PhotoViewMIMETypes.IMAGE_TYPE;
       photoSelectOptions.maxSelectNumber = 9 - this.localImages.length;
 
       if (photoSelectOptions.maxSelectNumber <= 0) {
-        promptAction.showToast({ message: '最多只能上传9张图片' });
+        uiShowToast(this.getUIContext(), { message: '最多只能上传9张图片' });
         return;
       }
 
-      const photoViewPicker = new picker.PhotoViewPicker();
+      const photoViewPicker = new photoAccessHelper.PhotoViewPicker();
       const photoSelectResult = await photoViewPicker.select(photoSelectOptions);
 
       if (photoSelectResult && photoSelectResult.photoUris.length > 0) {
@@ -344,7 +346,8 @@ struct PostEditorPage {
 
         // 3. 遍历上传 (调用 Service)
         newItems.forEach(async (item) => {
-          const mid = await galleryService.uploadImage(getContext(this), item.uri);
+          const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
+          const mid = await galleryService.uploadImage(context, item.uri);
 
           // 找到当前 item 在数组中的最新位置
           const index = this.localImages.indexOf(item);
@@ -375,7 +378,7 @@ struct PostEditorPage {
   deleteImage(index: number) {
     // 修复点：Strict Mode 下，必须构建符合 AlertDialogParam 类型的对象
     // 不能直接传字面量，需要类型断言或构建正确结构
-    AlertDialog.show({
+    uiShowAlertDialog(this.getUIContext(), {
       title: '删除图片',
       message: '确定要移除这张图片吗？',
       autoCancel: true,
@@ -416,15 +419,15 @@ struct PostEditorPage {
 
   async handleSubmit() {
     if (!this.title.trim()) {
-      promptAction.showToast({ message: '标题不能为空哟' });
+      uiShowToast(this.getUIContext(), { message: '标题不能为空哟' });
       return;
     }
     if (!this.text.trim()) {
-      promptAction.showToast({ message: '内容不能为空哟' });
+      uiShowToast(this.getUIContext(), { message: '内容不能为空哟' });
       return;
     }
     if (this.tags.length < 2) {
-      promptAction.showToast({ message: '请至少添加2个标签哟' });
+      uiShowToast(this.getUIContext(), { message: '请至少添加2个标签哟' });
       return;
     }
 
@@ -433,7 +436,7 @@ struct PostEditorPage {
     img.status !== 'success'
     );
     if (hasNotSuccess) {
-      promptAction.showToast({ message: '存在未上传成功的图片，请稍后再试' });
+      uiShowToast(this.getUIContext(), { message: '存在未上传成功的图片，请稍后再试' });
       return;
     }
 
@@ -476,10 +479,10 @@ struct PostEditorPage {
     this.isLoading = false;
 
     if (success) {
-      promptAction.showToast({ message: this.posterId === 0 ? '发布成功' : '修改成功' });
-      router.back();
+      uiShowToast(this.getUIContext(), { message: this.posterId === 0 ? '发布成功' : '修改成功' });
+      uiBack(this.getUIContext());
     } else {
-      promptAction.showToast({ message: '失败，请重试' });
+      uiShowToast(this.getUIContext(), { message: '失败，请重试' });
     }
   }
 
@@ -638,7 +641,7 @@ struct PostEditorPage {
       }
       .backgroundColor(Color.Transparent)
       .width(48).height(48)
-      .onClick((): void => router.back())
+      .onClick((): void => uiBack(this.getUIContext()))
 
       Text(this.posterId === 0 ? '发布帖子' : `编辑帖子#${this.posterId}`)
         .fontSize(20).fontWeight(FontWeight.Bold).layoutWeight(1).padding({ left: 8 })

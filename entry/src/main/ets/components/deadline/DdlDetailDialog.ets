@@ -27,7 +27,7 @@ export struct DdlDetailDialog {
     this.scaleVal = 0.96;
     this.offsetY = 24;
 
-    animateTo({ duration: 220, curve: Curve.EaseOut }, () => {
+    this.getUIContext().animateTo({ duration: 220, curve: Curve.EaseOut }, () => {
       this.opacityVal = 1;
       this.scaleVal = 1;
       this.offsetY = 0;
@@ -36,7 +36,7 @@ export struct DdlDetailDialog {
 
   private closeAnim(): void {
     // 退场动画：稍微缩小 + 下移 + 淡出
-    animateTo({ duration: 200, curve: Curve.EaseIn }, () => {
+    this.getUIContext().animateTo({ duration: 200, curve: Curve.EaseIn }, () => {
       this.opacityVal = 0;
       this.scaleVal = 0.96;
       this.offsetY = 24;

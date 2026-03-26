@@ -2,6 +2,7 @@
 import { Logger } from '../../utils/Logger';
 import preferences from '@ohos.data.preferences';
 import type { CookieDump } from '../../core/network/cookieJar';
+import { guardAsyncStorage } from './storageGuard';
 
 const PREF_FILE = 'bit101_prefs';
 
@@ -47,7 +48,9 @@ export class LexueCookieStore {
 
   private async getPref() {
     const ctx = this.getAbilityContextOrThrow();
-    return await preferences.getPreferences(ctx, PREF_FILE);
+    return await guardAsyncStorage('preferences.getPreferences', async () =>
+      await preferences.getPreferences(ctx, PREF_FILE),
+    );
   }
 
   private getKeyForScope(): string {
@@ -61,8 +64,10 @@ export class LexueCookieStore {
   async saveCookieDump(dump: CookieDump): Promise<void> {
     const pref = await this.getPref();
     const key = this.getKeyForScope();
-    await pref.put(key, JSON.stringify(dump ?? []));
-    await pref.flush();
+    await guardAsyncStorage('LexueCookieStore.saveCookieDump', async () => {
+      await pref.put(key, JSON.stringify(dump ?? []));
+      await pref.flush();
+    });
   }
 
   async loadCookieDump(): Promise<CookieDump | null> {
@@ -70,14 +75,18 @@ export class LexueCookieStore {
     const key = this.getKeyForScope();
 
     // 先按作用域的 key 读
-    let raw = (await pref.get(key, null)) as string | null;
+    let raw = await guardAsyncStorage('LexueCookieStore.loadCookieDump', async () =>
+      (await pref.get(key, null)) as string | null,
+    );
 
     // 为了兼容旧版本：inner 模式下如果新 key 没有数据，再尝试读老 key
     if (!raw && this.scope === 'inner') {
-      raw = (await pref.get(
-        KEY_LEXUE_COOKIE_JAR_LEGACY,
-        null,
-      )) as string | null;
+      raw = await guardAsyncStorage('LexueCookieStore.loadCookieDump.legacy', async () =>
+        (await pref.get(
+          KEY_LEXUE_COOKIE_JAR_LEGACY,
+          null,
+        )) as string | null,
+      );
     }
 
     if (!raw) return null;
@@ -96,15 +105,16 @@ export class LexueCookieStore {
   async clearCookieDump(): Promise<void> {
     const pref = await this.getPref();
     const key = this.getKeyForScope();
+    await guardAsyncStorage('LexueCookieStore.clearCookieDump', async () => {
+      await pref.delete(key);
 
-    await pref.delete(key);
+      // inner 模式顺带把老 key 一起清掉，防止脏数据残留
+      if (this.scope === 'inner') {
+        await pref.delete(KEY_LEXUE_COOKIE_JAR_LEGACY);
+      }
 
-    // inner 模式顺带把老 key 一起清掉，防止脏数据残留
-    if (this.scope === 'inner') {
-      await pref.delete(KEY_LEXUE_COOKIE_JAR_LEGACY);
-    }
-
-    await pref.flush();
+      await pref.flush();
+    });
   }
 }
 

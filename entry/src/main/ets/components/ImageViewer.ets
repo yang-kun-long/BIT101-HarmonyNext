@@ -4,6 +4,7 @@ import { photoAccessHelper } from '@kit.MediaLibraryKit';
 import { fileIo as fs } from '@kit.CoreFileKit';
 import { rcp } from '@kit.RemoteCommunicationKit';
 import { BusinessError } from '@kit.BasicServicesKit';
+import { uiShowToast } from '../utils/uiContextBridge';
 
 @Component
 export struct ImageViewer {
@@ -23,7 +24,7 @@ export struct ImageViewer {
 
   async saveImageToGallery(url: string) {
     try {
-      promptAction.showToast({ message: '正在下载...' });
+      uiShowToast(this.getUIContext(), { message: '正在下载...' });
 
       const session = rcp.createSession();
       const req = new rcp.Request(url);
@@ -34,7 +35,7 @@ export struct ImageViewer {
       }
       const imageBuffer = response.body;
 
-      const context = getContext(this);
+      const context = this.getUIContext().getHostContext();
       const phAccessHelper = photoAccessHelper.getPhotoAccessHelper(context);
 
       const photoType = photoAccessHelper.PhotoType.IMAGE;
@@ -45,13 +46,13 @@ export struct ImageViewer {
       await fs.write(file.fd, imageBuffer);
       await fs.close(file.fd);
 
-      promptAction.showToast({ message: '已保存到系统相册', duration: 2000 });
+      uiShowToast(this.getUIContext(), { message: '已保存到系统相册', duration: 2000 });
       session.close();
 
     } catch (err) {
       const error = err as BusinessError;
       console.error(`[ImageViewer] 保存失败: ${error.message}, code: ${error.code}`);
-      promptAction.showToast({ message: '保存失败: ' + error.message });
+      uiShowToast(this.getUIContext(), { message: '保存失败: ' + error.message });
     }
   }
 
@@ -138,7 +139,7 @@ export struct ImageViewer {
                 await this.saveImageToGallery(currentUrl);
               }
             } else {
-              promptAction.showToast({ message: '权限校验失败' });
+              uiShowToast(this.getUIContext(), { message: '权限校验失败' });
             }
           })
       }

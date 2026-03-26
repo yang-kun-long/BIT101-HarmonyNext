@@ -3,6 +3,7 @@ import photoAccessHelper from '@ohos.file.photoAccessHelper';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { TokenStore } from '../../services/storage/tokenStore';
 import { GalleryUser } from '../../services/gallery/GalleryModels';
+import { uiBack, uiClear, uiPushUrl, uiReplaceUrl, uiShowToast } from '../../utils/uiContextBridge';
 
 // ----------------------------------------------------------------------------
 // 1. 主页面结构
@@ -37,7 +38,7 @@ struct AccountPage {
             this.user.nickname = val;
           }
           this.updatingUserInfo = false;
-          promptAction.showToast({ message: "昵称更新成功" });
+          uiShowToast(this.getUIContext(), { message: "昵称更新成功" });
         }, 500);
       }
     }),
@@ -55,7 +56,7 @@ struct AccountPage {
         setTimeout(() => {
           this.userMotto = val;
           this.updatingUserInfo = false;
-          promptAction.showToast({ message: "个性签名更新成功" });
+          uiShowToast(this.getUIContext(), { message: "个性签名更新成功" });
         }, 500);
       }
     }),
@@ -72,7 +73,7 @@ struct AccountPage {
           .width(24)
           .height(24)
           .fillColor($r('sys.color.ohos_id_color_text_primary'))
-          .onClick(() => { router.back(); })
+          .onClick(() => { uiBack(this.getUIContext()); })
 
         Text("账号设置")
           .fontSize(20)
@@ -201,10 +202,10 @@ struct AccountPage {
 
   handleCheckLogin() {
     this.checkingLogin = true;
-    promptAction.showToast({ message: "正在检查登录状态..." });
+    uiShowToast(this.getUIContext(), { message: "正在检查登录状态..." });
     setTimeout(() => {
       this.checkingLogin = false;
-      promptAction.showToast({ message: "登录状态检查成功" });
+      uiShowToast(this.getUIContext(), { message: "登录状态检查成功" });
     }, 1500);
   }
 
@@ -212,12 +213,12 @@ struct AccountPage {
     const tokenStore = new TokenStore();
     await tokenStore.clear();
     this.ifLogin = false;
-    router.clear();
-    router.replaceUrl({ url: 'pages/LoginPage' });
+    uiClear(this.getUIContext());
+    uiReplaceUrl(this.getUIContext(), { url: 'pages/LoginPage' });
   }
 
   handleLogin() {
-    router.pushUrl({ url: 'pages/LoginPage' });
+    uiPushUrl(this.getUIContext(), { url: 'pages/LoginPage' });
   }
 
   async handlePickAvatar() {
@@ -234,7 +235,7 @@ struct AccountPage {
         // 确保 user 存在再赋值
         if (this.user) {
           this.user.avatar = uri;
-          promptAction.showToast({ message: "头像已选择" });
+          uiShowToast(this.getUIContext(), { message: "头像已选择" });
         }
       }
     } catch (err) {

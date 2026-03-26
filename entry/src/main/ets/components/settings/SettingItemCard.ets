@@ -1,4 +1,5 @@
 import { router } from '@kit.ArkUI';
+import { uiPushUrl } from '../../utils/uiContextBridge';
 
 @Component
 export struct SettingItemCard {
@@ -46,7 +47,7 @@ export struct SettingItemCard {
     .backgroundColor($r('sys.color.ohos_id_color_card_bg'))
     .onClick(() => {
       if (this.targetUrl) {
-        router.pushUrl({ url: this.targetUrl });
+        uiPushUrl(this.getUIContext(), { url: this.targetUrl });
       }
     })
   }

@@ -5,6 +5,7 @@ import { PosterListState } from '../services/gallery/PosterListState';
 import { PostersMode } from '../services/gallery/GalleryService';
 import promptAction from '@ohos.promptAction';
 import router from '@ohos.router'; // 确保引入 router
+import { uiPushUrl } from '../utils/uiContextBridge';
 
 @Component
 export default struct PostPage {
@@ -26,7 +27,7 @@ export default struct PostPage {
 
   // --- 业务逻辑：打开详情 ---
   openPosterDetail(id: number): void {
-    router.pushUrl({
+    uiPushUrl(this.getUIContext(), {
       url: 'pages/PosterDetailPage',
       params: { id }
     });
@@ -36,7 +37,7 @@ export default struct PostPage {
   // [新增] 业务逻辑：跳转去发帖页面
   // ============================================
   onPostClick(): void {
-    router.pushUrl({
+    uiPushUrl(this.getUIContext(), {
       url: 'pages/PostEditorPage'
     }).catch((err: Error) => {
       // 如果跳转失败，通常是 main_pages.json 没配置好
@@ -47,7 +48,7 @@ export default struct PostPage {
   // --- 业务逻辑：搜索 ---
   onSearchClick(): void {
     // [修改] 之前是弹窗，现在改为跳转到 SearchPage
-    router.pushUrl({
+    uiPushUrl(this.getUIContext(), {
       url: 'pages/SearchPage'
     }).catch((err: Error) => {
       this.logger.error('Jump to SearchPage failed:', err);

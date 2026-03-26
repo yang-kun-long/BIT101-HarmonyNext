@@ -1,6 +1,9 @@
 import { describe, it, expect } from '@ohos/hypium';
 import { extractPortalServiceFromLocation, resolveAbsoluteUrl, resolveServiceFromRedirect } from '../main/ets/services/school/SchoolServiceResolver';
-import { inferSchoolLoginModeFromProbe } from '../main/ets/services/school/SchoolNetworkProbe';
+import {
+  inferSchoolLoginModeFromProbe,
+  inferSchoolLoginModeFromWebvpnProbe,
+} from '../main/ets/services/school/SchoolNetworkProbe';
 
 export default function schoolServiceResolverTest() {
   describe('School service resolver', () => {
@@ -22,9 +25,14 @@ export default function schoolServiceResolverTest() {
       expect(service).assertEqual('https://webvpn.bit.edu.cn/login?cas_login=true');
     });
 
-    it('treats 302 probe as inner mode', 0, () => {
-      const mode = inferSchoolLoginModeFromProbe(302);
+    it('treats 200 probe as inner mode', 0, () => {
+      const mode = inferSchoolLoginModeFromProbe(200);
       expect(mode).assertEqual('inner');
+    });
+
+    it('treats bare 303 probe as webvpn mode', 0, () => {
+      const mode = inferSchoolLoginModeFromProbe(303);
+      expect(mode).assertEqual('webvpn');
     });
 
     it('treats redirect-limit errors as inner mode', 0, () => {
@@ -35,6 +43,16 @@ export default function schoolServiceResolverTest() {
     it('falls back to webvpn when probe is unreachable', 0, () => {
       const mode = inferSchoolLoginModeFromProbe(0, 0, 'connect timeout');
       expect(mode).assertEqual('webvpn');
+    });
+
+    it('treats reachable webvpn portal as webvpn mode', 0, () => {
+      const mode = inferSchoolLoginModeFromWebvpnProbe(302);
+      expect(mode).assertEqual('webvpn');
+    });
+
+    it('treats unreachable webvpn portal as inner mode', 0, () => {
+      const mode = inferSchoolLoginModeFromWebvpnProbe(0, 0, 'connect timeout');
+      expect(mode).assertEqual('inner');
     });
   });
 }

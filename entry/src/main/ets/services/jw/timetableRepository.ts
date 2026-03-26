@@ -6,6 +6,7 @@
 import http from '@ohos.net.http'
 import { TokenStore } from '../storage/tokenStore'
 import { Logger } from '../../utils/Logger';
+import { guardAsyncStorage } from '../storage/storageGuard';
 
 export interface ScheduleLinkResp {
   url: string
@@ -72,17 +73,19 @@ export class TimetableRepository {
 
     const client = http.createHttp()
     try {
-      const res = await client.request(url, {
-        method: http.RequestMethod.GET,
-        header: {
-          'Accept': 'application/json, text/plain, */*',
-          'User-Agent': 'BIT101 HarmonyOS/1.0 (ArkTS)',
-          // OpenAPI 指定使用 header: webvpn-cookie
-          'webvpn-cookie': cookie,
-        },
-        readTimeout: 15000,
-        connectTimeout: 15000
-      })
+      const res = await guardAsyncStorage('TimetableRepository.getScheduleLink', async () =>
+        await client.request(url, {
+          method: http.RequestMethod.GET,
+          header: {
+            'Accept': 'application/json, text/plain, */*',
+            'User-Agent': 'BIT101 HarmonyOS/1.0 (ArkTS)',
+            // OpenAPI 指定使用 header: webvpn-cookie
+            'webvpn-cookie': cookie,
+          },
+          readTimeout: 15000,
+          connectTimeout: 15000
+        }),
+      )
 
       const code = res.responseCode
       const headers = JSON.stringify(res.header ?? {})
@@ -123,16 +126,18 @@ export class TimetableRepository {
     }
     const client = http.createHttp()
     try {
-      const res = await client.request(icsUrl, {
-        method: http.RequestMethod.GET,
-        header: {
-          'Accept': 'text/calendar, text/plain, */*',
-          'User-Agent': 'BIT101 HarmonyOS/1.0 (ArkTS)',
-          'Referer': this.baseUrl + '/'
-        },
-        readTimeout: 20000,
-        connectTimeout: 15000
-      })
+      const res = await guardAsyncStorage('TimetableRepository.downloadIcs', async () =>
+        await client.request(icsUrl, {
+          method: http.RequestMethod.GET,
+          header: {
+            'Accept': 'text/calendar, text/plain, */*',
+            'User-Agent': 'BIT101 HarmonyOS/1.0 (ArkTS)',
+            'Referer': this.baseUrl + '/'
+          },
+          readTimeout: 20000,
+          connectTimeout: 15000
+        }),
+      )
       const code = res.responseCode
       const text = String(res.result ?? '')
 
