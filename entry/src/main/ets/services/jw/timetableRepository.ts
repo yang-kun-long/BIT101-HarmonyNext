@@ -29,16 +29,16 @@ function redact(s: string, keepStart = 8, keepEnd = 6): string {
 }
 
 // 将超长文本拆段打印，避免日志系统截断
-function logLarge(prefix: string, text: string, chunk = 1800) {
+function logLarge(logger: Logger, prefix: string, text: string, chunk = 1800) {
   const s = text ?? ''
   if (s.length <= chunk) {
-    this.logger.debug(prefix, s);
+    logger.debug(prefix, s);
     return
   }
-  this.logger.debug(prefix, `[len=${s.length}] ↓`);
+  logger.debug(prefix, `[len=${s.length}] ↓`);
   for (let i = 0; i < s.length; i += chunk) {
     const seg = s.slice(i, i + chunk)
-    this.logger.debug(prefix, `[len=${s.length}] ↓`);
+    logger.debug(prefix, seg);
   }
 }
 
@@ -93,8 +93,8 @@ export class TimetableRepository {
 
       if (this.debug) {
         this.logger.debug('/courses/schedule -> HTTP', code);
-        logLarge('[Timetable] response.headers: ', headers)
-        logLarge('[Timetable] response.body: ', body)
+        logLarge(this.logger, '[Timetable] response.headers: ', headers)
+        logLarge(this.logger, '[Timetable] response.body: ', body)
       }
 
       if (code < 200 || code >= 300) {
@@ -146,8 +146,8 @@ export class TimetableRepository {
         // 不建议全量打印 ICS（可能很长），仅打印前后 500 字
         const head = text.slice(0, 500)
         const tail = text.slice(-500)
-        logLarge('[Timetable] ics.head: ', head)
-        if (text.length > 1000) logLarge('[Timetable] ics.tail: ', tail)
+        logLarge(this.logger, '[Timetable] ics.head: ', head)
+        if (text.length > 1000) logLarge(this.logger, '[Timetable] ics.tail: ', tail)
       }
 
       if (code < 200 || code >= 300) {

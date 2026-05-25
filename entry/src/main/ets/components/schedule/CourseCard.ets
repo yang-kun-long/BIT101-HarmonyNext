@@ -9,6 +9,7 @@ export struct CourseCard {
   @Prop cardHeight: number = 42
   @Prop baseFont: number = 12
   @Prop titleMaxLines: number = 1
+  @Prop showBorder: boolean = false
 
   // ✅ 修复：去掉这里的 @Prop。函数/回调不使用 @Prop 传递。
   onCardClick: () => void = () => {}
@@ -34,6 +35,7 @@ export struct CourseCard {
       .padding({ left: 6, right: 6, top: 4, bottom: 4 })
       .backgroundColor(this.color)
       .borderRadius(10)
+      .border({ width: this.showBorder ? 1 : 0, color: '#FFFFFF' })
       .width('100%')
       .height('100%')
     }

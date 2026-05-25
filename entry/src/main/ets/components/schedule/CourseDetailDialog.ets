@@ -3,6 +3,9 @@
 import type { RawIcsEvent } from '../../services/storage/semesterStore'
 import type { CalendarEvent } from '../../services/jw/timetableRepository'
 import type { PeriodTime } from '../../services/jw/periodTimes'
+import type { CourseScheduleItem } from '../../services/schoolSchedule/ScheduleModels'
+import { buildCourseDetailRows } from '../../services/schoolSchedule/ScheduleDetailModels'
+import type { DetailRow } from '../../services/schoolSchedule/ScheduleDetailModels'
 import { parseIcsToDate, sanitizeLocation } from '../../utils/scheduleUtils'
 import { Logger } from '../../utils/Logger';
 
@@ -11,6 +14,7 @@ export struct CourseDetailDialog {
   // --- Props ---
   @Prop ev: CalendarEvent | null
   @Prop raw: RawIcsEvent | null
+  @Prop course: CourseScheduleItem | null = null
   @Prop baseFont: number = 12
   @Prop periodTimes: PeriodTime[] = []
   private logger = new Logger('CourseDetailDialog');
@@ -122,6 +126,9 @@ export struct CourseDetailDialog {
   // ================== 字段提取 & 格式化 ==================
 
   private evTitle(): string {
+    if (this.course && this.course.name.length > 0) {
+      return this.course.name
+    }
     if (this.raw && typeof this.raw.summary === 'string' && this.raw.summary.length > 0) {
       return this.raw.summary
     }
@@ -130,6 +137,9 @@ export struct CourseDetailDialog {
   }
 
   private evRoom(): string {
+    if (this.course && this.course.classroom.length > 0) {
+      return this.course.classroom
+    }
     if (this.raw && typeof this.raw.location === 'string' && this.raw.location.length > 0) {
       return sanitizeLocation(this.raw.location)
     }
@@ -139,6 +149,9 @@ export struct CourseDetailDialog {
 
   // 老师：从 raw.description 里取第一行，去掉结尾的 “|”
   private evTeacher(): string {
+    if (this.course && this.course.teacher.length > 0) {
+      return this.course.teacher
+    }
     if (!this.raw || !this.raw.description) {
       return ''
     }
@@ -182,6 +195,10 @@ export struct CourseDetailDialog {
   }
 
   private evWeekdayStr(): string {
+    if (this.course && this.course.weekday >= 1 && this.course.weekday <= 7) {
+      const courseNames: string[] = ['一', '二', '三', '四', '五', '六', '日']
+      return `星期${courseNames[this.course.weekday - 1]}`
+    }
     const s: Date | null = this.startDate()
     if (!s) return ''
     const names: string[] = ['日', '一', '二', '三', '四', '五', '六']
@@ -220,6 +237,34 @@ export struct CourseDetailDialog {
     if (parts.length <= 1) return ''
     const rest: string = parts.slice(1).join(' · ')
     return rest.trim()
+  }
+
+  private localDetailRows(): DetailRow[] {
+    if (!this.course) {
+      return []
+    }
+    return buildCourseDetailRows(this.course)
+  }
+
+  private textOrDash(value: string): string {
+    return value && value.length > 0 ? value : '-'
+  }
+
+  @Builder
+  InfoRow(label: string, value: string) {
+    Column() {
+      Text(label)
+        .fontSize(this.baseFont)
+        .fontWeight(FontWeight.Medium)
+        .fontColor('#6B7280')
+
+      Text(this.textOrDash(value))
+        .fontSize(this.baseFont + 1)
+        .fontColor('#111827')
+        .margin({ top: 4 })
+    }
+    .width('100%')
+    .margin({ bottom: 12 })
   }
 
   // ================== UI ==================
@@ -295,99 +340,105 @@ export struct CourseDetailDialog {
         // ====== 可滚动内容区域 ======
         Scroll() {
           Column() {
-            // 教师块
-            if (this.hasTeacher()) {
-              Column() {
-                Text('教师')
-                  .fontSize(this.baseFont)
-                  .fontWeight(FontWeight.Medium)
-                  .fontColor('#6B7280')
+            if (this.course) {
+              ForEach(this.localDetailRows(), (row: DetailRow) => {
+                this.InfoRow(row.label, row.value)
+              }, (row: DetailRow) => row.label)
+            } else {
+              // 教师块
+              if (this.hasTeacher()) {
+                Column() {
+                  Text('教师')
+                    .fontSize(this.baseFont)
+                    .fontWeight(FontWeight.Medium)
+                    .fontColor('#6B7280')
 
-                Text(this.evTeacher())
-                  .fontSize(this.baseFont + 1)
-                  .fontColor('#111827')
-                  .margin({ top: 4 })
+                  Text(this.evTeacher())
+                    .fontSize(this.baseFont + 1)
+                    .fontColor('#111827')
+                    .margin({ top: 4 })
+                }
+                .margin({ bottom: 12 })
+
+                Row() { }
+                .height(1)
+                .width('100%')
+                .backgroundColor('#F3F4F6')
+                .margin({ bottom: 12 })
               }
-              .margin({ bottom: 12 })
 
-              Row() { }
-              .height(1)
-              .width('100%')
-              .backgroundColor('#F3F4F6')
-              .margin({ bottom: 12 })
-            }
+              // 时间块
+              if (this.evDateStr().length > 0 || this.evTimeStr().length > 0) {
+                Column() {
+                  Text('时间')
+                    .fontSize(this.baseFont)
+                    .fontWeight(FontWeight.Medium)
+                    .fontColor('#6B7280')
 
-            // 时间块
-            if (this.evDateStr().length > 0 || this.evTimeStr().length > 0) {
-              Column() {
-                Text('时间')
-                  .fontSize(this.baseFont)
-                  .fontWeight(FontWeight.Medium)
-                  .fontColor('#6B7280')
-
-                // 日期 + 星期的小行
-                if (this.evDateStr().length > 0 || this.evWeekdayStr().length > 0) {
-                  Row() {
-                    if (this.evDateStr().length > 0) {
-                      Text(this.evDateStr())
-                        .fontSize(this.baseFont + 1)
-                        .fontColor('#111827')
+                  // 日期 + 星期的小行
+                  if (this.evDateStr().length > 0 || this.evWeekdayStr().length > 0) {
+                    Row() {
+                      if (this.evDateStr().length > 0) {
+                        Text(this.evDateStr())
+                          .fontSize(this.baseFont + 1)
+                          .fontColor('#111827')
+                      }
+                      if (this.evWeekdayStr().length > 0) {
+                        Text(
+                          (this.evDateStr().length > 0 ? '  ' : '') +
+                          this.evWeekdayStr()
+                        )
+                          .fontSize(this.baseFont)
+                          .fontColor('#4B5563')
+                      }
                     }
-                    if (this.evWeekdayStr().length > 0) {
-                      Text(
-                        (this.evDateStr().length > 0 ? '  ' : '') +
-                        this.evWeekdayStr()
-                      )
-                        .fontSize(this.baseFont)
-                        .fontColor('#4B5563')
-                    }
+                    .margin({ top: 4 })
                   }
-                  .margin({ top: 4 })
-                }
 
-                // 具体时间段
-                if (this.evTimeStr().length > 0) {
-                  Text(this.evTimeStr())
-                    .fontSize(this.baseFont)
-                    .fontColor('#4B5563')
-                    .margin({ top: 4 })
-                }
+                  // 具体时间段
+                  if (this.evTimeStr().length > 0) {
+                    Text(this.evTimeStr())
+                      .fontSize(this.baseFont)
+                      .fontColor('#4B5563')
+                      .margin({ top: 4 })
+                  }
 
-                // 第几节
-                if (this.evPeriodsStr().length > 0) {
-                  Text(this.evPeriodsStr())
-                    .fontSize(this.baseFont)
-                    .fontColor('#6B7280')
-                    .margin({ top: 4 })
+                  // 第几节
+                  if (this.evPeriodsStr().length > 0) {
+                    Text(this.evPeriodsStr())
+                      .fontSize(this.baseFont)
+                      .fontColor('#6B7280')
+                      .margin({ top: 4 })
+                  }
                 }
+                .margin({ bottom: 12 })
+
+                Row() { }
+                .height(1)
+                .width('100%')
+                .backgroundColor('#F3F4F6')
+                .margin({ bottom: 12 })
               }
-              .margin({ bottom: 12 })
 
-              Row() { }
-              .height(1)
-              .width('100%')
-              .backgroundColor('#F3F4F6')
-              .margin({ bottom: 12 })
-            }
-
-            // 地点块
-            if (this.evRoom().length > 0) {
-              Column() {
-                Text('地点')
-                  .fontSize(this.baseFont)
-                  .fontWeight(FontWeight.Medium)
-                  .fontColor('#6B7280')
-
-                Text(this.roomMain())
-                  .fontSize(this.baseFont + 1)
-                  .fontColor('#111827')
-                  .margin({ top: 4 })
-
-                if (this.roomSub().length > 0) {
-                  Text(this.roomSub())
+              // 地点块
+              if (this.evRoom().length > 0) {
+                Column() {
+                  Text('地点')
                     .fontSize(this.baseFont)
+                    .fontWeight(FontWeight.Medium)
                     .fontColor('#6B7280')
+
+                  Text(this.roomMain())
+                    .fontSize(this.baseFont + 1)
+                    .fontColor('#111827')
                     .margin({ top: 4 })
+
+                  if (this.roomSub().length > 0) {
+                    Text(this.roomSub())
+                      .fontSize(this.baseFont)
+                      .fontColor('#6B7280')
+                      .margin({ top: 4 })
+                  }
                 }
               }
             }

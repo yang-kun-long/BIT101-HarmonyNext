@@ -9,26 +9,28 @@ export struct ScheduleSidebar {
   @Prop periodTimes: PeriodTime[] = []
   @Prop unitHeight: number = 42
   @Prop baseFont: number = 12
+  @Prop showDivider: boolean = true
 
   // --- Helpers ---
   private periods(): number[] {
     const arr: number[] = []
+    const total = this.periodTimes && this.periodTimes.length > 0 ? this.periodTimes.length : 13
     let i = 1
-    while (i <= 13) { arr.push(i); i++ }
+    while (i <= total) { arr.push(i); i++ }
     return arr
   }
 
   private periodNumText(i: number): string { return '' + i }
 
   private periodTimeTextStart(i: number): string {
-    if (!this.periodTimes || this.periodTimes.length !== 13) return '';
+    if (!this.periodTimes || this.periodTimes.length === 0) return '';
     const t = this.periodTimes[i - 1];
     if (!t || !t.start) return '';
     return t.start; // 只显示开始时间
   }
 
   private periodTimeTextEnd(i: number): string {
-    if (!this.periodTimes || this.periodTimes.length !== 13) return '';
+    if (!this.periodTimes || this.periodTimes.length === 0) return '';
     const t = this.periodTimes[i - 1];
     if (!t || !t.end) return '';
     return t.end;
@@ -59,7 +61,7 @@ export struct ScheduleSidebar {
         .layoutWeight(1)
         // ✅ 修复 3：让文本垂直居中
         .justifyContent(FlexAlign.Center)
-        .border({ width: { bottom: (p === 13 ? 0 : 1) }, color: '#E5E7EB' })
+        .border({ width: { bottom: (p === this.periods().length || !this.showDivider ? 0 : 1) }, color: '#E5E7EB' })
         .padding(2)
       })
     }

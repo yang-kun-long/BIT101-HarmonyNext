@@ -10,9 +10,14 @@ export struct ScheduleHeaderRow {
   @Prop leftColWidth: number = 0
   @Prop courseColWidth: number = 0
   @Prop colGap: number = 0
+  @Prop showHighlightToday: boolean = true
 
   // --- State ---
   private today: Date = new Date()
+
+  private shouldHighlight(active: boolean): boolean {
+    return this.showHighlightToday && active
+  }
 
   // --- Builders ---
   @Builder
@@ -36,17 +41,17 @@ export struct ScheduleHeaderRow {
     Column() {
       Text(`周${['日', '一', '二', '三', '四', '五', '六'][d.getDay()]}`)
         .fontSize(12)
-        .fontWeight(active ? FontWeight.Bold : FontWeight.Normal)
-        .fontColor(active ? '#0EA5E9' : '#6B7280')
+        .fontWeight(this.shouldHighlight(active) ? FontWeight.Bold : FontWeight.Normal)
+        .fontColor(this.shouldHighlight(active) ? '#0EA5E9' : '#6B7280')
         .textAlign(TextAlign.Center)
 
       Text(`${pad2(d.getMonth() + 1)}/${pad2(d.getDate())}`)
         .fontSize(12)
-        .fontColor(active ? '#0EA5E9' : '#6B7280')
+        .fontColor(this.shouldHighlight(active) ? '#0EA5E9' : '#6B7280')
         .textAlign(TextAlign.Center)
     }
     .padding(4)
-    .backgroundColor(active ? '#E0F2FE' : '#F3F4F6')
+    .backgroundColor(this.shouldHighlight(active) ? '#E0F2FE' : '#F3F4F6')
     .borderRadius(10)
   }
 
@@ -63,7 +68,7 @@ export struct ScheduleHeaderRow {
           this.DayHeader(d.date, isSameDate(d.date, this.today))
         }
         .width(this.courseColWidth)
-        .margin({ right: i < 6 ? this.colGap : 0 })
+        .margin({ right: i < this.weekDays.length - 1 ? this.colGap : 0 })
       })
     }
     .width('100%')

@@ -19,6 +19,22 @@ import { ScheduleSidebar } from '../components/schedule/ScheduleSidebar'
 import { ScheduleGrid } from '../components/schedule/ScheduleGrid'
 import { WeekNavigator } from '../components/schedule/WeekNavigator'
 import { CourseDetailDialog } from '../components/schedule/CourseDetailDialog'
+import { ExamDetailDialog } from '../components/schedule/ExamDetailDialog'
+import { CustomScheduleDetailDialog } from '../components/schedule/CustomScheduleDetailDialog'
+import { AddEditCustomScheduleDialog } from '../components/schedule/AddEditCustomScheduleDialog'
+import { uiPushUrl } from '../utils/uiContextBridge'
+import { visibleWeekdayNumbers } from '../services/schoolSchedule/ScheduleSettingsModels'
+import {
+  buildWeekScheduleDisplayItems,
+  computeWeekNumber,
+} from '../services/schoolSchedule/CourseScheduleRepository'
+import { ScheduleLocalStore, upsertCustomSchedule, deleteCustomSchedule } from '../services/schoolSchedule/ScheduleLocalStore'
+import type {
+  CourseScheduleItem,
+  CustomScheduleItem,
+  ExamScheduleItem,
+  ScheduleDisplayItem,
+} from '../services/schoolSchedule/ScheduleModels'
 
 
 // ---------- 本文件内部用到的类型 (需要 export) ----------
@@ -30,6 +46,7 @@ export interface DayBlock {
   units: number;
   ev?: CalendarEvent;
   raw?: RawIcsEvent;
+  item?: ScheduleDisplayItem;
 }
 export interface DayLayout { date: Date; blocks: DayBlock[] }
 export interface IsoLayout { dateISO: string; blocks: DayBlock[] }
@@ -39,6 +56,14 @@ export interface AbsoluteItem {
   units: number
   ev: CalendarEvent
   raw?: RawIcsEvent
+  item?: ScheduleDisplayItem
+}
+interface TimedScheduleBlock {
+  startSection: number;
+  endSection: number;
+  ev?: CalendarEvent;
+  raw?: RawIcsEvent;
+  item?: ScheduleDisplayItem;
 }
 // --------------------------------------------------
 
@@ -56,8 +81,16 @@ export default struct SchedulePage {
   @State weekDays: DayEvents[] = []
   @State weekLayouts: DayLayout[] = []
   @State showCourseDlg: boolean = false
+  @State showExamDlg: boolean = false
+  @State showCustomDlg: boolean = false
+  @State showCustomEditDlg: boolean = false
   @State dlgEv: CalendarEvent | null = null
   @State dlgRaw: RawIcsEvent | null = null
+  @State dlgCourse: CourseScheduleItem | null = null
+  @State dlgExam: ExamScheduleItem | null = null
+  @State dlgCustom: CustomScheduleItem | null = null
+  @State editingCustom: CustomScheduleItem | null = null
+  @State customScheduleMemory: CustomScheduleItem[] = []
   @State gridHeight: number = 0
   @State unitHeight: number = 42
   private readonly innerPad = 6
@@ -72,6 +105,16 @@ export default struct SchedulePage {
   @StorageProp('filesDir') filesDirFromApp: string = ''
   @StorageProp('cacheDir') cacheDirFromApp: string = ''
   @StorageProp('tempDir') tempDirFromApp: string = ''
+  @StorageProp('course_schedule_show_saturday') showSaturdaySetting: boolean = true
+  @StorageProp('course_schedule_show_sunday') showSundaySetting: boolean = true
+  @StorageProp('course_schedule_show_border') showBorderSetting: boolean = false
+  @StorageProp('course_schedule_show_highlight_today') showHighlightTodaySetting: boolean = true
+  @StorageProp('course_schedule_show_divider') showDividerSetting: boolean = true
+  @StorageProp('course_schedule_show_current_time') showCurrentTimeSetting: boolean = true
+  @StorageProp('course_schedule_show_exam_info') showExamInfoSetting: boolean = true
+  @StorageProp('course_schedule_current_term') currentTermSetting: string = ''
+  @StorageProp('course_schedule_first_day_iso') firstDaySetting: string = ''
+  @StorageProp('course_schedule_period_times') appPeriodTimes: PeriodTime[] = []
 
   // --- 仓储实例 ---
   private repo = new TimetableRepository()
@@ -83,6 +126,7 @@ export default struct SchedulePage {
   aboutToAppear(): void {
     this.logger.info('aboutToAppear: Fired. Initializing.');
     this.initWeek()
+    this.syncPeriodTimesFromSettings()
     this.initSemesterRepoIfNeeded()
 
     // ✅ 修复：把加载放回这里，它只在创建时运行一次
@@ -144,7 +188,8 @@ export default struct SchedulePage {
       this.updateWeekNoText()
 
       const layouts = layoutsFromInstances(this.weekStartISO, weekInstances);
-      this.weekLayouts = this.mapLayoutsWithDate(layouts);
+      const legacyLayouts = this.mapLayoutsWithDate(layouts);
+      this.weekLayouts = this.buildScheduleLayouts(weekInstances, legacyLayouts);
     } catch (e) {
       const msg: string = (e instanceof Error) ? e.message : String(e);
       this.err = msg;
@@ -167,14 +212,15 @@ export default struct SchedulePage {
     }
 
     // 2. 只有当宽度 > 0 时，才计算
-    const gaps = this.colGap * 7;
+    const visibleCount = this.visibleDayCount();
+    const gaps = this.colGap * visibleCount;
     const usable = totalWidth - gaps;
     if (usable <= 0) {
       this.logger.debug('recomputeWidthMetrics: usable width is 0, ignoring.');
       return;
     }
 
-    const c = Math.floor(usable / 7.7);
+    const c = Math.floor(usable / (visibleCount + 0.7));
     const l = Math.floor(c * 0.7);
 
     // 3. 只有当状态【真正改变时】才设置
@@ -190,7 +236,7 @@ export default struct SchedulePage {
   private recomputeMetrics(availableHeight: number): void {
     this.logger.debug('recomputeMetrics: Fired.', 'availableHeight=', availableHeight);
     if (availableHeight <= 0) return
-    const uh = Math.floor(availableHeight / 13)
+    const uh = Math.floor(availableHeight / this.periodCount())
     const usable = uh - this.innerPad * 2
     const fs = Math.max(10, Math.floor((usable / 3) * 0.92))
     if (uh !== this.unitHeight || fs !== this.baseFont || availableHeight !== this.gridHeight) {
@@ -219,10 +265,11 @@ export default struct SchedulePage {
     return this.baseFont > 0 ? this.baseFont : 12
   }
   private rightAreaWidth(): number {
-    return 7 * this.courseColWidth + 6 * this.colGap
+    const count = this.visibleDayCount()
+    return count * this.courseColWidth + Math.max(0, count - 1) * this.colGap
   }
   private rightAreaHeight(): number {
-    return 13 * this.getUnitHeight()
+    return this.periodCount() * this.getUnitHeight()
   }
 
   // --- 事件处理器 (保留) ---
@@ -235,11 +282,88 @@ export default struct SchedulePage {
     }
     this.dlgEv = ev
     this.dlgRaw = raw ? raw : null
+    this.dlgCourse = null
     this.showCourseDlg = true
+  }
+
+  private onTapDisplayItem(item: ScheduleDisplayItem): void {
+    if (item.rawExam) {
+      this.dlgExam = item.rawExam
+      this.showExamDlg = true
+      return
+    }
+    if (item.rawCustom) {
+      this.dlgCustom = item.rawCustom
+      this.showCustomDlg = true
+      return
+    }
+    if (item.rawCourse) {
+      this.dlgCourse = item.rawCourse
+      this.dlgEv = {
+        summary: item.rawCourse.name,
+        location: item.rawCourse.classroom,
+        description: item.rawCourse.description,
+        dtstart: '',
+        dtend: '',
+        uid: item.rawCourse.id,
+      }
+      this.dlgRaw = null
+      this.showCourseDlg = true
+    }
   }
 
   private closeCourseDlg(): void {
     this.showCourseDlg = false
+  }
+
+  private closeExamDlg(): void {
+    this.showExamDlg = false
+  }
+
+  private closeCustomDlg(): void {
+    this.showCustomDlg = false
+  }
+
+  private closeCustomEditDlg(): void {
+    this.showCustomEditDlg = false
+  }
+
+  private openCreateCustom(): void {
+    this.editingCustom = null
+    this.showCustomEditDlg = true
+  }
+
+  private openEditCustom(item: CustomScheduleItem): void {
+    this.editingCustom = item
+    this.showCustomDlg = false
+    this.showCustomEditDlg = true
+  }
+
+  private saveCustomSchedule(item: CustomScheduleItem): void {
+    const store = this.createScheduleLocalStore()
+    if (!store) {
+      this.err = '无法获取应用文件目录'
+      return
+    }
+    const items = upsertCustomSchedule(store.loadCustomSchedules(), item)
+    store.saveCustomSchedules(items)
+    this.customScheduleMemory = upsertCustomSchedule(this.customScheduleMemory, item)
+    this.showCustomEditDlg = false
+    this.dlgCustom = item
+    this.loadLocalFirst(false)
+  }
+
+  private deleteCustomScheduleById(id: string): void {
+    const store = this.createScheduleLocalStore()
+    if (!store) {
+      this.err = '无法获取应用文件目录'
+      return
+    }
+    store.saveCustomSchedules(deleteCustomSchedule(store.loadCustomSchedules(), id))
+    this.customScheduleMemory = deleteCustomSchedule(this.customScheduleMemory, id)
+    this.showCustomDlg = false
+    this.dlgCustom = null
+    this.loadLocalFirst(false)
   }
 
   private onNextWeek(): void {
@@ -259,7 +383,10 @@ export default struct SchedulePage {
   }
 
   private onSettings(): void {
-    // this.openSettings()
+    uiPushUrl(this.getUIContext(), { url: 'pages/settings/CalendarSettingPage' })
+      .catch((err: Error) => {
+        this.logger.error('open schedule settings failed', err);
+      });
   }
 
   // --- 辅助函数 (保留在主页, 因为它们依赖 state/repo) ---
@@ -314,9 +441,236 @@ export default struct SchedulePage {
     return h * 60 + mm
   }
 
+  private periodCount(): number {
+    return this.periodTimes && this.periodTimes.length > 0 ? this.periodTimes.length : 13
+  }
+
+  private syncPeriodTimesFromSettings(): void {
+    if (this.appPeriodTimes && this.appPeriodTimes.length > 0) {
+      this.periodTimes = this.appPeriodTimes;
+    }
+  }
+
+  private visibleDayCount(): number {
+    return visibleWeekdayNumbers(this.showSaturdaySetting, this.showSundaySetting).length
+  }
+
+  private isWeekdayVisible(weekday: number): boolean {
+    if (weekday === 6) return this.showSaturdaySetting
+    if (weekday === 7) return this.showSundaySetting
+    return weekday >= 1 && weekday <= 5
+  }
+
+  private visibleWeekDays(): DayEvents[] {
+    const out: DayEvents[] = []
+    for (let i = 0; i < this.weekDays.length; i++) {
+      const weekday = i + 1
+      if (this.isWeekdayVisible(weekday)) {
+        out.push(this.weekDays[i])
+      }
+    }
+    return out
+  }
+
+  private visibleWeekLayouts(): DayLayout[] {
+    const out: DayLayout[] = []
+    for (let i = 0; i < this.weekLayouts.length; i++) {
+      const weekday = i + 1
+      if (this.isWeekdayVisible(weekday)) {
+        out.push(this.weekLayouts[i])
+      }
+    }
+    return out
+  }
+
+  private createScheduleLocalStore(): ScheduleLocalStore | null {
+    const filesDir = this.getFilesDir()
+    if (!filesDir || filesDir.length === 0) {
+      return null
+    }
+    return new ScheduleLocalStore({ filesDir })
+  }
+
+  private filterCoursesByTerm(items: CourseScheduleItem[]): CourseScheduleItem[] {
+    if (!this.currentTermSetting || this.currentTermSetting.length === 0) {
+      return items
+    }
+    return items.filter((item: CourseScheduleItem) => item.term === this.currentTermSetting)
+  }
+
+  private filterExamsByTerm(items: ExamScheduleItem[]): ExamScheduleItem[] {
+    if (!this.currentTermSetting || this.currentTermSetting.length === 0) {
+      return items
+    }
+    return items.filter((item: ExamScheduleItem) => item.term === this.currentTermSetting)
+  }
+
+  private mergeCustomSchedules(stored: CustomScheduleItem[], memory: CustomScheduleItem[]): CustomScheduleItem[] {
+    let out = stored
+    for (const item of memory) {
+      out = upsertCustomSchedule(out, item)
+    }
+    return out
+  }
+
+  private firstDayForSchedule(): string {
+    if (this.firstDaySetting && this.firstDaySetting.length > 0) {
+      return this.firstDaySetting
+    }
+    if (this.firstWeekISO && this.firstWeekISO.length > 0) {
+      return this.firstWeekISO
+    }
+    return this.weekStartISO
+  }
+
+  private displayEventForItem(item: ScheduleDisplayItem): CalendarEvent {
+    return {
+      summary: item.title,
+      location: item.subtitle,
+      description: '',
+      dtstart: '',
+      dtend: '',
+      uid: item.id,
+    }
+  }
+
+  private itemBlocksForDay(items: ScheduleDisplayItem[], weekday: number): TimedScheduleBlock[] {
+    const blocks: TimedScheduleBlock[] = []
+    for (const item of items) {
+      if (item.weekday !== weekday) {
+        continue
+      }
+      blocks.push({
+        startSection: item.startSection,
+        endSection: item.endSection,
+        ev: this.displayEventForItem(item),
+        item,
+      })
+    }
+    return blocks
+  }
+
+  private legacyBlocksForDay(layout: DayLayout): TimedScheduleBlock[] {
+    const blocks: TimedScheduleBlock[] = []
+    let cursor = 0
+    for (const block of layout.blocks) {
+      const start = cursor
+      const end = cursor + block.units
+      if (block.kind !== 0 && block.ev) {
+        blocks.push({
+          startSection: start,
+          endSection: end,
+          ev: block.ev,
+          raw: block.raw,
+        })
+      }
+      cursor = end
+    }
+    return blocks
+  }
+
+  private trimTimedBlocks(blocks: TimedScheduleBlock[]): TimedScheduleBlock[] {
+    const sorted = blocks.slice().sort((a: TimedScheduleBlock, b: TimedScheduleBlock) => {
+      if (a.startSection !== b.startSection) return a.startSection - b.startSection
+      return b.endSection - a.endSection
+    })
+    const out: TimedScheduleBlock[] = []
+    let cursor = 0
+    for (const block of sorted) {
+      let start = block.startSection
+      if (start < cursor) {
+        start = cursor
+      }
+      if (block.endSection <= start + 0.05) {
+        continue
+      }
+      out.push({
+        startSection: start,
+        endSection: block.endSection,
+        ev: block.ev,
+        raw: block.raw,
+        item: block.item,
+      })
+      cursor = block.endSection
+    }
+    return out
+  }
+
+  private blocksToDayLayout(date: Date, blocks: TimedScheduleBlock[]): DayLayout {
+    const dayBlocks: DayBlock[] = []
+    let cursor = 0
+    const trimmed = this.trimTimedBlocks(blocks)
+    for (const block of trimmed) {
+      if (block.startSection > cursor) {
+        dayBlocks.push({ kind: 0, units: block.startSection - cursor })
+      }
+      dayBlocks.push({
+        kind: 1,
+        units: block.endSection - block.startSection,
+        ev: block.ev,
+        raw: block.raw,
+        item: block.item,
+      })
+      cursor = block.endSection
+    }
+    const tail = this.periodCount() - cursor
+    if (tail > 0) {
+      dayBlocks.push({ kind: 0, units: tail })
+    }
+    return { date, blocks: dayBlocks }
+  }
+
+  private layoutsFromDisplayItems(items: ScheduleDisplayItem[]): DayLayout[] {
+    const wr = this.weekRangeFromISO(this.weekStartISO)
+    const out: DayLayout[] = []
+    for (let i = 0; i < 7; i++) {
+      const date = new Date(wr.start.getFullYear(), wr.start.getMonth(), wr.start.getDate() + i)
+      out.push(this.blocksToDayLayout(date, this.itemBlocksForDay(items, i + 1)))
+    }
+    return out
+  }
+
+  private mergeDisplayItemsIntoLegacyLayouts(legacyLayouts: DayLayout[], items: ScheduleDisplayItem[]): DayLayout[] {
+    const out: DayLayout[] = []
+    for (let i = 0; i < legacyLayouts.length; i++) {
+      const date = legacyLayouts[i].date
+      const blocks = this.legacyBlocksForDay(legacyLayouts[i]).concat(this.itemBlocksForDay(items, i + 1))
+      out.push(this.blocksToDayLayout(date, blocks))
+    }
+    return out
+  }
+
+  private buildScheduleLayouts(weekInstances: CourseInstance[], legacyLayouts: DayLayout[]): DayLayout[] {
+    const store = this.createScheduleLocalStore()
+    if (!store) {
+      return legacyLayouts
+    }
+    const courses = this.filterCoursesByTerm(store.loadCourses())
+    const exams = this.filterExamsByTerm(store.loadExams())
+    const customSchedules = this.mergeCustomSchedules(store.loadCustomSchedules(), this.customScheduleMemory)
+    if (courses.length === 0 && exams.length === 0 && customSchedules.length === 0) {
+      return legacyLayouts
+    }
+
+    const displayItems = buildWeekScheduleDisplayItems({
+      weekStartISO: this.weekStartISO,
+      weekNumber: computeWeekNumber(this.firstDayForSchedule(), this.weekStartISO),
+      periodTimes: this.periodTimes,
+      showExamInfo: this.showExamInfoSetting,
+      courses,
+      exams,
+      customSchedules,
+    })
+
+    if (courses.length > 0 || weekInstances.length === 0) {
+      return this.layoutsFromDisplayItems(displayItems)
+    }
+    return this.mergeDisplayItemsIntoLegacyLayouts(legacyLayouts, displayItems)
+  }
+
   private startMinOf(i1: number): number {
     const idx = i1 - 1
-    const t = (this.periodTimes && this.periodTimes.length === 13) ? this.periodTimes[idx] : null
+    const t = (this.periodTimes && this.periodTimes.length > idx) ? this.periodTimes[idx] : null
     const m = t ? this.parseHHMMToMin(t.start) : null
     if (m == null) return 8 * 60 + (idx * 50) // 兜底
     return m
@@ -324,10 +678,10 @@ export default struct SchedulePage {
 
   private endMinOf(i1: number): number {
     const idx = i1 - 1
-    const t = (this.periodTimes && this.periodTimes.length === 13) ? this.periodTimes[idx] : null
+    const t = (this.periodTimes && this.periodTimes.length > idx) ? this.periodTimes[idx] : null
     const mEnd = t ? this.parseHHMMToMin(t.end) : null
     if (mEnd != null) return mEnd
-    const nextStart = (idx < 12) ? this.startMinOf(i1 + 1) : null
+    const nextStart = (idx < this.periodCount() - 1) ? this.startMinOf(i1 + 1) : null
     if (nextStart != null) return nextStart
     return this.startMinOf(i1) + 50
   }
@@ -338,20 +692,20 @@ export default struct SchedulePage {
 
   private periodIndexByStart(dt: Date): number {
     const m = this.minutesOfDay(dt)
-    for (let i1 = 1; i1 <= 13; i1++) {
+    for (let i1 = 1; i1 <= this.periodCount(); i1++) {
       const st = this.startMinOf(i1)
       const ed = this.endMinOf(i1)
       if (m >= st && m < ed) return i1
     }
     if (m < this.startMinOf(1)) return 1
-    return 13
+    return this.periodCount()
   }
 
   private periodSpanByStartEnd(start: Date, end: Date): number {
     const sIdx = this.periodIndexByStart(start)
     const endMin = this.minutesOfDay(end)
     let eIdx = sIdx
-    for (let probe = sIdx; probe <= 13; probe++) {
+    for (let probe = sIdx; probe <= this.periodCount(); probe++) {
       const e = this.endMinOf(probe)
       if (endMin <= e) { eIdx = probe; break }
       eIdx = probe
@@ -373,7 +727,9 @@ export default struct SchedulePage {
     // 1. 必须【首先】加载 periodTimes（上课时间表）
     //    因为下面的 deps 对象中的函数依赖它。
     this.timesStore = new PeriodTimesStore({ filesDir })
-    this.periodTimes = this.timesStore.load()
+    if (!this.periodTimes || this.periodTimes.length === 0) {
+      this.periodTimes = this.timesStore.load()
+    }
     this.logger.info('periodTimes loaded count:', this.periodTimes.length);
 
     // 2. 【然后】才能创建依赖 this.periodTimes 的 deps 对象
@@ -479,10 +835,11 @@ export default struct SchedulePage {
           // --- 课表头部 ---
           ScheduleHeaderRow({
             weekNoText: this.weekNoTextComputed,
-            weekDays: this.weekDays,
+            weekDays: this.visibleWeekDays(),
             leftColWidth: this.leftColWidth,
             courseColWidth: this.courseColWidth,
-            colGap: this.colGap
+            colGap: this.colGap,
+            showHighlightToday: this.showHighlightTodaySetting
           })
 
 
@@ -492,14 +849,15 @@ export default struct SchedulePage {
             ScheduleSidebar({
               periodTimes: this.periodTimes,
               unitHeight: this.getUnitHeight(),
-              baseFont: this.getBaseFont()
+              baseFont: this.getBaseFont(),
+              showDivider: this.showDividerSetting
             })
               .width(this.leftColWidth)
               .margin({ right: this.colGap })
 
             // 右侧网格
             ScheduleGrid({
-              weekLayouts: this.weekLayouts,
+              weekLayouts: this.visibleWeekLayouts(),
               unitHeight: this.getUnitHeight(),
               baseFont: this.getBaseFont(),
               courseColWidth: this.courseColWidth,
@@ -507,7 +865,12 @@ export default struct SchedulePage {
               courseColors: this.courseColors,
               rightAreaWidth: this.rightAreaWidth(),
               rightAreaHeight: this.rightAreaHeight(),
-              onCourseClick: (ev, raw) => this.onTapEvent(ev, raw)
+              periodTimes: this.periodTimes,
+              showDivider: this.showDividerSetting,
+              showCurrentTime: this.showCurrentTimeSetting,
+              showBorder: this.showBorderSetting,
+              onCourseClick: (ev, raw) => this.onTapEvent(ev, raw),
+              onDisplayItemClick: (item: ScheduleDisplayItem) => this.onTapDisplayItem(item)
             })
           }
           .width('100%')
@@ -540,8 +903,47 @@ export default struct SchedulePage {
         onSettings: () => this.onSettings(),
         onRefresh: () => {
           this.refreshWeek()   // 异步函数直接调用即可
-        }
+        },
+        onAddCustom: () => this.openCreateCustom()
       })
+
+      if (this.showCourseDlg) {
+        CourseDetailDialog({
+          ev: this.dlgEv,
+          raw: this.dlgRaw,
+          course: this.dlgCourse,
+          baseFont: this.getBaseFont(),
+          periodTimes: this.periodTimes,
+          onClose: () => this.closeCourseDlg()
+        })
+      }
+
+      if (this.showExamDlg) {
+        ExamDetailDialog({
+          exam: this.dlgExam,
+          baseFont: this.getBaseFont(),
+          onClose: () => this.closeExamDlg()
+        })
+      }
+
+      if (this.showCustomDlg) {
+        CustomScheduleDetailDialog({
+          item: this.dlgCustom,
+          baseFont: this.getBaseFont(),
+          onClose: () => this.closeCustomDlg(),
+          onEdit: (item: CustomScheduleItem) => this.openEditCustom(item),
+          onDelete: (id: string) => this.deleteCustomScheduleById(id)
+        })
+      }
+
+      if (this.showCustomEditDlg) {
+        AddEditCustomScheduleDialog({
+          item: this.editingCustom,
+          defaultDateISO: this.weekStartISO,
+          onCancel: () => this.closeCustomEditDlg(),
+          onSave: (item: CustomScheduleItem) => this.saveCustomSchedule(item)
+        })
+      }
     }
     .height('100%')
     .width('100%')

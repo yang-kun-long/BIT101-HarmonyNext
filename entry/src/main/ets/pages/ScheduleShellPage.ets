@@ -2,16 +2,17 @@
 
 import SchedulePage from './SchedulePage'
 import DdlPage from './DdlPage'
+import FreeClassroomPage from './FreeClassroomPage'
 import { CourseDetailDialog } from '../components/schedule/CourseDetailDialog'
 import type { CalendarEvent } from '../services/jw/timetableRepository'
 import type { RawIcsEvent } from '../services/storage/semesterStore'
 import type { PeriodTime } from '../services/jw/periodTimes'
-import curves from '@ohos.curves'; // ✅ 弹簧动画曲线
 import { Logger } from '../utils/Logger';
 
 enum ScheduleInnerTab {
   Timetable = 0, // 课表
-  DDL = 1        // DDL
+  DDL = 1,       // DDL
+  FreeRoom = 2   // 空教室
 }
 
 @Component
@@ -67,20 +68,11 @@ export default struct ScheduleShellPage {
         .textAlign(TextAlign.Center)
     }
     .layoutWeight(1)
+    .height('100%')
+    .borderRadius(21)
+    .backgroundColor(this.current === key ? '#FFFFFF' : Color.Transparent)
     .onClick(() => {
-      const uiCtx = this.getUIContext()
-      uiCtx?.animateTo(
-        {
-          // 时间可以略长一点，看起来更“弹”
-          duration: 380,
-          // 关键：弹簧曲线，参数可以自己慢慢调
-          // velocity 初速度；mass 质量；stiffness 刚度；damping 阻尼
-          curve: curves.springCurve(0, 1, 260, 18),
-        },
-        () => {
-          this.current = key
-        }
-      )
+      this.current = key
     })
   }
 
@@ -95,34 +87,18 @@ export default struct ScheduleShellPage {
       .backgroundColor('#E5E7EB')
       .borderRadius(24)
 
-      // 白色滑块：通过左右两侧 Blank 的 layoutWeight 来“挤动”位置
-      Row() {
-        // 左右空白权重反向变化，配合 animateTo 会产生滑动感
-        Blank()
-          .layoutWeight(this.current === ScheduleInnerTab.Timetable ? 0 : 1)
-
-        Row() { }
-        .layoutWeight(1)
-        .height('100%')
-        .backgroundColor('#FFFFFF')
-        .borderRadius(24)
-
-        Blank()
-          .layoutWeight(this.current === ScheduleInnerTab.Timetable ? 1 : 0)
-      }
-      .width('100%')
-      .height(42)
-      .padding(2) // 让白色块和灰色边缘之间留一点间隙
-
       // 最上层：真正可点击的文字区域
-      Row() {
+      Row({ space: 2 }) {
         this.TopSwitcherItem('课表', ScheduleInnerTab.Timetable)
         this.TopSwitcherItem('DDL', ScheduleInnerTab.DDL)
+        this.TopSwitcherItem('空教室', ScheduleInnerTab.FreeRoom)
       }
       .width('100%')
       .height(42)
+      .padding(2)
     }
-    .margin({ top: 0, bottom: 0, left: 10, right: 10 })
+    .height(42)
+    .margin({ top: 0, bottom: 10, left: 10, right: 10 })
   }
 
   build() {
@@ -144,13 +120,16 @@ export default struct ScheduleShellPage {
                 this.openCourseDialog(ev, raw ? raw : null, baseFont, periodTimes)
               }
             })
-          } else {
+          } else if (this.current === ScheduleInnerTab.DDL) {
             // DDL 页目前还不会点出详情，先单纯显示
             DdlPage()
+          } else {
+            FreeClassroomPage()
           }
         }
         .layoutWeight(1)
         .width('100%')
+        .clip(true)
       }
       .backgroundColor('#F7F7F7')
       .height('100%')

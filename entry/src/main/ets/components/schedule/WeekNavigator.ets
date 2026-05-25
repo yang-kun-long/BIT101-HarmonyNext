@@ -8,6 +8,7 @@ export struct WeekNavigator {
   onSettings: () => void = () => {}
   // ✅ 新增：刷新回调
   onRefresh: () => void = () => {}
+  onAddCustom: () => void = () => {}
 
   @Builder
   Fab(label: string, onTap: () => void) {
@@ -23,6 +24,7 @@ export struct WeekNavigator {
       this.Fab('－', () => this.onPrev())
       // ✅ 新增：刷新按钮，用 ⟳ 作图标
       this.Fab('⟳', () => this.onRefresh())
+      this.Fab('✎', () => this.onAddCustom())
       this.Fab('⚙️', () => this.onSettings())
     }
     .align(Alignment.Center)

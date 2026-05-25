@@ -1,5 +1,17 @@
-import { router, promptAction } from '@kit.ArkUI';
 import { uiBack, uiShowToast } from '../../utils/uiContextBridge';
+import {
+  applyCourseScheduleSettingsToAppStorage,
+  CourseScheduleSettingsStore,
+} from '../../services/storage/CourseScheduleSettingsStore';
+import {
+  normalizeScheduleDisplaySettings,
+  parsePeriodTimesText,
+  periodTimesToText,
+  ScheduleDisplaySettings,
+} from '../../services/schoolSchedule/ScheduleSettingsModels';
+import { CourseScheduleRepository } from '../../services/schoolSchedule/CourseScheduleRepository';
+import { ScheduleLocalStore } from '../../services/schoolSchedule/ScheduleLocalStore';
+import type { PeriodTime } from '../../services/jw/periodTimes';
 
 // ----------------------------------------------------------------------------
 // 1. 数据模型定义
@@ -11,6 +23,7 @@ class SettingData {
   showHighlightToday: boolean = true;
   showDivider: boolean = true;
   showCurrentTime: boolean = true;
+  showExamInfo: boolean = true;
 
   static copy(origin: SettingData, changes: Partial<SettingData>): SettingData {
     const newData = new SettingData();
@@ -20,6 +33,7 @@ class SettingData {
     newData.showHighlightToday = changes.showHighlightToday ?? origin.showHighlightToday;
     newData.showDivider = changes.showDivider ?? origin.showDivider;
     newData.showCurrentTime = changes.showCurrentTime ?? origin.showCurrentTime;
+    newData.showExamInfo = changes.showExamInfo ?? origin.showExamInfo;
     return newData;
   }
 }
@@ -31,30 +45,26 @@ class SettingData {
 @Entry
 @Component
 struct CalendarSettingPage {
-  @State currentTerm: string = "2024-2025-1";
-  @State firstDay: string = "2024-08-26";
+  private settingsStore: CourseScheduleSettingsStore = new CourseScheduleSettingsStore();
+
+  @State currentTerm: string = "";
+  @State firstDay: string = "";
   @State settingData: SettingData = new SettingData();
 
   @State isGettingFirstDay: boolean = false;
   @State isGettingCourses: boolean = false;
-  @State isGettingTermList: boolean = false;
+  @State isGettingExams: boolean = false;
 
-  @State termList: string[] = [];
-  @State timeTableString: string =
-    "08:00-08:45\n08:50-09:35\n09:50-10:35\n10:40-11:25\n11:30-12:15\n" +
-      "13:20-14:05\n14:10-14:55\n15:15-16:00\n16:05-16:50\n17:00-17:45\n" +
-      "18:30-19:15\n19:20-20:05\n20:10-20:55";
+  @State timeTableString: string = "";
+  @StorageProp('filesDir') filesDirFromApp: string = '';
 
   // --- 弹窗控制器 ---
-  termListDialogController: CustomDialogController = new CustomDialogController({
-    builder: TermListDialog({
-      currentTerm: this.currentTerm,
-      termList: this.termList,
-      isLoading: this.isGettingTermList,
-      onSelect: (term: string) => {
-        this.currentTerm = term;
-        uiShowToast(this.getUIContext(), { message: "切换学期成功" });
-      }
+  termEditDialogController: CustomDialogController = new CustomDialogController({
+    builder: TermEditDialog({
+      content: this.currentTerm,
+      onConfirm: (term: string) => {
+        this.saveCurrentTerm(term);
+      },
     }),
     alignment: DialogAlignment.Center,
     autoCancel: true,
@@ -65,14 +75,17 @@ struct CalendarSettingPage {
     builder: TimeTableDialog({
       content: this.timeTableString,
       onConfirm: (val: string) => {
-        this.timeTableString = val;
-        uiShowToast(this.getUIContext(), { message: "时间表已保存" });
+        this.saveTimeTable(val);
       }
     }),
     alignment: DialogAlignment.Center,
     autoCancel: true,
     customStyle: true
   });
+
+  aboutToAppear(): void {
+    this.loadSettings();
+  }
 
   build() {
     Column() {
@@ -106,15 +119,15 @@ struct CalendarSettingPage {
                 subTitle: "设置当前学期",
                 valueText: this.currentTerm,
                 onItemClick: () => {
-                  this.openTermListDialog();
+                  this.termEditDialogController.open();
                 }
               })
               Divider().color($r('sys.color.ohos_id_color_list_separator')).margin({ left: 16 })
 
               SettingItem({
                 title: "学期起始日期",
-                subTitle: "点击重新获取当前学期的起始日期",
-                valueText: this.firstDay,
+                subTitle: "当前先手动设置，后续接入学校学期接口",
+                valueText: this.firstDay.length > 0 ? this.firstDay : "未设置",
                 enable: !this.isGettingFirstDay,
                 onItemClick: () => { this.handleGetFirstDay() }
               })
@@ -125,6 +138,14 @@ struct CalendarSettingPage {
                 subTitle: "点击重新获取当前学期的课表",
                 enable: !this.isGettingCourses,
                 onItemClick: () => { this.handleGetCourses() }
+              })
+              Divider().color($r('sys.color.ohos_id_color_list_separator')).margin({ left: 16 })
+
+              SettingItem({
+                title: "考试安排数据",
+                subTitle: "点击重新获取当前学期的考试安排",
+                enable: !this.isGettingExams,
+                onItemClick: () => { this.handleGetExams() }
               })
               Divider().color($r('sys.color.ohos_id_color_list_separator')).margin({ left: 16 })
 
@@ -183,6 +204,14 @@ struct CalendarSettingPage {
                 checked: this.settingData.showCurrentTime,
                 onChange: (v: boolean): void => this.updateSetting({ showCurrentTime: v })
               })
+              Divider().color($r('sys.color.ohos_id_color_list_separator')).margin({ left: 16 })
+
+              SwitchSettingItem({
+                title: "显示考试安排",
+                subTitle: "考试安排数据接入后生效",
+                checked: this.settingData.showExamInfo,
+                onChange: (v: boolean): void => this.updateSetting({ showExamInfo: v })
+              })
             }
           }
         }
@@ -197,38 +226,183 @@ struct CalendarSettingPage {
 
   // --- 逻辑处理 ---
 
-  updateSetting(changes: Partial<SettingData>) {
+  private getFilesDir(): string {
+    return this.filesDirFromApp || '';
+  }
+
+  private toSettingData(settings: ScheduleDisplaySettings): SettingData {
+    const data = new SettingData();
+    data.showSaturday = settings.showSaturday;
+    data.showSunday = settings.showSunday;
+    data.showBorder = settings.showBorder;
+    data.showHighlightToday = settings.showHighlightToday;
+    data.showDivider = settings.showDivider;
+    data.showCurrentTime = settings.showCurrentTime;
+    data.showExamInfo = settings.showExamInfo;
+    return data;
+  }
+
+  private applySettings(settings: ScheduleDisplaySettings): void {
+    const normalized = normalizeScheduleDisplaySettings(settings);
+    this.currentTerm = normalized.currentTerm;
+    this.firstDay = normalized.firstDayISO;
+    this.settingData = this.toSettingData(normalized);
+    this.timeTableString = periodTimesToText(normalized.periodTimes);
+    applyCourseScheduleSettingsToAppStorage(normalized);
+  }
+
+  private loadSettings(): void {
+    this.settingsStore.load()
+      .then((settings: ScheduleDisplaySettings) => {
+        this.applySettings(settings);
+      })
+      .catch(() => {
+        uiShowToast(this.getUIContext(), { message: "读取课程表设置失败" });
+      });
+  }
+
+  private saveSettings(settings: ScheduleDisplaySettings, successMessage: string): void {
+    this.settingsStore.save(settings)
+      .then(() => {
+        this.applySettings(settings);
+        uiShowToast(this.getUIContext(), { message: successMessage });
+      })
+      .catch(() => {
+        uiShowToast(this.getUIContext(), { message: "设置保存失败" });
+      });
+  }
+
+  private saveCurrentTerm(term: string): void {
+    const trimmed = term.trim();
+    this.settingsStore.load()
+      .then((settings: ScheduleDisplaySettings) => {
+        const next = normalizeScheduleDisplaySettings({
+          currentTerm: trimmed,
+          firstDayISO: settings.firstDayISO,
+          showSaturday: settings.showSaturday,
+          showSunday: settings.showSunday,
+          showBorder: settings.showBorder,
+          showHighlightToday: settings.showHighlightToday,
+          showDivider: settings.showDivider,
+          showCurrentTime: settings.showCurrentTime,
+          showExamInfo: settings.showExamInfo,
+          periodTimes: settings.periodTimes,
+        });
+        this.saveSettings(next, "切换学期成功");
+      })
+      .catch(() => {
+        uiShowToast(this.getUIContext(), { message: "设置保存失败" });
+      });
+  }
+
+  updateSetting(changes: Partial<SettingData>): void {
     this.settingData = SettingData.copy(this.settingData, changes);
+    this.settingsStore.load()
+      .then((settings: ScheduleDisplaySettings) => {
+        const next = normalizeScheduleDisplaySettings({
+          currentTerm: settings.currentTerm,
+          firstDayISO: settings.firstDayISO,
+          showSaturday: this.settingData.showSaturday,
+          showSunday: this.settingData.showSunday,
+          showBorder: this.settingData.showBorder,
+          showHighlightToday: this.settingData.showHighlightToday,
+          showDivider: this.settingData.showDivider,
+          showCurrentTime: this.settingData.showCurrentTime,
+          showExamInfo: this.settingData.showExamInfo,
+          periodTimes: settings.periodTimes,
+        });
+        this.saveSettings(next, "设置成功");
+      })
+      .catch(() => {
+        uiShowToast(this.getUIContext(), { message: "设置保存失败" });
+      });
   }
 
-  handleGetFirstDay() {
+  handleGetFirstDay(): void {
     this.isGettingFirstDay = true;
-    uiShowToast(this.getUIContext(), { message: "正在获取学期起始日期..." });
-    setTimeout(() => {
-      this.isGettingFirstDay = false;
-      this.firstDay = "2024-08-26";
-      uiShowToast(this.getUIContext(), { message: "获取成功" });
-    }, 1500);
+    uiShowToast(this.getUIContext(), { message: "学校开学日期接口暂未接入，请先保留当前设置" });
+    this.isGettingFirstDay = false;
   }
 
-  handleGetCourses() {
+  handleGetCourses(): void {
+    const filesDir = this.getFilesDir();
+    if (filesDir.length === 0) {
+      uiShowToast(this.getUIContext(), { message: "无法获取应用文件目录" });
+      return;
+    }
+    if (this.currentTerm.length === 0 || this.firstDay.length === 0) {
+      uiShowToast(this.getUIContext(), { message: "请先设置当前学期和学期起始日期" });
+      return;
+    }
+    const periodTimes: PeriodTime[] = parsePeriodTimesText(this.timeTableString);
+    if (periodTimes.length === 0) {
+      uiShowToast(this.getUIContext(), { message: "时间表格式错误" });
+      return;
+    }
+
     this.isGettingCourses = true;
     uiShowToast(this.getUIContext(), { message: "正在获取课表..." });
-    setTimeout(() => {
-      this.isGettingCourses = false;
-      uiShowToast(this.getUIContext(), { message: "获取成功" });
-    }, 1500);
+    const repo = new CourseScheduleRepository({
+      localStore: new ScheduleLocalStore({ filesDir }),
+    });
+    repo.refreshCourses(this.currentTerm, this.firstDay, periodTimes)
+      .then(() => {
+        this.isGettingCourses = false;
+        uiShowToast(this.getUIContext(), { message: "获取成功" });
+      })
+      .catch(() => {
+        this.isGettingCourses = false;
+        uiShowToast(this.getUIContext(), { message: "获取失败，请检查登录状态" });
+      });
   }
 
-  openTermListDialog() {
-    this.termListDialogController.open();
-    if (this.termList.length === 0) {
-      this.isGettingTermList = true;
-      setTimeout(() => {
-        this.termList = ["2024-2025-1", "2023-2024-2", "2023-2024-1", "2022-2023-2"];
-        this.isGettingTermList = false;
-      }, 1000);
+  handleGetExams(): void {
+    this.isGettingExams = true;
+    const filesDir = this.getFilesDir();
+    if (filesDir.length === 0) {
+      this.isGettingExams = false;
+      uiShowToast(this.getUIContext(), { message: "无法获取应用文件目录" });
+      return;
     }
+    const repo = new CourseScheduleRepository({
+      localStore: new ScheduleLocalStore({ filesDir }),
+    });
+    repo.refreshExams()
+      .then(() => {
+        this.isGettingExams = false;
+        uiShowToast(this.getUIContext(), { message: "获取成功" });
+      })
+      .catch(() => {
+        this.isGettingExams = false;
+        uiShowToast(this.getUIContext(), { message: "考试安排接口暂不可用" });
+      });
+  }
+
+  private saveTimeTable(value: string): void {
+    const periodTimes = parsePeriodTimesText(value);
+    if (periodTimes.length === 0) {
+      uiShowToast(this.getUIContext(), { message: "时间表格式错误" });
+      return;
+    }
+    this.settingsStore.load()
+      .then((settings: ScheduleDisplaySettings) => {
+        const next = normalizeScheduleDisplaySettings({
+          currentTerm: settings.currentTerm,
+          firstDayISO: settings.firstDayISO,
+          showSaturday: settings.showSaturday,
+          showSunday: settings.showSunday,
+          showBorder: settings.showBorder,
+          showHighlightToday: settings.showHighlightToday,
+          showDivider: settings.showDivider,
+          showCurrentTime: settings.showCurrentTime,
+          showExamInfo: settings.showExamInfo,
+          periodTimes,
+        });
+        this.saveSettings(next, "时间表已保存");
+      })
+      .catch(() => {
+        uiShowToast(this.getUIContext(), { message: "时间表保存失败" });
+      });
   }
 }
 
@@ -237,69 +411,47 @@ struct CalendarSettingPage {
 // ----------------------------------------------------------------------------
 
 @CustomDialog
-struct TermListDialog {
+struct TermEditDialog {
   controller: CustomDialogController;
-  @Prop currentTerm: string;
-  @Link termList: string[];
-  @Link isLoading: boolean;
-  onSelect: (term: string) => void = () => {};
+  @State content: string = "";
+  onConfirm: (term: string) => void = () => {};
 
   build() {
     Column() {
-      Text("切换学期")
+      Text("设置当前学期")
         .fontSize(20)
         .fontWeight(FontWeight.Bold)
         .fontColor($r('sys.color.ohos_id_color_text_primary'))
-        .padding(24)
+        .padding({ top: 24, left: 24, right: 24, bottom: 8 })
         .width('100%')
 
-      if (this.isLoading) {
-        Column() {
-          LoadingProgress()
-            .width(48).height(48)
-            .color($r('sys.color.ohos_id_color_text_primary'))
-        }
-        .height(150)
-        .width('100%')
-        .justifyContent(FlexAlign.Center)
-      } else {
-        List() {
-          ForEach(this.termList, (term: string) => {
-            ListItem() {
-              Row() {
-                Radio({ value: term, group: 'termGroup' })
-                  .checked(term === this.currentTerm)
-                  .hitTestBehavior(HitTestMode.None)
-                  .width(24).height(24)
+      TextInput({ text: this.content, placeholder: "例如 2025-2026-2" })
+        .width('86%')
+        .height(44)
+        .fontSize(16)
+        .onChange((value: string) => {
+          this.content = value;
+        })
+        .margin({ top: 12, bottom: 12 })
 
-                Text(term)
-                  .fontSize(16)
-                  .fontColor($r('sys.color.ohos_id_color_text_primary'))
-                  .margin({ left: 16 })
-                  .layoutWeight(1)
-              }
-              .width('100%')
-              .padding({ left: 24, right: 24, top: 16, bottom: 16 })
-              .onClick(() => {
-                this.onSelect(term);
-                this.controller.close();
-              })
-            }
-          })
-        }
-        .height(240)
-      }
-
-      // 【修复】按钮使用 Normal + Transparent
       Row() {
-        Blank()
         Button("取消", { type: ButtonType.Normal })
           .onClick(() => { this.controller.close() })
           .backgroundColor(Color.Transparent)
           .fontColor($r('sys.color.ohos_id_color_text_primary'))
-          .margin({ right: 16, bottom: 16 })
+          .layoutWeight(1)
+
+        Button("确定", { type: ButtonType.Normal })
+          .onClick(() => {
+            this.onConfirm(this.content);
+            this.controller.close();
+          })
+          .backgroundColor(Color.Transparent)
+          .fontColor($r('sys.color.ohos_id_color_text_primary'))
+          .layoutWeight(1)
       }
       .width('100%')
+      .height(52)
     }
     .backgroundColor($r('sys.color.ohos_id_color_dialog_bg'))
     .borderRadius(28)
