@@ -3,6 +3,7 @@ import {
   resolveDdlSyncBaseUrl,
   resolveDdlSyncUsername,
 } from '../main/ets/services/deadline/DdlSyncService';
+import { hasValidSubscribeUrlCache } from '../main/ets/services/storage/LexueCalendarStore';
 
 class SsoUsernameFieldStub {
   username: string = 'field-user';
@@ -53,6 +54,21 @@ export default function ddlSyncTest() {
       const baseUrl: string = resolveDdlSyncBaseUrl('webvpn');
 
       expect(baseUrl.startsWith('https://webvpn.bit.edu.cn/https/')).assertTrue();
+    });
+
+    it('detects whether any Lexue subscribe URL cache is still valid', 0, () => {
+      const now: number = 100 * 24 * 60 * 60 * 1000;
+      const validTs: number = now - 2 * 24 * 60 * 60 * 1000;
+      const expiredTs: number = now - 31 * 24 * 60 * 60 * 1000;
+      const validRaw: string = '{"user|https://lexue.bit.edu.cn":{"url":"https://lexue.bit.edu.cn/calendar/export_execute.php?token=abc","ts":' +
+        validTs.toString() + '}}';
+      const expiredRaw: string = '{"user|https://lexue.bit.edu.cn":{"url":"https://lexue.bit.edu.cn/calendar/export_execute.php?token=abc","ts":' +
+        expiredTs.toString() + '}}';
+
+      expect(hasValidSubscribeUrlCache(validRaw, now)).assertTrue();
+      expect(hasValidSubscribeUrlCache(expiredRaw, now)).assertFalse();
+      expect(hasValidSubscribeUrlCache('{bad json', now)).assertFalse();
+      expect(hasValidSubscribeUrlCache('', now)).assertFalse();
     });
   });
 }

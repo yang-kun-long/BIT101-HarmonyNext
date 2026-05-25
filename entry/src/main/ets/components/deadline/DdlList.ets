@@ -3,13 +3,23 @@ import { DdlCard } from './DdlCard';
 import { Logger } from '../../utils/Logger';
 import { uiPushUrl, uiShowToast } from '../../utils/uiContextBridge';
 import { DdlStore } from '../../services/storage/DdlStore';
+import { LexueCalendarStore } from '../../services/storage/LexueCalendarStore';
 import type { DdlItem, ManualDdlInput } from '../../services/deadline/DdlModels';
+import { refreshDdlSubscribeUrl, syncDdlFromLexue } from '../../services/deadline/DdlSyncService';
 import {
   applyDdlDisplaySettingsToAppStorage,
   DDL_APP_RETENTION_DAYS,
   DDL_APP_WARNING_DAYS,
   DdlSettingsStore,
 } from '../../services/storage/DdlSettingsStore';
+import {
+  DDL_FAB_BOTTOM_PADDING_VP,
+  DDL_FAB_RIGHT_PADDING_VP,
+  DdlContentState,
+  DdlFabSpec,
+  getDdlFabSpecs,
+  resolveDdlContentState,
+} from './ddlListModel';
 
 @Component
 export default struct DdlList {
@@ -18,8 +28,11 @@ export default struct DdlList {
   @State private showEditor: boolean = false;
   @State private editingItem: DdlItem | null = null;
   @State private nowMs: number = Date.now();
+  @State private hasSubscribeUrl: boolean = true;
+  @State private isFetchingLexue: boolean = false;
   @StorageProp(DDL_APP_WARNING_DAYS) warningDays: number = 7;
   @StorageProp(DDL_APP_RETENTION_DAYS) @Watch('onRetentionDaysChanged') retentionDays: number = 3;
+  @StorageProp('current_username') currentUsername: string = '';
   private logger = new Logger('DdlList');
 
   // 弹框相关状态
@@ -28,6 +41,7 @@ export default struct DdlList {
 
   private store: DdlStore = new DdlStore();
   private settingsStore: DdlSettingsStore = new DdlSettingsStore();
+  private calendarStore: LexueCalendarStore = new LexueCalendarStore();
 
   aboutToAppear(): void {
     this.loadSettingsAndDdl().catch((err: Error) => {
@@ -44,6 +58,7 @@ export default struct DdlList {
     } catch (err) {
       this.logger.error('load DDL settings failed', err);
     }
+    await this.loadSubscribeState();
     await this.loadDdl();
   }
 
@@ -60,13 +75,26 @@ export default struct DdlList {
       const allEvents: DdlItem[] = await this.store.getVisibleItems(this.nowMs, this.retentionDays);
 
       this.ddlList = allEvents;
-      console.info('[DdlList] loadDdl done, count=', this.ddlList.length);
+      this.logger.debug('loadDdl done, count=', this.ddlList.length);
     } catch (err) {
-      console.error('[DdlList] loadDdl error', err);
+      this.logger.error('loadDdl error', err);
       this.ddlList = [];
     } finally {
       this.loading = false;
     }
+  }
+
+  private async loadSubscribeState(): Promise<void> {
+    try {
+      this.hasSubscribeUrl = await this.calendarStore.hasAnyCachedSubscribeUrl();
+    } catch (err) {
+      this.logger.warn('load subscribe URL cache state failed', err);
+      this.hasSubscribeUrl = true;
+    }
+  }
+
+  private contentState(): DdlContentState {
+    return resolveDdlContentState(this.loading, this.hasSubscribeUrl, this.ddlList.length);
   }
 
   // ---------- 与详情页一致的一些格式化 ----------
@@ -176,16 +204,16 @@ export default struct DdlList {
   // ---------- 点击 / 弹框 ----------
 
   private onItemClick(event: DdlItem): void {
-    console.info('[DdlList] onItemClick, uid=' + event.uid);
+    this.logger.debug('onItemClick, uid=', event.uid);
     this.openDetail(event);
   }
 
   private openDetail(event: DdlItem): void {
-    console.info('[DdlList] openDetail, uid=' + event.uid);
+    this.logger.debug('openDetail, uid=', event.uid);
     this.currentEvent = event;
     this.showDetail = true;
-    console.info(
-      '[DdlList] after openDetail, showDetail=',
+    this.logger.debug(
+      'after openDetail, showDetail=',
       this.showDetail,
       ', currentTitle=',
       this.currentEvent?.title ?? 'null'
@@ -193,7 +221,7 @@ export default struct DdlList {
   }
 
   private onDialogClose(): void {
-    console.info('[DdlList] dialog onClose');
+    this.logger.debug('dialog onClose');
     this.showDetail = false;
     this.currentEvent = null;
   }
@@ -237,41 +265,104 @@ export default struct DdlList {
     this.showEditor = true;
   }
 
+  private fetchLexueCalendar(): void {
+    if (this.isFetchingLexue) {
+      return;
+    }
+    this.isFetchingLexue = true;
+    uiShowToast(this.getUIContext(), { message: '正在获取乐学日程...' });
+    refreshDdlSubscribeUrl(this.currentUsername)
+      .then(() => {
+        this.hasSubscribeUrl = true;
+        return syncDdlFromLexue(this.currentUsername);
+      })
+      .then((count: number) => {
+        uiShowToast(this.getUIContext(), { message: `同步成功，更新了 ${count} 条 DDL` });
+        return this.loadDdl();
+      })
+      .catch((err: Error) => {
+        this.logger.error('fetch Lexue DDL failed', err);
+        let message: string = '获取失败';
+        if (err.message.includes('redirects hit maximum')) {
+          message = '获取失败：登录状态失效，请重新登录';
+        } else if (err.message.length > 0) {
+          message = '获取失败：' + err.message;
+        }
+        uiShowToast(this.getUIContext(), { message });
+      })
+      .finally(() => {
+        this.isFetchingLexue = false;
+      });
+  }
+
   // ---------- UI ----------
 
   @Builder
   private FloatingButtons() {
     Column({ space: 10 }) {
-      Button({ type: ButtonType.Circle, stateEffect: true }) {
-        SymbolGlyph($r('sys.symbol.plus'))
-          .fontSize(24)
-          .fontColor(['#047857'])
-      }
-      .width(48)
-      .height(48)
-      .backgroundColor('#D1FAE5')
-      .shadow({ radius: 5, color: '#26000000', offsetY: 3 })
-      .onClick(() => {
-        this.openCreateEditor();
-      })
-
-      Button({ type: ButtonType.Circle, stateEffect: true }) {
-        SymbolGlyph($r('sys.symbol.gearshape'))
-          .fontSize(24)
-          .fontColor(['#1D4ED8'])
-      }
-      .width(48)
-      .height(48)
-      .backgroundColor('#DBEAFE')
-      .shadow({ radius: 5, color: '#26000000', offsetY: 3 })
-      .onClick(() => {
-        uiPushUrl(this.getUIContext(), { url: 'pages/settings/DDLSettingPage' }).catch((err: Error) => {
-          this.logger.error('open DDL settings failed', err);
-          uiShowToast(this.getUIContext(), { message: '打开 DDL 设置失败' });
-        });
-      })
+      ForEach(getDdlFabSpecs(), (spec: DdlFabSpec) => {
+        this.Fab(spec)
+      }, (spec: DdlFabSpec): string => spec.action)
     }
-    .padding({ right: 14, bottom: 20 })
+    .padding({ right: DDL_FAB_RIGHT_PADDING_VP, bottom: DDL_FAB_BOTTOM_PADDING_VP })
+  }
+
+  @Builder
+  private Fab(spec: DdlFabSpec) {
+    Button({ type: ButtonType.Circle, stateEffect: true }) {
+      if (spec.action === 'add') {
+        SymbolGlyph($r('sys.symbol.plus'))
+          .fontSize(spec.iconVp)
+          .fontColor(['#0A59F7'])
+      } else {
+        SymbolGlyph($r('sys.symbol.gearshape'))
+          .fontSize(spec.iconVp)
+          .fontColor(['#0A59F7'])
+      }
+    }
+    .width(spec.sizeVp)
+    .height(spec.sizeVp)
+    .backgroundColor('#DDEBFF')
+    .onClick(() => {
+      if (spec.action === 'add') {
+        this.openCreateEditor();
+        return;
+      }
+      uiPushUrl(this.getUIContext(), { url: 'pages/settings/DDLSettingPage' }).catch((err: Error) => {
+        this.logger.error('open DDL settings failed', err);
+        uiShowToast(this.getUIContext(), { message: '打开 DDL 设置失败' });
+      });
+    })
+  }
+
+  @Builder
+  private FetchLexueEntry() {
+    Column() {
+      Button() {
+        Row({ space: 8 }) {
+          if (this.isFetchingLexue) {
+            LoadingProgress()
+              .width(20)
+              .height(20)
+              .color(Color.White)
+          }
+          Text(this.isFetchingLexue ? '获取中...' : '获取乐学日程')
+            .fontSize(16)
+            .fontColor(Color.White)
+        }
+        .alignItems(VerticalAlign.Center)
+      }
+      .type(ButtonType.Capsule)
+      .enabled(!this.isFetchingLexue)
+      .height(44)
+      .padding({ left: 18, right: 18 })
+      .backgroundColor('#2563EB')
+      .onClick(() => this.fetchLexueCalendar())
+    }
+    .width('100%')
+    .height('100%')
+    .justifyContent(FlexAlign.Center)
+    .alignItems(HorizontalAlign.Center)
   }
 
   build() {
@@ -288,7 +379,7 @@ export default struct DdlList {
         .width('100%')
         .margin({ top: 0, bottom: 8 })
 
-        if (this.loading) {
+        if (this.contentState() === 'loading') {
           Column() {
             Text('加载中…')
               .fontSize(14)
@@ -297,7 +388,9 @@ export default struct DdlList {
           }
           .width('100%')
           .layoutWeight(1)
-        } else if (this.ddlList.length === 0) {
+        } else if (this.contentState() === 'fetch-lexue') {
+          this.FetchLexueEntry()
+        } else if (this.contentState() === 'empty') {
           Column() {
             Text('暂无即将到来的 DDL')
               .fontSize(14)

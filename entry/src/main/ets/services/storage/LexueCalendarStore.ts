@@ -20,6 +20,38 @@ type CalendarUrlCache = Record<string, CalendarUrlCacheItem>;
 // 缓存有效期：30 天
 const URL_CACHE_TTL_MS = 30 * 24 * 3600 * 1000;
 
+function hasValidSubscribeUrlCacheObject(cache: CalendarUrlCache, nowMs: number): boolean {
+  const keys = Object.keys(cache);
+  for (let i = 0; i < keys.length; i++) {
+    const item = cache[keys[i]];
+    if (!item || !item.url) {
+      continue;
+    }
+    if (!Number.isFinite(item.ts)) {
+      continue;
+    }
+    if (nowMs - item.ts <= URL_CACHE_TTL_MS) {
+      return true;
+    }
+  }
+  return false;
+}
+
+export function hasValidSubscribeUrlCache(raw: string, nowMs: number = Date.now()): boolean {
+  if (!raw || raw.length === 0) {
+    return false;
+  }
+  try {
+    const parsed = JSON.parse(raw) as CalendarUrlCache;
+    if (!parsed || typeof parsed !== 'object') {
+      return false;
+    }
+    return hasValidSubscribeUrlCacheObject(parsed, nowMs);
+  } catch (_) {
+    return false;
+  }
+}
+
 export class LexueCalendarStore {
   private static abilityContext: any | null = null;
 
@@ -130,6 +162,11 @@ export class LexueCalendarStore {
       return null;
     }
     return item.url;
+  }
+
+  async hasAnyCachedSubscribeUrl(): Promise<boolean> {
+    const cache = await this.loadUrlCache();
+    return hasValidSubscribeUrlCacheObject(cache, Date.now());
   }
 
   /**
