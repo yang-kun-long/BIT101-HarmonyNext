@@ -63,6 +63,13 @@ struct Settings {
               targetUrl: 'pages/settings/DDLSettingPage'
             })
 
+            SettingItemCard({
+              title: "空教室设置",
+              subTitle: "校区、忙碌教室隐藏和空闲阈值",
+              icon: $r('app.media.ic_tag'),
+              targetUrl: 'pages/settings/FreeClassroomSettingPage'
+            })
+
             Divider().strokeWidth(0.5).color($r('sys.color.ohos_id_color_list_separator'))
 
             // 6. 关于

@@ -15,6 +15,7 @@
     "pages/settings/ThemeSettingPage",
     "pages/settings/CalendarSettingPage",
     "pages/settings/DDLSettingPage",
+    "pages/settings/FreeClassroomSettingPage",
     "pages/settings/AboutPage"
   ]
 }

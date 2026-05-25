@@ -4,8 +4,32 @@ import { Logger } from '../utils/Logger';
 
 import { initTokenStore } from '../services/storage/tokenStore'
 import { initLexueCookieStore } from '../services/storage/LexueCookieStore';
+import { initSchoolCookieStore } from '../services/storage/SchoolCookieStore';
 import { runCurrentDebugCase } from '../debug/DebugRunner';
 import { initLexueCalendarStore } from '../services/storage/LexueCalendarStore';
+import { initDdlStore } from '../services/storage/DdlStore';
+import {
+  applyDdlDisplaySettingsToAppStorage,
+  DEFAULT_DDL_DISPLAY_SETTINGS,
+  DDL_APP_RETENTION_DAYS,
+  DDL_APP_WARNING_DAYS,
+  DdlSettingsStore,
+  initDdlSettingsStore,
+} from '../services/storage/DdlSettingsStore';
+import {
+  DEFAULT_FREE_CLASSROOM_SETTINGS,
+  FREE_CLASSROOM_APP_CAMPUS_CODE,
+  FREE_CLASSROOM_APP_CAMPUS_NAME,
+  FREE_CLASSROOM_APP_FREE_THRESHOLD,
+  FREE_CLASSROOM_APP_HIDE_BUSY,
+  initFreeClassroomSettingsStore,
+} from '../services/storage/FreeClassroomSettingsStore';
+import {
+  applyCourseScheduleSettingsToAppStorage,
+  CourseScheduleSettingsStore,
+  initCourseScheduleSettingsStore,
+} from '../services/storage/CourseScheduleSettingsStore';
+import { DEFAULT_SCHEDULE_DISPLAY_SETTINGS } from '../services/schoolSchedule/ScheduleSettingsModels';
 // 确保路径正确，如果在 pages 下就是 '../pages/PageEnum'
 import { PageShowOnNav } from '../pages/PageEnum';
 
@@ -21,11 +45,20 @@ export default class EntryAbility extends UIAbility {
 
     initTokenStore(this.context);
     initLexueCookieStore(this.context);
+    initSchoolCookieStore(this.context);
     initLexueCalendarStore(this.context);
+    initDdlStore(this.context);
+    initDdlSettingsStore(this.context);
+    initFreeClassroomSettingsStore(this.context);
+    initCourseScheduleSettingsStore(this.context);
+    this.bootstrapDdlSettings();
+    this.bootstrapCourseScheduleSettings();
 
     if (this.isDebugMode()) {
       this.logger.info('Debug mode detected, running debug cases...');
-      runCurrentDebugCase();
+      runCurrentDebugCase().catch((error: Error) => {
+        this.logger.error('Debug runner failed. Cause:', error);
+      });
     }
 
     try {
@@ -38,6 +71,33 @@ export default class EntryAbility extends UIAbility {
 
   private isDebugMode(): boolean {
     return true;
+  }
+
+  private bootstrapDdlSettings(): void {
+    AppStorage.setOrCreate(DDL_APP_WARNING_DAYS, DEFAULT_DDL_DISPLAY_SETTINGS.warningDays);
+    AppStorage.setOrCreate(DDL_APP_RETENTION_DAYS, DEFAULT_DDL_DISPLAY_SETTINGS.retentionDays);
+
+    const store = new DdlSettingsStore();
+    store.load()
+      .then((settings) => {
+        applyDdlDisplaySettingsToAppStorage(settings);
+      })
+      .catch((error: Error) => {
+        this.logger.error('Failed to load DDL settings. Cause:', error);
+      });
+  }
+
+  private bootstrapCourseScheduleSettings(): void {
+    applyCourseScheduleSettingsToAppStorage(DEFAULT_SCHEDULE_DISPLAY_SETTINGS);
+
+    const store = new CourseScheduleSettingsStore();
+    store.load()
+      .then((settings) => {
+        applyCourseScheduleSettingsToAppStorage(settings);
+      })
+      .catch((error: Error) => {
+        this.logger.error('Failed to load course schedule settings. Cause:', error);
+      });
   }
 
   onDestroy(): void {
@@ -79,6 +139,10 @@ export default class EntryAbility extends UIAbility {
     // 3. 初始化其他配置
     PersistentStorage.persistProp('pages_hidden', []);
     PersistentStorage.persistProp('home_page', PageShowOnNav.Home);
+    AppStorage.setOrCreate(FREE_CLASSROOM_APP_CAMPUS_CODE, DEFAULT_FREE_CLASSROOM_SETTINGS.currentCampusCode);
+    AppStorage.setOrCreate(FREE_CLASSROOM_APP_CAMPUS_NAME, DEFAULT_FREE_CLASSROOM_SETTINGS.currentCampusName);
+    AppStorage.setOrCreate(FREE_CLASSROOM_APP_HIDE_BUSY, DEFAULT_FREE_CLASSROOM_SETTINGS.hideBusyClassroom);
+    AppStorage.setOrCreate(FREE_CLASSROOM_APP_FREE_THRESHOLD, DEFAULT_FREE_CLASSROOM_SETTINGS.freeMinutesThreshold);
 
     // 4. 🔥 强制数据清洗 🔥
     // 因为之前的 bug 可能导致磁盘里存了一个空数组 []
