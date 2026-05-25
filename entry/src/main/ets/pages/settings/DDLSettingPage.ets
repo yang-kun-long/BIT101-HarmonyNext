@@ -1,5 +1,10 @@
-import { router, promptAction } from '@kit.ArkUI';
 import { uiBack, uiShowToast } from '../../utils/uiContextBridge';
+import { refreshDdlSubscribeUrl, syncDdlFromLexue } from '../../services/deadline/DdlSyncService';
+import { Logger } from '../../utils/Logger';
+import {
+  applyDdlDisplaySettingsToAppStorage,
+  DdlSettingsStore,
+} from '../../services/storage/DdlSettingsStore';
 
 // ----------------------------------------------------------------------------
 // 1. Main Page Structure
@@ -9,8 +14,11 @@ import { uiBack, uiShowToast } from '../../utils/uiContextBridge';
 @Component
 struct DDLSettingPage {
   // --- Simulated ViewModel State ---
-  @State afterDay: number = 7; // Default retention days
-  @State beforeDay: number = 3; // Default warning color days
+  @State afterDay: number = 3; // Default retention days
+  @State beforeDay: number = 7; // Default warning color days
+  @StorageProp('current_username') currentUsername: string = '';
+  private logger: Logger = new Logger('DDLSettingPage');
+  private settingsStore: DdlSettingsStore = new DdlSettingsStore();
 
   // Loading States
   @State isUpdatingLexueCalendarUrl: boolean = false;
@@ -24,9 +32,7 @@ struct DDLSettingPage {
       text: '临近日程会改变颜色',
       initValue: this.beforeDay,
       onConfirm: (val: number) => {
-        this.beforeDay = val;
-        // TODO: Save to Preferences
-        uiShowToast(this.getUIContext(), { message: "设置成功OvO" });
+        this.saveBeforeDay(val);
       }
     }),
     alignment: DialogAlignment.Center,
@@ -41,15 +47,17 @@ struct DDLSettingPage {
       text: '过期日程会继续显示',
       initValue: this.afterDay,
       onConfirm: (val: number) => {
-        this.afterDay = val;
-        // TODO: Save to Preferences
-        uiShowToast(this.getUIContext(), { message: "设置成功OvO" });
+        this.saveAfterDay(val);
       }
     }),
     alignment: DialogAlignment.Center,
     autoCancel: true,
     customStyle: true
   });
+
+  aboutToAppear(): void {
+    this.loadDisplaySettings();
+  }
 
   build() {
     Column() {
@@ -81,7 +89,7 @@ struct DDLSettingPage {
               // 1. Fetch Subscription Link
               SettingItem({
                 title: "重新获取订阅链接",
-                subTitle: "重新获取订阅链接",
+                subTitle: "订阅链接有时效，失败时可先重新获取",
                 enable: !this.isUpdatingLexueCalendarUrl,
                 onItemClick: () => { this.handleUpdateLexueCalendarUrl() }
               })
@@ -90,7 +98,7 @@ struct DDLSettingPage {
               // 2. Fetch Schedule
               SettingItem({
                 title: "重新拉取乐学日程",
-                subTitle: "请先获取订阅链接哦",
+                subTitle: "使用当前订阅链接拉取并更新本地 DDL",
                 enable: !this.isUpdatingLexueCalendar,
                 onItemClick: () => { this.handleUpdateLexueCalendar() }
               })
@@ -131,24 +139,96 @@ struct DDLSettingPage {
     .backgroundColor($r('sys.color.ohos_id_color_sub_background'))
   }
 
-  // --- Logic Simulation ---
+  // --- Actions ---
 
   handleUpdateLexueCalendarUrl() {
+    if (this.isUpdatingLexueCalendarUrl) {
+      return;
+    }
     this.isUpdatingLexueCalendarUrl = true;
     uiShowToast(this.getUIContext(), { message: "正在获取订阅链接..." });
-    setTimeout(() => {
-      this.isUpdatingLexueCalendarUrl = false;
-      uiShowToast(this.getUIContext(), { message: "获取成功" });
-    }, 1500);
+    refreshDdlSubscribeUrl(this.currentUsername)
+      .then((_url: string) => {
+        uiShowToast(this.getUIContext(), { message: "获取成功" });
+      })
+      .catch((err: Error) => {
+        this.logger.error('refresh DDL subscribe URL failed', err);
+        let message: string = '获取失败';
+        if (err.message.includes('redirects hit maximum')) {
+          message = '获取失败：登录状态失效，请重新登录';
+        } else if (err.message.length > 0) {
+          message = '获取失败：' + err.message;
+        }
+        uiShowToast(this.getUIContext(), { message });
+      })
+      .finally(() => {
+        this.isUpdatingLexueCalendarUrl = false;
+      });
   }
 
   handleUpdateLexueCalendar() {
+    if (this.isUpdatingLexueCalendar) {
+      return;
+    }
     this.isUpdatingLexueCalendar = true;
     uiShowToast(this.getUIContext(), { message: "正在拉取日程..." });
-    setTimeout(() => {
-      this.isUpdatingLexueCalendar = false;
-      uiShowToast(this.getUIContext(), { message: "拉取成功" });
-    }, 1500);
+    syncDdlFromLexue(this.currentUsername)
+      .then((count: number) => {
+        uiShowToast(this.getUIContext(), { message: `同步成功，更新了 ${count} 条 DDL` });
+      })
+      .catch((err: Error) => {
+        this.logger.error('sync DDL from Lexue failed', err);
+        let message: string = '拉取失败';
+        if (err.message.includes('redirects hit maximum')) {
+          message = '拉取失败：登录状态失效，请重新登录';
+        } else if (err.message.length > 0) {
+          message = '拉取失败：' + err.message;
+        }
+        uiShowToast(this.getUIContext(), { message });
+      })
+      .finally(() => {
+        this.isUpdatingLexueCalendar = false;
+      });
+  }
+
+  private loadDisplaySettings(): void {
+    this.settingsStore.load()
+      .then((settings) => {
+        this.beforeDay = settings.warningDays;
+        this.afterDay = settings.retentionDays;
+        applyDdlDisplaySettingsToAppStorage(settings);
+      })
+      .catch((err: Error) => {
+        this.logger.error('load DDL display settings failed', err);
+      });
+  }
+
+  private saveBeforeDay(value: number): void {
+    this.settingsStore.saveWarningDays(value)
+      .then((settings) => {
+        this.beforeDay = settings.warningDays;
+        this.afterDay = settings.retentionDays;
+        applyDdlDisplaySettingsToAppStorage(settings);
+        uiShowToast(this.getUIContext(), { message: "设置成功OvO" });
+      })
+      .catch((err: Error) => {
+        this.logger.error('save DDL warning days failed', err);
+        uiShowToast(this.getUIContext(), { message: "设置失败" });
+      });
+  }
+
+  private saveAfterDay(value: number): void {
+    this.settingsStore.saveRetentionDays(value)
+      .then((settings) => {
+        this.beforeDay = settings.warningDays;
+        this.afterDay = settings.retentionDays;
+        applyDdlDisplaySettingsToAppStorage(settings);
+        uiShowToast(this.getUIContext(), { message: "设置成功OvO" });
+      })
+      .catch((err: Error) => {
+        this.logger.error('save DDL retention days failed', err);
+        uiShowToast(this.getUIContext(), { message: "设置失败" });
+      });
   }
 }
 

@@ -1,180 +1,70 @@
-import { LexueCalendarStore } from '../../services/storage/LexueCalendarStore';
-import type { LexueCalendarEvent } from '../../services/lexue/LexueCalendarParser';
 import { DdlDetailDialog } from './DdlDetailDialog';
 import { DdlCard } from './DdlCard';
-// 引入同步服务和 Session 恢复工具
-import { createBitSsoSessionAuto } from '../../services/lexue/BitSsoAuto';
-import { syncUserCalendar } from '../../services/lexue/CalendarService';
-import BitSsoSession from '../../services/lexue/BitSsoSession';
-import promptAction from '@ohos.promptAction'; // [新增] 用于 UI 提示
-import router from '@ohos.router'; // [新增] 用于过期跳转
 import { Logger } from '../../utils/Logger';
 import { uiPushUrl, uiShowToast } from '../../utils/uiContextBridge';
-
-// 定义 WebVPN Base (需要与 Login 页保持一致，或者单独提取常量文件)
-const WEBVPN_LEXUE_BASE =
-  'https://webvpn.bit.edu.cn/https/77726476706e69737468656265737421fcf25989227e6a596a468ca88d1b203b';
-
-// [Fix] 定义一个接口用于安全访问 sso 的属性，避免使用 any
-interface SsoWithUsername {
-  username?: string;
-  getUsername?: () => string;
-}
+import { DdlStore } from '../../services/storage/DdlStore';
+import type { DdlItem, ManualDdlInput } from '../../services/deadline/DdlModels';
+import {
+  applyDdlDisplaySettingsToAppStorage,
+  DDL_APP_RETENTION_DAYS,
+  DDL_APP_WARNING_DAYS,
+  DdlSettingsStore,
+} from '../../services/storage/DdlSettingsStore';
 
 @Component
 export default struct DdlList {
-  @State private ddlList: LexueCalendarEvent[] = [];
+  @State private ddlList: DdlItem[] = [];
   @State private loading: boolean = true;
+  @State private showEditor: boolean = false;
+  @State private editingItem: DdlItem | null = null;
+  @State private nowMs: number = Date.now();
+  @StorageProp(DDL_APP_WARNING_DAYS) warningDays: number = 7;
+  @StorageProp(DDL_APP_RETENTION_DAYS) @Watch('onRetentionDaysChanged') retentionDays: number = 3;
   private logger = new Logger('DdlList');
 
   // 弹框相关状态
   @State private showDetail: boolean = false;
-  @State private currentEvent: LexueCalendarEvent | null = null;
+  @State private currentEvent: DdlItem | null = null;
 
-  // [新增] 从 AppStorage 获取当前用户名，需要在 LoginPage 登录成功后写入
-  // AppStorage.setOrCreate('current_username', this.sid);
-  @StorageProp('current_username') currentUsername: string = '';
-
-  private store: LexueCalendarStore = new LexueCalendarStore();
+  private store: DdlStore = new DdlStore();
+  private settingsStore: DdlSettingsStore = new DdlSettingsStore();
 
   aboutToAppear(): void {
-    this.loadDdl().catch((err: Error) => {
+    this.loadSettingsAndDdl().catch((err: Error) => {
       this.logger.error('loadDdl failed', err);
+    });
+  }
+
+  private async loadSettingsAndDdl(): Promise<void> {
+    try {
+      const settings = await this.settingsStore.load();
+      applyDdlDisplaySettingsToAppStorage(settings);
+      this.warningDays = settings.warningDays;
+      this.retentionDays = settings.retentionDays;
+    } catch (err) {
+      this.logger.error('load DDL settings failed', err);
+    }
+    await this.loadDdl();
+  }
+
+  private onRetentionDaysChanged(): void {
+    this.loadDdl().catch((err: Error) => {
+      this.logger.error('reload DDL after retention setting changed failed', err);
     });
   }
 
   private async loadDdl(): Promise<void> {
     this.loading = true;
     try {
-      const allEvents: LexueCalendarEvent[] = await this.store.getEvents();
-      const now: number = Date.now();
+      this.nowMs = Date.now();
+      const allEvents: DdlItem[] = await this.store.getVisibleItems(this.nowMs, this.retentionDays);
 
-      const ddlEvents: LexueCalendarEvent[] = allEvents
-        .filter((e: LexueCalendarEvent): boolean => {
-          const time: number = e.endTime ?? e.startTime;
-          if (time < now) {
-            return false;
-          }
-          const text: string =
-            (e.title ?? '') + (e.description ?? '') + (e.location ?? '');
-          const lower: string = text.toLowerCase();
-          return (
-            text.includes('作业') ||
-            text.includes('考试') ||
-            text.includes('测验') ||
-            text.includes('实验') ||
-            lower.includes('assignment') ||
-            lower.includes('homework') ||
-            lower.includes('quiz') ||
-            lower.includes('exam') ||
-            lower.includes('ddl') ||
-            lower.includes('deadline')
-          );
-        })
-        .sort((a: LexueCalendarEvent, b: LexueCalendarEvent): number => {
-          const ta: number = a.endTime ?? a.startTime;
-          const tb: number = b.endTime ?? b.startTime;
-          return ta - tb;
-        });
-
-      this.ddlList = ddlEvents;
+      this.ddlList = allEvents;
       console.info('[DdlList] loadDdl done, count=', this.ddlList.length);
     } catch (err) {
       console.error('[DdlList] loadDdl error', err);
       this.ddlList = [];
     } finally {
-      this.loading = false;
-    }
-  }
-
-  // === 新增：刷新逻辑 ===
-  private async onRefresh(): Promise<void> {
-    // 避免重复点击
-    if (this.loading) return;
-
-    this.loading = true;
-    try {
-      console.info('[DdlList] onRefresh start');
-
-      // 1. 自动恢复 Session (不需要用户重新登录)
-      // createBitSsoSessionAuto 会自动尝试从 PersistentStorage 读取 cookie
-
-      // [Fix] ArkTS 不支持解构声明 (const { sso, mode } = ...)
-      const sessionData = await createBitSsoSessionAuto({
-        debug: true,
-        webvpnLexueBase: WEBVPN_LEXUE_BASE,
-      });
-      const sso = sessionData.sso;
-      const mode = sessionData.mode;
-
-      // [关键修复] 必须手动调用 restoreFromStorage 恢复本地存储的 Cookie！！！
-      // createBitSsoSessionAuto 只负责创建对象和探测网络，不会自动读取 Storage
-      await sso.restoreFromStorage();
-
-      // [新增] 检查恢复后的登录态
-      if (!sso.isFullyLoggedIn()) {
-        console.warn('[DdlList] Session 恢复失败或已过期，需重新登录');
-        uiShowToast(this.getUIContext(), {
-          message: '登录已过期，请重新登录',
-          duration: 2000
-        });
-
-        // 稍微延迟后跳转，让用户看清提示
-        setTimeout(() => {
-          uiPushUrl(this.getUIContext(), { url: 'pages/LoginPage' });
-        }, 1000);
-
-        this.loading = false;
-        return;
-      }
-
-      // 2. 确定 BaseURL
-      const currentBaseUrl = mode === 'inner'
-        ? 'https://lexue.bit.edu.cn'
-        : WEBVPN_LEXUE_BASE;
-
-      // 3. 尝试获取用户名 (作为日志或缓存 key)
-      // [Fix] 优先使用 AppStorage 中的用户名，如果都没有则显示 'default'
-      let username = 'default';
-      if (this.currentUsername) {
-        username = this.currentUsername;
-      } else {
-        const ssoSafe = sso as SsoWithUsername;
-        if (ssoSafe.username && typeof ssoSafe.username === 'string') {
-          username = ssoSafe.username;
-        } else if (ssoSafe.getUsername && typeof ssoSafe.getUsername === 'function') {
-          username = ssoSafe.getUsername();
-        }
-      }
-
-      // 4. 调用业务服务进行同步
-      // syncUserCalendar 会处理 "导出 -> 解析 -> 存库" 的全流程
-      const count = await syncUserCalendar({
-        sso,
-        username,
-        webvpnLexueBase: currentBaseUrl
-      });
-
-      console.info(`[DdlList] 刷新成功，同步了 ${count} 条事件`);
-      uiShowToast(this.getUIContext(), { message: `同步成功，更新了 ${count} 条 DDL` });
-
-      // 5. 同步完成后，重新从数据库读取到 UI
-      await this.loadDdl();
-
-    } catch (e) {
-      console.error('[DdlList] onRefresh error', e);
-
-      // 提取错误信息进行提示
-      let msg = '刷新失败';
-      // 如果是重定向过多，给予明确提示
-      if (JSON.stringify(e).includes('redirects hit maximum')) {
-        msg = '刷新失败：登录状态失效，请重新登录';
-      } else if (typeof e === 'object' && e && (e as Error).message) {
-        msg += ': ' + (e as Error).message;
-      }
-
-      uiShowToast(this.getUIContext(), { message: msg });
-      // 即使失败，也重新加载一下本地数据，并恢复 UI 状态
       this.loading = false;
     }
   }
@@ -190,7 +80,7 @@ export default struct DdlList {
     return `${m}/${day} ${hour}:${minute}`;
   }
 
-  private timeText(ev: LexueCalendarEvent): string {
+  private timeText(ev: DdlItem): string {
     const start: string = this.formatTime(ev.startTime);
     if (!ev.endTime || ev.endTime === ev.startTime) {
       return `截止：${start}`;
@@ -199,18 +89,18 @@ export default struct DdlList {
     return `${start} - ${end}`;
   }
 
-  private prettyTitle(ev: LexueCalendarEvent): string {
+  private prettyTitle(ev: DdlItem): string {
     let raw: string = ev.title ?? '(未命名 DDL)';
     raw = raw.replace(/\s*已到期\s*$/u, '');
     return raw;
   }
 
   // 直接用解析时存好的 courseName，不再从标题里瞎猜
-  private courseName(ev: LexueCalendarEvent): string {
+  private courseName(ev: DdlItem): string {
     return (ev.courseName ?? '').trim();
   }
 
-  private ddlTypeTag(ev: LexueCalendarEvent): string {
+  private ddlTypeTag(ev: DdlItem): string {
     const text: string = (ev.title ?? '').toLowerCase();
     if (text.includes('实验') || text.includes('lab')) return '实验';
     if (
@@ -225,7 +115,7 @@ export default struct DdlList {
     return 'DDL';
   }
 
-  private getDescriptionText(ev: LexueCalendarEvent): string {
+  private getDescriptionText(ev: DdlItem): string {
     if (!ev.description) {
       return '';
     }
@@ -245,7 +135,7 @@ export default struct DdlList {
   }
 
   // 列表里用的一行摘要：找第一行非空内容，截断到 N 个字符
-  private summaryText(ev: LexueCalendarEvent): string {
+  private summaryText(ev: DdlItem): string {
     const t: string = this.getDescriptionText(ev);
     if (t.length === 0) {
       return '';
@@ -269,7 +159,7 @@ export default struct DdlList {
     return first;
   }
 
-  private getEventColor(event: LexueCalendarEvent): string {
+  private getEventColor(event: DdlItem): string {
     const text: string = (event.title ?? '').toLowerCase();
     if (text.includes('考试') || text.includes('exam')) {
       return '#F97373';
@@ -285,12 +175,12 @@ export default struct DdlList {
 
   // ---------- 点击 / 弹框 ----------
 
-  private onItemClick(event: LexueCalendarEvent): void {
+  private onItemClick(event: DdlItem): void {
     console.info('[DdlList] onItemClick, uid=' + event.uid);
     this.openDetail(event);
   }
 
-  private openDetail(event: LexueCalendarEvent): void {
+  private openDetail(event: DdlItem): void {
     console.info('[DdlList] openDetail, uid=' + event.uid);
     this.currentEvent = event;
     this.showDetail = true;
@@ -308,10 +198,84 @@ export default struct DdlList {
     this.currentEvent = null;
   }
 
+  private async setDone(uid: string, done: boolean): Promise<void> {
+    await this.store.setDone(uid, done);
+    await this.loadDdl();
+  }
+
+  private async deleteItem(uid: string): Promise<void> {
+    await this.store.delete(uid);
+    await this.loadDdl();
+    uiShowToast(this.getUIContext(), { message: '已删除' });
+  }
+
+  private async addManualDdl(input: ManualDdlInput): Promise<void> {
+    await this.store.addManual(input);
+    this.showEditor = false;
+    this.editingItem = null;
+    await this.loadDdl();
+    uiShowToast(this.getUIContext(), { message: '已新增 DDL' });
+  }
+
+  private async updateManualDdl(uid: string, input: ManualDdlInput): Promise<void> {
+    await this.store.updateManual(uid, input);
+    this.showEditor = false;
+    this.editingItem = null;
+    await this.loadDdl();
+    uiShowToast(this.getUIContext(), { message: '已保存' });
+  }
+
+  private openCreateEditor(): void {
+    this.editingItem = null;
+    this.showEditor = true;
+  }
+
+  private openEditEditor(item: DdlItem): void {
+    this.editingItem = item;
+    this.showDetail = false;
+    this.currentEvent = null;
+    this.showEditor = true;
+  }
+
   // ---------- UI ----------
 
+  @Builder
+  private FloatingButtons() {
+    Column({ space: 10 }) {
+      Button({ type: ButtonType.Circle, stateEffect: true }) {
+        SymbolGlyph($r('sys.symbol.plus'))
+          .fontSize(24)
+          .fontColor(['#047857'])
+      }
+      .width(48)
+      .height(48)
+      .backgroundColor('#D1FAE5')
+      .shadow({ radius: 5, color: '#26000000', offsetY: 3 })
+      .onClick(() => {
+        this.openCreateEditor();
+      })
+
+      Button({ type: ButtonType.Circle, stateEffect: true }) {
+        SymbolGlyph($r('sys.symbol.gearshape'))
+          .fontSize(24)
+          .fontColor(['#1D4ED8'])
+      }
+      .width(48)
+      .height(48)
+      .backgroundColor('#DBEAFE')
+      .shadow({ radius: 5, color: '#26000000', offsetY: 3 })
+      .onClick(() => {
+        uiPushUrl(this.getUIContext(), { url: 'pages/settings/DDLSettingPage' }).catch((err: Error) => {
+          this.logger.error('open DDL settings failed', err);
+          uiShowToast(this.getUIContext(), { message: '打开 DDL 设置失败' });
+        });
+      })
+    }
+    .padding({ right: 14, bottom: 20 })
+  }
+
   build() {
-    Stack() {
+    Stack({ alignContent: Alignment.BottomEnd }) {
       // 底层内容
       Column() {
         // 顶部标题
@@ -320,17 +284,6 @@ export default struct DdlList {
             .fontSize(20)
             .fontWeight(FontWeight.Bold)
           Blank()
-
-          // === 新增：刷新按钮 ===
-          Button('刷新')
-            .fontSize(12)
-            .height(28)
-            .backgroundColor('#3B82F6') // 蓝色按钮
-            .fontColor(Color.White)
-            .margin({ right: 4 })
-            .onClick(() => {
-              this.onRefresh();
-            })
         }
         .width('100%')
         .margin({ top: 0, bottom: 8 })
@@ -358,18 +311,39 @@ export default struct DdlList {
             List() {
               ForEach(
                 this.ddlList,
-                (item: LexueCalendarEvent) => {
+                (item: DdlItem) => {
                   ListItem() {
-                    DdlCard({
-                      event: item,
-                      onTap: () => this.onItemClick(item)
-                    })
+                    Row({ space: 8 }) {
+                      Toggle({ type: ToggleType.Checkbox, isOn: item.done })
+                        .onChange((checked: boolean) => {
+                          this.setDone(item.uid, checked).catch((err: Error) => {
+                            this.logger.error('setDone failed', err);
+                          });
+                        })
+
+                      DdlCard({
+                        event: item,
+                        warningDays: this.warningDays,
+                        nowMs: this.nowMs,
+                        onTap: () => this.onItemClick(item)
+                      })
+                        .layoutWeight(1)
+                    }
+                    .width('100%')
+                    .alignItems(VerticalAlign.Center)
                   }
                   .width('100%')
                   .margin({ top: 4, bottom: 4 })
                 },
-                (item: LexueCalendarEvent): string => item.uid
+                (item: DdlItem): string => item.uid
               )
+
+              ListItem() {
+                Row() {
+                  Blank()
+                    .height(124)
+                }
+              }
             }
           }
           .width('100%')
@@ -381,13 +355,206 @@ export default struct DdlList {
       .height('100%')
       .backgroundColor('#F3F4F6')
 
+      this.FloatingButtons()
+
       // 顶层：详情弹框（只在需要时挂载）
       if (this.showDetail && this.currentEvent) {
         DdlDetailDialog({
           ev: this.currentEvent,
-          onClose: () => this.onDialogClose()
+          onClose: () => this.onDialogClose(),
+          onDelete: (uid: string) => {
+            this.deleteItem(uid).catch((err: Error) => {
+              this.logger.error('deleteItem failed', err);
+            });
+          },
+          onEdit: (item: DdlItem) => {
+            this.openEditEditor(item);
+          },
+          onToggleDone: (uid: string, done: boolean) => {
+            this.setDone(uid, done).catch((err: Error) => {
+              this.logger.error('setDone from detail failed', err);
+            });
+          }
+        })
+      }
+
+      if (this.showEditor) {
+        DdlEditOverlay({
+          editItem: this.editingItem,
+          onCancel: () => {
+            this.showEditor = false;
+            this.editingItem = null;
+          },
+          onConfirm: (input: ManualDdlInput) => {
+            if (this.editingItem) {
+              this.updateManualDdl(this.editingItem.uid, input).catch((err: Error) => {
+                this.logger.error('updateManualDdl failed', err);
+                uiShowToast(this.getUIContext(), { message: '保存失败' });
+              });
+            } else {
+              this.addManualDdl(input).catch((err: Error) => {
+                this.logger.error('addManualDdl failed', err);
+                uiShowToast(this.getUIContext(), { message: '新增失败' });
+              });
+            }
+          }
         })
       }
     }
+  }
+}
+
+@Component
+struct DdlEditOverlay {
+  @Prop editItem: DdlItem | null = null;
+  onCancel: () => void = () => {};
+  onConfirm: (input: ManualDdlInput) => void = () => {};
+
+  @State private title: string = '';
+  @State private courseName: string = '';
+  @State private timeText: string = '';
+  @State private description: string = '';
+  @State private location: string = '';
+  @State private errorText: string = '';
+
+  aboutToAppear(): void {
+    if (this.editItem) {
+      this.title = this.editItem.title;
+      this.courseName = this.editItem.courseName;
+      this.timeText = this.formatDeadline(this.editItem.endTime > 0 ? this.editItem.endTime : this.editItem.startTime);
+      this.description = this.editItem.description;
+      this.location = this.editItem.location;
+    } else if (this.timeText.length === 0) {
+      const d = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      this.timeText = this.formatDeadline(new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 0).getTime());
+    }
+  }
+
+  private formatDeadline(ts: number): string {
+    const d = new Date(ts);
+    const y = d.getFullYear().toString();
+    const m = (d.getMonth() + 1).toString().padStart(2, '0');
+    const day = d.getDate().toString().padStart(2, '0');
+    const h = d.getHours().toString().padStart(2, '0');
+    const min = d.getMinutes().toString().padStart(2, '0');
+    return `${y}-${m}-${day} ${h}:${min}`;
+  }
+
+  private parseDeadline(text: string): number {
+    const matched = /^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})$/.exec(text.trim());
+    if (!matched) {
+      return 0;
+    }
+    const year = Number(matched[1]);
+    const month = Number(matched[2]) - 1;
+    const day = Number(matched[3]);
+    const hour = Number(matched[4]);
+    const minute = Number(matched[5]);
+    if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day) ||
+      !Number.isFinite(hour) || !Number.isFinite(minute)) {
+      return 0;
+    }
+    if (month < 0 || month > 11 || day < 1 || day > 31 || hour < 0 || hour > 23 || minute < 0 || minute > 59) {
+      return 0;
+    }
+    return new Date(year, month, day, hour, minute, 0).getTime();
+  }
+
+  private submit(): void {
+    const title = this.title.trim();
+    if (title.length === 0) {
+      this.errorText = '标题不能为空';
+      return;
+    }
+    const deadline = this.parseDeadline(this.timeText);
+    if (deadline <= 0) {
+      this.errorText = '时间格式应为 YYYY-MM-DD HH:mm';
+      return;
+    }
+    this.onConfirm({
+      title,
+      courseName: this.courseName,
+      time: deadline,
+      description: this.description,
+      location: this.location,
+    });
+  }
+
+  build() {
+    Stack() {
+      Row() { }
+      .width('100%')
+      .height('100%')
+      .backgroundColor('rgba(0,0,0,0.25)')
+      .onClick(() => this.onCancel())
+
+      Column({ space: 10 }) {
+        Text(this.editItem ? '编辑 DDL' : '新增 DDL')
+          .fontSize(18)
+          .fontWeight(FontWeight.Bold)
+          .width('100%')
+
+        TextInput({ placeholder: '标题', text: this.title })
+          .height(44)
+          .onChange((value: string) => {
+            this.title = value;
+            this.errorText = '';
+          })
+
+        TextInput({ placeholder: '课程名，可选', text: this.courseName })
+          .height(44)
+          .onChange((value: string) => {
+            this.courseName = value;
+          })
+
+        TextInput({ placeholder: 'YYYY-MM-DD HH:mm', text: this.timeText })
+          .height(44)
+          .onChange((value: string) => {
+            this.timeText = value;
+            this.errorText = '';
+          })
+
+        TextInput({ placeholder: '地点，可选', text: this.location })
+          .height(44)
+          .onChange((value: string) => {
+            this.location = value;
+          })
+
+        TextInput({ placeholder: '备注，可选', text: this.description })
+          .height(44)
+          .onChange((value: string) => {
+            this.description = value;
+          })
+
+        if (this.errorText.length > 0) {
+          Text(this.errorText)
+            .fontSize(12)
+            .fontColor('#EF4444')
+            .width('100%')
+        }
+
+        Row({ space: 10 }) {
+          Button('取消')
+            .type(ButtonType.Capsule)
+            .layoutWeight(1)
+            .onClick(() => this.onCancel())
+
+          Button('保存')
+            .type(ButtonType.Capsule)
+            .layoutWeight(1)
+            .backgroundColor('#10B981')
+            .fontColor(Color.White)
+            .onClick(() => this.submit())
+        }
+        .width('100%')
+      }
+      .padding(16)
+      .width('86%')
+      .backgroundColor('#FFFFFF')
+      .borderRadius(12)
+      .align(Alignment.Center)
+    }
+    .width('100%')
+    .height('100%')
   }
 }

@@ -1,10 +1,13 @@
 // entry/src/main/ets/components/deadline/DdlCard.ets
 
-import type { LexueCalendarEvent } from '../../services/lexue/LexueCalendarParser';
+import type { DdlItem } from '../../services/deadline/DdlModels';
+import { computeDdlRemainRatio } from '../../services/deadline/DdlModels';
 
 @Component
 export struct DdlCard {
-  @Prop event: LexueCalendarEvent;
+  @Prop event: DdlItem;
+  @Prop warningDays: number = 7;
+  @Prop nowMs: number = 0;
 
   // 改名：不要叫 onClick，避免和底层冲突
   onTap: () => void = () => {};
@@ -109,6 +112,38 @@ export struct DdlCard {
     return '#34D399';   // 绿：作业/其他
   }
 
+  private hexToRgb(hex: string): number[] {
+    const normalized = hex.replace('#', '');
+    const r = parseInt(normalized.substring(0, 2), 16);
+    const g = parseInt(normalized.substring(2, 4), 16);
+    const b = parseInt(normalized.substring(4, 6), 16);
+    return [r, g, b];
+  }
+
+  private componentToHex(value: number): string {
+    const clamped = Math.max(0, Math.min(255, Math.round(value)));
+    return clamped.toString(16).padStart(2, '0').toUpperCase();
+  }
+
+  private mixColor(normalColor: string, urgentColor: string, ratio: number): string {
+    const normal = this.hexToRgb(normalColor);
+    const urgent = this.hexToRgb(urgentColor);
+    const r = normal[0] * ratio + urgent[0] * (1 - ratio);
+    const g = normal[1] * ratio + urgent[1] * (1 - ratio);
+    const b = normal[2] * ratio + urgent[2] * (1 - ratio);
+    return '#' + this.componentToHex(r) + this.componentToHex(g) + this.componentToHex(b);
+  }
+
+  private cardColor(): string {
+    if (this.event.done) {
+      return '#E5E7EB';
+    }
+    const deadline = this.event.endTime > 0 ? this.event.endTime : this.event.startTime;
+    const now = this.nowMs > 0 ? this.nowMs : Date.now();
+    const ratio = computeDdlRemainRatio(deadline, now, this.warningDays);
+    return this.mixColor('#FFFFFF', '#FEE2E2', ratio);
+  }
+
   build() {
     Row() {
       // 左侧彩条
@@ -179,7 +214,7 @@ export struct DdlCard {
     .width('100%')
     .alignItems(VerticalAlign.Center)
     .padding({ top: 10, bottom: 10, left: 12, right: 12 })
-    .backgroundColor('#FFFFFF')
+    .backgroundColor(this.cardColor())
     .borderRadius(12)
     .onClick(() => this.onTap())
   }

@@ -1,16 +1,19 @@
 // entry/src/main/ets/components/deadline/DdlDetailDialog.ets
 
-import type { LexueCalendarEvent } from '../../services/lexue/LexueCalendarParser';
+import type { DdlItem } from '../../services/deadline/DdlModels';
 import { Logger } from '../../utils/Logger';
 
 @Component
 export struct DdlDetailDialog {
   // 父组件只负责把当前事件传进来
-  @Prop ev: LexueCalendarEvent | null;
+  @Prop ev: DdlItem | null;
   private logger = new Logger('DdlDetailDialog');
 
   // 回调不要加 @Prop（函数不能作为 @Prop）
   onClose: () => void = () => {};
+  onDelete: (uid: string) => void = () => {};
+  onEdit: (item: DdlItem) => void = () => {};
+  onToggleDone: (uid: string, done: boolean) => void = () => {};
 
   baseFont: number = 13;
 
@@ -94,7 +97,7 @@ export struct DdlDetailDialog {
   }
 
   // 如果 start == end，当作“截止：xxx”，否则显示区间
-  private timeText(ev: LexueCalendarEvent): string {
+  private timeText(ev: DdlItem): string {
     const start: string = this.formatTime(ev.startTime);
     if (!ev.endTime || ev.endTime === ev.startTime) {
       return `截止：${start}`;
@@ -262,9 +265,40 @@ export struct DdlDetailDialog {
 
         // 关闭按钮
         Row() {
+          if (this.ev && this.ev.source === 'manual') {
+            Button('编辑')
+              .type(ButtonType.Capsule)
+              .onClick(() => {
+                if (this.ev) {
+                  this.onEdit(this.ev);
+                }
+                this.handleCloseBtn();
+              })
+          }
+          Button(this.ev?.done ? '标为未完成' : '完成')
+            .type(ButtonType.Capsule)
+            .margin({ left: this.ev && this.ev.source === 'manual' ? 8 : 0 })
+            .onClick(() => {
+              if (this.ev) {
+                this.onToggleDone(this.ev.uid, !this.ev.done);
+              }
+              this.handleCloseBtn();
+            })
+          Button('删除')
+            .type(ButtonType.Capsule)
+            .backgroundColor('#EF4444')
+            .fontColor(Color.White)
+            .margin({ left: 8 })
+            .onClick(() => {
+              if (this.ev) {
+                this.onDelete(this.ev.uid);
+              }
+              this.handleCloseBtn();
+            })
           Blank()
           Button('关闭')
             .type(ButtonType.Capsule)
+            .margin({ left: 8 })
             .onClick(() => this.handleCloseBtn())
         }
         .margin({ top: 16 })

@@ -4,6 +4,7 @@ import BitSsoSession from './BitSsoSession';
 import LexueCalendarClient from './LexueCalendarClient';
 import { parseLexueIcs, LexueCalendarEvent } from './LexueCalendarParser';
 import { LexueCalendarStore } from '../storage/LexueCalendarStore';
+import { DdlStore } from '../storage/DdlStore';
 
 const logger = new Logger('CalendarService');
 /**
@@ -67,11 +68,13 @@ export async function syncUserCalendar(config: SyncConfig): Promise<number> {
 
   // 5. 持久化存储
   const store = new LexueCalendarStore();
+  const ddlStore = new DdlStore();
 
   // 并行保存原始文件和解析后的事件
   await Promise.all([
     store.saveRawIcs(icsText),
-    store.saveEvents(events)
+    store.saveEvents(events),
+    ddlStore.syncLexueEvents(events)
   ]);
 
   return events.length;

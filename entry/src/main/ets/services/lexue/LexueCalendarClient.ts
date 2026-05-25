@@ -11,6 +11,7 @@ export type CalendarExportTime = 'weeknow' | 'monthnow' | 'recentupcoming' | 'cu
 export interface LexueCalendarExportOptions {
   what?: CalendarExportWhat;
   time?: CalendarExportTime;
+  forceRefreshSubscribeUrl?: boolean;
 }
 
 export interface LexueCalendarClientOptions {
@@ -89,7 +90,7 @@ export class LexueCalendarClient {
     }
 
     // ========== Fast Path：优先尝试使用缓存订阅 URL ==========
-    if (this.username) {
+    if (this.username && !options?.forceRefreshSubscribeUrl) {
       try {
         const cachedUrl = await this.calendarStore.getCachedSubscribeUrl(
           this.username,

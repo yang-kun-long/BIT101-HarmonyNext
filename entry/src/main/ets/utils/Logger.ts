@@ -39,7 +39,8 @@ export class Logger {
     'WebvpnCodec',
     'WebvpnJumpBuilder',
     'SchoolServiceResolver',
-    'SchoolAuthService'
+    'SchoolAuthService',
+    'DDLSettingPage'
     // --- 可以在这里填入下方 ALL_MODULES 里的名字 ---
     // 'ScheduleGrid',
     // 'SchedulePage',
@@ -59,6 +60,7 @@ export class Logger {
     LoginPage: 'LoginPage',
     SchedulePage: 'SchedulePage',
     ScheduleShellPage: 'ScheduleShellPage',
+    DDLSettingPage: 'DDLSettingPage',
     PostPage: 'PostPage',
     PostEditorPage: 'PostEditorPage',
     PosterDetailPage: 'PosterDetailPage',
