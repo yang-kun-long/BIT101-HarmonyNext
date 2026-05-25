@@ -29,7 +29,7 @@ export class Logger {
     'PosterCard',
     'GalleryService',  // 查看 uploadImage 和 postPoster 的日志 (关键)
     'PostEditorPage',  // 查看页面层的数据收集和报错
-    'RcpSession',      // 查看网络请求的底层日志 (针对 postPoster)
+    'RcpSession',      // 查看网络请求的底层日志 (针对 postPoster)kao
     'ReactionService', // 查看评论发送日志
     'PosterDetailPage',
     'DebugCase',
@@ -40,7 +40,9 @@ export class Logger {
     'WebvpnJumpBuilder',
     'SchoolServiceResolver',
     'SchoolAuthService',
-    'DDLSettingPage'
+    'DDLSettingPage',
+    'CourseExamRepository',
+    'CourseTermRepository'
     // --- 可以在这里填入下方 ALL_MODULES 里的名字 ---
     // 'ScheduleGrid',
     // 'SchedulePage',
@@ -97,6 +99,8 @@ export class Logger {
     PosterListState: 'PosterListState',
     LexueCalendarClient: 'LexueCalendarClient',
     Timetable: 'Timetable',
+    CourseExamRepository: 'CourseExamRepository',
+    CourseTermRepository: 'CourseTermRepository',
 
     // [Storage - 本地存储]
     SemesterStore: 'SemesterStore',

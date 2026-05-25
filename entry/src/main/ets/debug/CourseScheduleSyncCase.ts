@@ -4,9 +4,13 @@ import { AuthRepository } from '../services/auth/authRepository';
 import { loginBit101AndVerifyWebvpn } from '../services/auth/bit101LoginFlow';
 import { TimetableRepository } from '../services/jw/timetableRepository';
 import { getDefaultPeriodTimes } from '../services/jw/periodTimes';
+import { ExamScheduleRepository } from '../services/jw/examScheduleRepository';
+import { CourseTermRepository } from '../services/jw/courseTermRepository';
+import { prepareFreeClassroomSessionAuto } from '../services/jw/freeClassroomSession';
 import { CourseScheduleRepository } from '../services/schoolSchedule/CourseScheduleRepository';
 import { ScheduleLocalStore } from '../services/schoolSchedule/ScheduleLocalStore';
-import type { CourseScheduleItem } from '../services/schoolSchedule/ScheduleModels';
+import type { SchoolLoginMode } from '../services/school/SchoolAuthTypes';
+import type { CourseScheduleItem, ExamScheduleItem } from '../services/schoolSchedule/ScheduleModels';
 
 function appFilesDir(): string {
   return AppStorage.get<string>('filesDir') ?? '';
@@ -29,6 +33,7 @@ export class CourseScheduleSyncCase extends DebugCase {
 
     const localStore = new ScheduleLocalStore({ filesDir });
     const previousCourses = localStore.loadCourses();
+    const previousExams = localStore.loadExams();
 
     try {
       this.logInfo('run BIT101 login + webvpn verify, username =', TEST_USERNAME);
@@ -53,10 +58,42 @@ export class CourseScheduleSyncCase extends DebugCase {
       this.logInfo('persisted valid course count =', persistedCourses.length);
       this.assertTrue(persistedCourses.length > 0, 'course sync should persist valid local courses');
       this.logInfo('course sample =', courses[0].name, courses[0].classroom, courses[0].weeks);
-      this.logInfo('exam sync is not asserted because CourseScheduleRepository.refreshExams is not implemented yet');
+
+      this.logInfo('prepare JXZX exam session auto, username =', TEST_USERNAME);
+      const mode: SchoolLoginMode = await prepareFreeClassroomSessionAuto(TEST_USERNAME, TEST_PASSWORD, true);
+      this.logInfo('selected school mode =', mode);
+
+      const termRepo = new CourseTermRepository({
+        mode,
+        debug: true,
+      });
+      const currentTerm = await termRepo.getCurrentTerm();
+      const terms = await termRepo.getTermList();
+      const firstDay = await termRepo.getFirstDay(currentTerm);
+      this.logInfo('current term from JXZX =', currentTerm, 'firstDay =', firstDay, 'term list count =', terms.length);
+      this.assertTrue(currentTerm.length > 0, 'current term should be fetched from JXZX');
+      this.assertTrue(terms.indexOf(currentTerm) >= 0, 'term list should include current term');
+      this.assertTrue(firstDay.length > 0, 'first day should be fetched from JXZX');
+
+      const examRepo = new CourseScheduleRepository({
+        localStore,
+        examSource: new ExamScheduleRepository({
+          mode,
+          debug: true,
+        }),
+      });
+      const exams: ExamScheduleItem[] = await examRepo.refreshExams(currentTerm);
+      this.logInfo('refreshed exam count =', exams.length);
+      const persistedExams = localStore.loadExams();
+      this.assertTrue(persistedExams.length === exams.length, 'exam sync should persist returned exams');
+      if (exams.length > 0) {
+        this.logInfo('exam sample =', exams[0].name, exams[0].classroom, exams[0].dateISO, exams[0].beginTime, exams[0].endTime);
+      }
     } finally {
       localStore.saveCourses(previousCourses);
+      localStore.saveExams(previousExams);
       this.logInfo('previous local courses restored');
+      this.logInfo('previous local exams restored');
     }
 
     this.logInfo('=== CourseScheduleSyncCase END ===');

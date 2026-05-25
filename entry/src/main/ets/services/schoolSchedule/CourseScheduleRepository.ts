@@ -1,7 +1,9 @@
 import type { PeriodTime } from '../jw/periodTimes';
+import { ExamScheduleRepository } from '../jw/examScheduleRepository';
 import { TimetableRepository } from '../jw/timetableRepository';
 import type { CalendarEvent } from '../jw/timetableRepository';
-import { ScheduleLocalStore } from './ScheduleLocalStore';
+import { makeCourseColorKey, pickTeacherFromScheduleText } from '../../utils/scheduleUtils';
+import { normalizeSchoolTermCode } from './termUtils';
 import type {
   CourseScheduleItem,
   CustomScheduleItem,
@@ -20,8 +22,21 @@ export interface BuildWeekScheduleDisplayOptions {
 }
 
 export interface CourseScheduleRepositoryDeps {
-  localStore: ScheduleLocalStore;
+  localStore: CourseScheduleLocalStoreLike;
   timetableRepository?: TimetableRepository;
+  examSource?: CourseExamSource;
+}
+
+export interface CourseScheduleLocalStoreLike {
+  loadCourses(): CourseScheduleItem[];
+  saveCourses(items: CourseScheduleItem[]): void;
+  loadExams(): ExamScheduleItem[];
+  saveExams(items: ExamScheduleItem[]): void;
+  loadCustomSchedules(): CustomScheduleItem[];
+}
+
+export interface CourseExamSource {
+  getExams(term: string): Promise<ExamScheduleItem[]>;
 }
 
 function parseIcsDate(value?: string): Date | null {
@@ -91,6 +106,132 @@ function parseClockMinutes(value: string): number {
   return Number(match[1]) * 60 + Number(match[2]);
 }
 
+function normalizeLookupText(value: string): string {
+  return value.trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+function isCodeLikeExamName(name: string, courseId: string): boolean {
+  const trimmed = name.trim();
+  if (trimmed.length === 0) {
+    return false;
+  }
+  if (courseId.trim().length > 0 && trimmed === courseId.trim()) {
+    return true;
+  }
+  return /^[A-Za-z0-9_-]+$/.test(trimmed);
+}
+
+function pickTeacherFromLocalCourse(course: CourseScheduleItem): string {
+  if (course.teacher.trim().length > 0) {
+    return course.teacher.trim();
+  }
+  const labeled = pickTeacherFromScheduleText(course.description);
+  if (labeled.length > 0) {
+    return labeled;
+  }
+  const delimiter = course.description.indexOf('|');
+  if (delimiter > 0) {
+    return course.description.slice(0, delimiter).trim();
+  }
+  return '';
+}
+
+function rememberUniqueName(
+  names: Record<string, string>,
+  ambiguous: Record<string, boolean>,
+  key: string,
+  name: string,
+): void {
+  const normalizedKey = normalizeLookupText(key);
+  const trimmedName = name.trim();
+  if (normalizedKey.length === 0 || trimmedName.length === 0) {
+    return;
+  }
+  const existing = names[normalizedKey];
+  if (!existing) {
+    names[normalizedKey] = trimmedName;
+    return;
+  }
+  if (existing !== trimmedName) {
+    ambiguous[normalizedKey] = true;
+  }
+}
+
+function enrichedExamName(
+  exam: ExamScheduleItem,
+  courseNameByNumber: Record<string, string>,
+  ambiguousCourseNumber: Record<string, boolean>,
+  courseNameByTeacher: Record<string, string>,
+  ambiguousTeacher: Record<string, boolean>,
+): string {
+  if (!isCodeLikeExamName(exam.name, exam.courseId)) {
+    return exam.name;
+  }
+
+  const numberKey = normalizeLookupText(exam.courseId);
+  if (numberKey.length > 0 && !ambiguousCourseNumber[numberKey]) {
+    const nameByNumber = courseNameByNumber[numberKey];
+    if (nameByNumber && nameByNumber.length > 0) {
+      return nameByNumber;
+    }
+  }
+
+  const teacherKey = normalizeLookupText(exam.teacher);
+  if (teacherKey.length > 0 && !ambiguousTeacher[teacherKey]) {
+    const nameByTeacher = courseNameByTeacher[teacherKey];
+    if (nameByTeacher && nameByTeacher.length > 0) {
+      return nameByTeacher;
+    }
+  }
+
+  return exam.name;
+}
+
+function enrichExamNamesWithCourses(
+  exams: ExamScheduleItem[],
+  courses: CourseScheduleItem[],
+  term: string,
+): ExamScheduleItem[] {
+  const normalizedTerm = normalizeSchoolTermCode(term);
+  const courseNameByNumber: Record<string, string> = {};
+  const ambiguousCourseNumber: Record<string, boolean> = {};
+  const courseNameByTeacher: Record<string, string> = {};
+  const ambiguousTeacher: Record<string, boolean> = {};
+
+  for (const course of courses) {
+    if (normalizedTerm.length > 0 && normalizeSchoolTermCode(course.term) !== normalizedTerm) {
+      continue;
+    }
+    rememberUniqueName(courseNameByNumber, ambiguousCourseNumber, course.number, course.name);
+    rememberUniqueName(courseNameByTeacher, ambiguousTeacher, pickTeacherFromLocalCourse(course), course.name);
+  }
+
+  const out: ExamScheduleItem[] = [];
+  for (const exam of exams) {
+    const nextName = enrichedExamName(
+      exam,
+      courseNameByNumber,
+      ambiguousCourseNumber,
+      courseNameByTeacher,
+      ambiguousTeacher,
+    );
+    out.push({
+      id: exam.id,
+      term: exam.term,
+      name: nextName,
+      courseId: exam.courseId,
+      teacher: exam.teacher,
+      classroom: exam.classroom,
+      dateISO: exam.dateISO,
+      beginTime: exam.beginTime,
+      endTime: exam.endTime,
+      examMode: exam.examMode,
+      seatId: exam.seatId,
+    });
+  }
+  return out;
+}
+
 export function computeWeekNumber(firstDayISO: string, todayISO: string): number {
   if (!firstDayISO || !todayISO) {
     return 1;
@@ -144,7 +285,7 @@ function courseToDisplayItem(course: CourseScheduleItem): ScheduleDisplayItem {
     weekday: course.weekday,
     startSection: course.startSection - 1,
     endSection: course.endSection,
-    colorKey: course.name,
+    colorKey: makeCourseColorKey(course.name, course.teacher),
     rawCourse: course,
   };
 }
@@ -206,7 +347,7 @@ export function calendarEventsToCourseScheduleItems(
       id,
       term,
       name: ev.summary || '(未命名)',
-      teacher: '',
+      teacher: pickTeacherFromScheduleText(ev.description),
       classroom: ev.location || '',
       description: ev.description || '',
       weeks: `[${week}]`,
@@ -297,12 +438,14 @@ export function buildWeekScheduleDisplayItems(options: BuildWeekScheduleDisplayO
 }
 
 export class CourseScheduleRepository {
-  private localStore: ScheduleLocalStore;
+  private localStore: CourseScheduleLocalStoreLike;
   private timetableRepository: TimetableRepository;
+  private examSource: CourseExamSource;
 
   constructor(deps: CourseScheduleRepositoryDeps) {
     this.localStore = deps.localStore;
     this.timetableRepository = deps.timetableRepository ?? new TimetableRepository();
+    this.examSource = deps.examSource ?? new ExamScheduleRepository();
   }
 
   loadCourses(): CourseScheduleItem[] {
@@ -324,8 +467,15 @@ export class CourseScheduleRepository {
     return courses;
   }
 
-  async refreshExams(): Promise<ExamScheduleItem[]> {
-    throw new Error('Exam schedule sync is not implemented for HarmonyOS school API yet.');
+  async refreshExams(term: string): Promise<ExamScheduleItem[]> {
+    const trimmed = term.trim();
+    if (trimmed.length === 0) {
+      throw new Error('term is empty');
+    }
+    const exams = await this.examSource.getExams(trimmed);
+    const enriched = enrichExamNamesWithCourses(exams, this.localStore.loadCourses(), trimmed);
+    this.localStore.saveExams(enriched);
+    return enriched;
   }
 
 }

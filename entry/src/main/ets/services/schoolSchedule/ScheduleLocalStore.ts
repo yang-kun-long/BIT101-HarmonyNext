@@ -6,6 +6,7 @@ import type {
   CustomScheduleItem,
   ExamScheduleItem,
 } from './ScheduleModels';
+import { normalizeSchoolTermCode } from './termUtils';
 
 export interface ScheduleFilesCtx {
   filesDir: string;
@@ -81,7 +82,7 @@ function parseCourse(value: Object): CourseScheduleItem | null {
   }
   return {
     id,
-    term: readString(record, 'term'),
+    term: normalizeSchoolTermCode(readString(record, 'term')),
     name,
     teacher: readString(record, 'teacher'),
     classroom: readString(record, 'classroom'),
@@ -114,7 +115,7 @@ function parseExam(value: Object): ExamScheduleItem | null {
   }
   return {
     id,
-    term: readString(record, 'term'),
+    term: normalizeSchoolTermCode(readString(record, 'term')),
     name,
     courseId: readString(record, 'courseId'),
     teacher: readString(record, 'teacher'),

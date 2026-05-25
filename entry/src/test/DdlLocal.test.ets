@@ -100,7 +100,7 @@ export default function ddlLocalTest() {
       expect(item.updatedAt).assertEqual(1234);
     });
 
-    it('lists only unfinished future items before finished and expired items', 0, () => {
+    it('keeps finished future items visible like Android DDL list', 0, () => {
       const items: DdlItem[] = [
         buildDdlItemFromManualInput({ title: 'Future B', courseName: '', time: 3000, description: '', location: '' }, 'b', 1),
         buildDdlItemFromManualInput({ title: 'Past', courseName: '', time: 500, description: '', location: '' }, 'past', 1),
@@ -117,9 +117,11 @@ export default function ddlLocalTest() {
 
       const visible: DdlItem[] = listVisibleDdlItems(items, 800);
 
-      expect(visible.length).assertEqual(2);
+      expect(visible.length).assertEqual(3);
       expect(visible[0].uid).assertEqual('a');
-      expect(visible[1].uid).assertEqual('b');
+      expect(visible[1].uid).assertEqual('done');
+      expect(visible[1].done).assertTrue();
+      expect(visible[2].uid).assertEqual('b');
     });
 
     it('keeps unfinished expired items within retention days', 0, () => {

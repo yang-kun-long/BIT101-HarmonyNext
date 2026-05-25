@@ -13,6 +13,8 @@ import courseScheduleSettingsTest from './CourseScheduleSettings.test';
 import courseScheduleLocalStoreTest from './CourseScheduleLocalStore.test';
 import courseScheduleRepositoryTest from './CourseScheduleRepository.test';
 import courseScheduleDetailTest from './CourseScheduleDetail.test';
+import courseTermRepositoryTest from './CourseTermRepository.test';
+import weekNavigatorModelTest from './WeekNavigatorModel.test';
 
 export default function testsuite() {
   localUnitTest();
@@ -30,4 +32,6 @@ export default function testsuite() {
   courseScheduleLocalStoreTest();
   courseScheduleRepositoryTest();
   courseScheduleDetailTest();
+  courseTermRepositoryTest();
+  weekNavigatorModelTest();
 }

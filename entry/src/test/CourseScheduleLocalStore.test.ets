@@ -50,6 +50,15 @@ export default function courseScheduleLocalStoreTest() {
       expect(parseExamScheduleItemsJson('[]').length).assertEqual(0);
     });
 
+    it('normalizes school display term when parsing stored exams', 0, () => {
+      const valid: ExamScheduleItem[] = parseExamScheduleItemsJson(
+        '[{"id":"e1","term":"2025-2026学年 2学期","name":"Exam","courseId":"M1","teacher":"","classroom":"101","dateISO":"2026-05-16","beginTime":"10:10","endTime":"12:10","examMode":"","seatId":""}]',
+      );
+
+      expect(valid.length).assertEqual(1);
+      expect(valid[0].term).assertEqual('2025-2026-2');
+    });
+
     it('upserts custom schedules by id', 0, () => {
       const existing: CustomScheduleItem[] = [buildCustom('a', 'Old')];
       const next: CustomScheduleItem = buildCustom('a', 'New');

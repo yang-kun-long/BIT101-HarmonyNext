@@ -6,6 +6,7 @@ import {
   computeClassroomBusyStatus,
   formatFreePeriods,
   parseBusyPeriods,
+  sortFreeClassroomRowsForAndroidDisplay,
 } from '../main/ets/services/jw/freeClassroomRepository';
 import type {
   ClassroomInfo,
@@ -112,6 +113,58 @@ export default function freeClassroomTest() {
       expect(busyNow.statusText).assertEqual('1 小时 25 分钟 后空闲');
       expect(busyNow.detailText).assertEqual('(09:35)');
       expect(freeAllDay.statusText).assertEqual('空闲到明天');
+    });
+
+    it('sorts expanded classroom rows by Android live availability order', 0, () => {
+      const periodTimes: PeriodTime[] = [
+        { start: '08:00', end: '08:45' },
+        { start: '08:50', end: '09:35' },
+        { start: '09:55', end: '10:40' },
+      ];
+      const rows: FreeClassroomRow[] = [
+        {
+          classroomName: '102',
+          busyPeriods: [1, 2],
+          freePeriods: [3],
+          freePeriodsText: '3',
+        },
+        {
+          classroomName: '101',
+          busyPeriods: [3],
+          freePeriods: [1, 2],
+          freePeriodsText: '1~2',
+        },
+        {
+          classroomName: '103',
+          busyPeriods: [],
+          freePeriods: [1, 2, 3],
+          freePeriodsText: '1~3',
+        },
+        {
+          classroomName: '104',
+          busyPeriods: [2],
+          freePeriods: [1, 3],
+          freePeriodsText: '1, 3',
+        },
+      ];
+
+      const visible: FreeClassroomRow[] = sortFreeClassroomRowsForAndroidDisplay(
+        rows,
+        periodTimes,
+        '08:10',
+        5,
+        false,
+      );
+      const freeOnly: FreeClassroomRow[] = sortFreeClassroomRowsForAndroidDisplay(
+        rows,
+        periodTimes,
+        '08:10',
+        5,
+        true,
+      );
+
+      expect(visible.map((row: FreeClassroomRow) => row.classroomName).join(',')).assertEqual('103,101,104,102');
+      expect(freeOnly.map((row: FreeClassroomRow) => row.classroomName).join(',')).assertEqual('103,101,104');
     });
   });
 }

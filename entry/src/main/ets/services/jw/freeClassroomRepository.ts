@@ -470,6 +470,32 @@ export function computeClassroomBusyStatus(
   };
 }
 
+export function sortFreeClassroomRowsForAndroidDisplay(
+  rows: FreeClassroomRow[],
+  periodTimes: PeriodTime[],
+  nowClockText: string,
+  freeMinutesThreshold: number,
+  hideBusyClassroom: boolean,
+): FreeClassroomRow[] {
+  const out: FreeClassroomRow[] = [];
+  for (let i = 0; i < rows.length; i++) {
+    const status = computeClassroomBusyStatus(rows[i], periodTimes, nowClockText, freeMinutesThreshold);
+    if (!hideBusyClassroom || status.isFreeNow) {
+      out.push(rows[i]);
+    }
+  }
+
+  out.sort((a: FreeClassroomRow, b: FreeClassroomRow): number => {
+    const aStatus = computeClassroomBusyStatus(a, periodTimes, nowClockText, freeMinutesThreshold);
+    const bStatus = computeClassroomBusyStatus(b, periodTimes, nowClockText, freeMinutesThreshold);
+    if (aStatus.sortKey !== bStatus.sortKey) {
+      return bStatus.sortKey - aStatus.sortKey;
+    }
+    return a.classroomName.localeCompare(b.classroomName);
+  });
+  return out;
+}
+
 export class FreeClassroomRepository {
   private readonly baseUrl: string;
   private readonly mode: SchoolLoginMode;

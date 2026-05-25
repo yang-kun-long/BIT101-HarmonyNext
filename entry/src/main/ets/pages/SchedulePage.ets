@@ -91,6 +91,7 @@ export default struct SchedulePage {
   @State dlgCustom: CustomScheduleItem | null = null
   @State editingCustom: CustomScheduleItem | null = null
   @State customScheduleMemory: CustomScheduleItem[] = []
+  @State navigatorContainerHeight: number = 0
   @State gridHeight: number = 0
   @State unitHeight: number = 42
   private readonly innerPad = 6
@@ -898,12 +899,10 @@ export default struct SchedulePage {
 
       // --- 周切换导航 ---
       WeekNavigator({
+        containerHeight: this.navigatorContainerHeight,
         onNext: () => this.onNextWeek(),
         onPrev: () => this.onPrevWeek(),
         onSettings: () => this.onSettings(),
-        onRefresh: () => {
-          this.refreshWeek()   // 异步函数直接调用即可
-        },
         onAddCustom: () => this.openCreateCustom()
       })
 
@@ -947,6 +946,9 @@ export default struct SchedulePage {
     }
     .height('100%')
     .width('100%')
+    .onAreaChange((_, rect: Area) => {
+      this.navigatorContainerHeight = Number(rect.height)
+    })
 
 
   }

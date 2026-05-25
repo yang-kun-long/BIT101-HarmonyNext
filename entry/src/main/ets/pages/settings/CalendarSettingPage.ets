@@ -12,6 +12,10 @@ import {
 import { CourseScheduleRepository } from '../../services/schoolSchedule/CourseScheduleRepository';
 import { ScheduleLocalStore } from '../../services/schoolSchedule/ScheduleLocalStore';
 import type { PeriodTime } from '../../services/jw/periodTimes';
+import { CourseTermRepository } from '../../services/jw/courseTermRepository';
+import { ExamScheduleRepository } from '../../services/jw/examScheduleRepository';
+import { detectSchoolLoginMode } from '../../services/school/SchoolNetworkProbe';
+import type { SchoolLoginMode } from '../../services/school/SchoolAuthTypes';
 
 // ----------------------------------------------------------------------------
 // 1. 数据模型定义
@@ -54,23 +58,15 @@ struct CalendarSettingPage {
   @State isGettingFirstDay: boolean = false;
   @State isGettingCourses: boolean = false;
   @State isGettingExams: boolean = false;
+  @State isGettingTerms: boolean = false;
+  @State isGettingCurrentTerm: boolean = false;
+  @State showTermOptions: boolean = false;
+  @State termOptions: string[] = [];
 
   @State timeTableString: string = "";
   @StorageProp('filesDir') filesDirFromApp: string = '';
 
   // --- 弹窗控制器 ---
-  termEditDialogController: CustomDialogController = new CustomDialogController({
-    builder: TermEditDialog({
-      content: this.currentTerm,
-      onConfirm: (term: string) => {
-        this.saveCurrentTerm(term);
-      },
-    }),
-    alignment: DialogAlignment.Center,
-    autoCancel: true,
-    customStyle: true
-  });
-
   timeTableDialogController: CustomDialogController = new CustomDialogController({
     builder: TimeTableDialog({
       content: this.timeTableString,
@@ -116,17 +112,23 @@ struct CalendarSettingPage {
             Column() {
               SettingItem({
                 title: "当前学期",
-                subTitle: "设置当前学期",
-                valueText: this.currentTerm,
+                subTitle: this.isGettingCurrentTerm ? "正在获取学校当前学期" : "从教务学期列表中选择",
+                valueText: this.currentTerm.length > 0 ? this.currentTerm : "自动获取",
+                enable: !this.isGettingCurrentTerm && !this.isGettingTerms,
                 onItemClick: () => {
-                  this.termEditDialogController.open();
+                  this.handleOpenTermOptions();
                 }
               })
               Divider().color($r('sys.color.ohos_id_color_list_separator')).margin({ left: 16 })
 
+              if (this.showTermOptions) {
+                this.TermOptionsList()
+                Divider().color($r('sys.color.ohos_id_color_list_separator')).margin({ left: 16 })
+              }
+
               SettingItem({
                 title: "学期起始日期",
-                subTitle: "当前先手动设置，后续接入学校学期接口",
+                subTitle: "点击重新获取当前学期的起始日期",
                 valueText: this.firstDay.length > 0 ? this.firstDay : "未设置",
                 enable: !this.isGettingFirstDay,
                 onItemClick: () => { this.handleGetFirstDay() }
@@ -208,7 +210,7 @@ struct CalendarSettingPage {
 
               SwitchSettingItem({
                 title: "显示考试安排",
-                subTitle: "考试安排数据接入后生效",
+                subTitle: "考试安排更新时需手动刷新才能更新",
                 checked: this.settingData.showExamInfo,
                 onChange: (v: boolean): void => this.updateSetting({ showExamInfo: v })
               })
@@ -255,24 +257,29 @@ struct CalendarSettingPage {
     this.settingsStore.load()
       .then((settings: ScheduleDisplaySettings) => {
         this.applySettings(settings);
+        if (settings.currentTerm.length === 0) {
+          this.fetchDefaultCurrentTerm();
+        }
       })
       .catch(() => {
         uiShowToast(this.getUIContext(), { message: "读取课程表设置失败" });
       });
   }
 
-  private saveSettings(settings: ScheduleDisplaySettings, successMessage: string): void {
+  private saveSettings(settings: ScheduleDisplaySettings, successMessage: string, silent: boolean = false): void {
     this.settingsStore.save(settings)
       .then(() => {
         this.applySettings(settings);
-        uiShowToast(this.getUIContext(), { message: successMessage });
+        if (!silent) {
+          uiShowToast(this.getUIContext(), { message: successMessage });
+        }
       })
       .catch(() => {
         uiShowToast(this.getUIContext(), { message: "设置保存失败" });
       });
   }
 
-  private saveCurrentTerm(term: string): void {
+  private saveCurrentTerm(term: string, silent: boolean = false): void {
     const trimmed = term.trim();
     this.settingsStore.load()
       .then((settings: ScheduleDisplaySettings) => {
@@ -288,7 +295,8 @@ struct CalendarSettingPage {
           showExamInfo: settings.showExamInfo,
           periodTimes: settings.periodTimes,
         });
-        this.saveSettings(next, "切换学期成功");
+        this.saveSettings(next, "切换学期成功", silent);
+        this.fetchFirstDayForTerm(trimmed, true);
       })
       .catch(() => {
         uiShowToast(this.getUIContext(), { message: "设置保存失败" });
@@ -319,9 +327,11 @@ struct CalendarSettingPage {
   }
 
   handleGetFirstDay(): void {
-    this.isGettingFirstDay = true;
-    uiShowToast(this.getUIContext(), { message: "学校开学日期接口暂未接入，请先保留当前设置" });
-    this.isGettingFirstDay = false;
+    if (this.currentTerm.length === 0) {
+      uiShowToast(this.getUIContext(), { message: "请先选择当前学期" });
+      return;
+    }
+    this.fetchFirstDayForTerm(this.currentTerm, false);
   }
 
   handleGetCourses(): void {
@@ -364,17 +374,20 @@ struct CalendarSettingPage {
       uiShowToast(this.getUIContext(), { message: "无法获取应用文件目录" });
       return;
     }
-    const repo = new CourseScheduleRepository({
-      localStore: new ScheduleLocalStore({ filesDir }),
-    });
-    repo.refreshExams()
-      .then(() => {
+    if (this.currentTerm.length === 0) {
+      this.isGettingExams = false;
+      uiShowToast(this.getUIContext(), { message: "请先设置当前学期" });
+      return;
+    }
+    this.createExamRefreshRepository(filesDir)
+      .then((repo: CourseScheduleRepository) => repo.refreshExams(this.currentTerm))
+      .then((exams) => {
         this.isGettingExams = false;
-        uiShowToast(this.getUIContext(), { message: "获取成功" });
+        uiShowToast(this.getUIContext(), { message: `获取成功，共 ${exams.length} 条` });
       })
       .catch(() => {
         this.isGettingExams = false;
-        uiShowToast(this.getUIContext(), { message: "考试安排接口暂不可用" });
+        uiShowToast(this.getUIContext(), { message: "获取失败，请检查登录状态" });
       });
   }
 
@@ -404,60 +417,164 @@ struct CalendarSettingPage {
         uiShowToast(this.getUIContext(), { message: "时间表保存失败" });
       });
   }
+
+  private async detectSchoolModeForJxzx(): Promise<SchoolLoginMode> {
+    let mode: SchoolLoginMode = 'inner';
+    try {
+      mode = await detectSchoolLoginMode({ debug: true });
+    } catch (_) {
+      mode = 'inner';
+    }
+    return mode;
+  }
+
+  private async createTermRepository(): Promise<CourseTermRepository> {
+    const mode = await this.detectSchoolModeForJxzx();
+    return new CourseTermRepository({ mode, debug: true });
+  }
+
+  private async createExamRefreshRepository(filesDir: string): Promise<CourseScheduleRepository> {
+    const mode = await this.detectSchoolModeForJxzx();
+    return new CourseScheduleRepository({
+      localStore: new ScheduleLocalStore({ filesDir }),
+      examSource: new ExamScheduleRepository({
+        mode,
+        debug: true,
+      }),
+    });
+  }
+
+  private fetchDefaultCurrentTerm(): void {
+    this.isGettingCurrentTerm = true;
+    this.createTermRepository()
+      .then((repo: CourseTermRepository) => repo.getCurrentTerm())
+      .then((term: string) => {
+        this.isGettingCurrentTerm = false;
+        if (term.length > 0) {
+          this.saveCurrentTerm(term, true);
+        }
+      })
+      .catch(() => {
+        this.isGettingCurrentTerm = false;
+        uiShowToast(this.getUIContext(), { message: "自动获取当前学期失败，请检查登录状态" });
+      });
+  }
+
+  private handleOpenTermOptions(): void {
+    if (this.showTermOptions) {
+      this.showTermOptions = false;
+      return;
+    }
+    this.showTermOptions = true;
+    if (this.termOptions.length === 0) {
+      this.loadTermOptions();
+    }
+  }
+
+  private loadTermOptions(): void {
+    this.isGettingTerms = true;
+    this.createTermRepository()
+      .then((repo: CourseTermRepository) => repo.getTermList())
+      .then((terms: string[]) => {
+        this.isGettingTerms = false;
+        this.termOptions = terms;
+        if (terms.length === 0) {
+          uiShowToast(this.getUIContext(), { message: "没有获取到可选学期" });
+        }
+      })
+      .catch(() => {
+        this.isGettingTerms = false;
+        uiShowToast(this.getUIContext(), { message: "获取学期列表失败，请检查登录状态" });
+      });
+  }
+
+  private selectTerm(term: string): void {
+    this.showTermOptions = false;
+    this.saveCurrentTerm(term, false);
+  }
+
+  private fetchFirstDayForTerm(term: string, silent: boolean): void {
+    this.isGettingFirstDay = true;
+    this.createTermRepository()
+      .then((repo: CourseTermRepository) => repo.getFirstDay(term))
+      .then((firstDay: string) => {
+        this.isGettingFirstDay = false;
+        this.settingsStore.load()
+          .then((settings: ScheduleDisplaySettings) => {
+            const next = normalizeScheduleDisplaySettings({
+              currentTerm: settings.currentTerm,
+              firstDayISO: firstDay,
+              showSaturday: settings.showSaturday,
+              showSunday: settings.showSunday,
+              showBorder: settings.showBorder,
+              showHighlightToday: settings.showHighlightToday,
+              showDivider: settings.showDivider,
+              showCurrentTime: settings.showCurrentTime,
+              showExamInfo: settings.showExamInfo,
+              periodTimes: settings.periodTimes,
+            });
+            this.saveSettings(next, "学期起始日期已更新", silent);
+          })
+          .catch(() => {
+            uiShowToast(this.getUIContext(), { message: "学期起始日期保存失败" });
+          });
+      })
+      .catch(() => {
+        this.isGettingFirstDay = false;
+        uiShowToast(this.getUIContext(), { message: "获取学期起始日期失败" });
+      });
+  }
+
+  @Builder
+  private TermOptionsList() {
+    Column() {
+      if (this.isGettingTerms) {
+        Row() {
+          LoadingProgress()
+            .width(22)
+            .height(22)
+            .margin({ right: 8 })
+          Text("正在获取学期列表...")
+            .fontSize(14)
+            .fontColor($r('sys.color.ohos_id_color_text_secondary'))
+        }
+        .height(52)
+        .width('100%')
+        .justifyContent(FlexAlign.Center)
+      } else {
+        ForEach(this.termOptions, (term: string) => {
+          Row() {
+            Radio({ value: term, group: 'courseScheduleTerm' })
+              .checked(term === this.currentTerm)
+              .onChange((checked: boolean) => {
+                if (checked) {
+                  this.selectTerm(term);
+                }
+              })
+
+            Text(term)
+              .fontSize(16)
+              .fontColor($r('sys.color.ohos_id_color_text_primary'))
+              .margin({ left: 10 })
+              .layoutWeight(1)
+          }
+          .width('100%')
+          .constraintSize({ minHeight: 52 })
+          .padding({ left: 12, right: 16, top: 10, bottom: 10 })
+          .onClick(() => {
+            this.selectTerm(term);
+          })
+        }, (term: string) => term)
+      }
+    }
+    .width('100%')
+    .backgroundColor($r('sys.color.ohos_id_color_card_bg'))
+  }
 }
 
 // ----------------------------------------------------------------------------
 // 3. 弹窗组件
 // ----------------------------------------------------------------------------
-
-@CustomDialog
-struct TermEditDialog {
-  controller: CustomDialogController;
-  @State content: string = "";
-  onConfirm: (term: string) => void = () => {};
-
-  build() {
-    Column() {
-      Text("设置当前学期")
-        .fontSize(20)
-        .fontWeight(FontWeight.Bold)
-        .fontColor($r('sys.color.ohos_id_color_text_primary'))
-        .padding({ top: 24, left: 24, right: 24, bottom: 8 })
-        .width('100%')
-
-      TextInput({ text: this.content, placeholder: "例如 2025-2026-2" })
-        .width('86%')
-        .height(44)
-        .fontSize(16)
-        .onChange((value: string) => {
-          this.content = value;
-        })
-        .margin({ top: 12, bottom: 12 })
-
-      Row() {
-        Button("取消", { type: ButtonType.Normal })
-          .onClick(() => { this.controller.close() })
-          .backgroundColor(Color.Transparent)
-          .fontColor($r('sys.color.ohos_id_color_text_primary'))
-          .layoutWeight(1)
-
-        Button("确定", { type: ButtonType.Normal })
-          .onClick(() => {
-            this.onConfirm(this.content);
-            this.controller.close();
-          })
-          .backgroundColor(Color.Transparent)
-          .fontColor($r('sys.color.ohos_id_color_text_primary'))
-          .layoutWeight(1)
-      }
-      .width('100%')
-      .height(52)
-    }
-    .backgroundColor($r('sys.color.ohos_id_color_dialog_bg'))
-    .borderRadius(28)
-    .width('90%')
-  }
-}
 
 @CustomDialog
 struct TimeTableDialog {

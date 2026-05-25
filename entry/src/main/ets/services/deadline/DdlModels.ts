@@ -139,7 +139,7 @@ export function listVisibleDdlItems(items: DdlItem[], nowMs: number, retentionDa
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
     const deadline = item.endTime > 0 ? item.endTime : item.startTime;
-    if (!item.done && deadline >= earliestVisibleDeadline) {
+    if (deadline >= earliestVisibleDeadline) {
       visible.push(item);
     }
   }

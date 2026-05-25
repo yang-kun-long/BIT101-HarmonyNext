@@ -8,6 +8,7 @@ import {
   FreeClassroomRepository,
   FreeClassroomRow,
   guessCurrentSchoolTermCode,
+  sortFreeClassroomRowsForAndroidDisplay,
 } from '../services/jw/freeClassroomRepository';
 import { getPeriodTimesInMemory, PeriodTime } from '../services/jw/periodTimes';
 import { detectSchoolLoginMode } from '../services/school/SchoolNetworkProbe';
@@ -302,22 +303,13 @@ export default struct FreeClassroomPage {
 
   private classroomRowsForDisplay(rows: FreeClassroomRow[]): FreeClassroomRow[] {
     const periodTimes: PeriodTime[] = getPeriodTimesInMemory();
-    const out: FreeClassroomRow[] = [];
-    for (let i = 0; i < rows.length; i++) {
-      const status = computeClassroomBusyStatus(rows[i], periodTimes, this.nowClockText, this.freeMinutesThreshold);
-      if (!this.hideBusyClassroom || status.isFreeNow) {
-        out.push(rows[i]);
-      }
-    }
-    out.sort((a: FreeClassroomRow, b: FreeClassroomRow): number => {
-      const aStatus = computeClassroomBusyStatus(a, periodTimes, this.nowClockText, this.freeMinutesThreshold);
-      const bStatus = computeClassroomBusyStatus(b, periodTimes, this.nowClockText, this.freeMinutesThreshold);
-      if (aStatus.sortKey !== bStatus.sortKey) {
-        return bStatus.sortKey - aStatus.sortKey;
-      }
-      return a.classroomName.localeCompare(b.classroomName);
-    });
-    return out;
+    return sortFreeClassroomRowsForAndroidDisplay(
+      rows,
+      periodTimes,
+      this.nowClockText,
+      this.freeMinutesThreshold,
+      this.hideBusyClassroom,
+    );
   }
 
   @Builder

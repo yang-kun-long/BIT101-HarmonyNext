@@ -46,19 +46,27 @@ function normalizeName(x?: string): string {
   return (x || '').trim().replace(/\s+/g, ' ').toLowerCase()
 }
 
-function pickTeacherFromRaw(raw?: RawIcsEvent | null): string {
-  if (!raw) return ''
-  const desc = (raw.description || '') + '\n' + (raw.rawText || '')
+export function pickTeacherFromScheduleText(description?: string, rawText?: string): string {
+  const desc = (description || '') + '\n' + (rawText || '')
   const m = /(?:教师|老师|teacher)\s*[:：]\s*([^\n;]+)/i.exec(desc)
   return m ? m[1].trim() : ''
 }
 
+function pickTeacherFromRaw(raw?: RawIcsEvent | null): string {
+  if (!raw) return ''
+  return pickTeacherFromScheduleText(raw.description, raw.rawText)
+}
+
+export function makeCourseColorKey(title?: string, teacher?: string): string {
+  return `${normalizeName(title)}|${normalizeName(teacher)}`
+}
+
 export function makeCourseKeyForCard(ev: CalendarEvent | null, raw?: RawIcsEvent | null): string {
   // 课名优先用 raw.summary，其次 ev.summary
-  const title = normalizeName(raw?.summary || (ev?.summary || ''))
+  const title = raw?.summary || (ev?.summary || '')
   // 教师优先 raw 解析
-  const teacher = normalizeName(pickTeacherFromRaw(raw))
-  return `${title}|${teacher}`
+  const teacher = pickTeacherFromRaw(raw)
+  return makeCourseColorKey(title, teacher)
 }
 
 export function parseIcsToDate(ics: string | undefined): Date | null {
