@@ -35,7 +35,7 @@ export class LexueCalendarFastPathCase extends DebugCase {
       this.logInfo('[step 0] 未配置 TEST_USERNAME / TEST_PASSWORD');
       this.logInfo('请在 entry/src/main/ets/debug/local.secret.ts 中配置调试账号后再运行。');
       this.logInfo('=== LexueCalendarFastPathCase ABORT ===');
-      return;
+      this.fail('Missing TEST_USERNAME / TEST_PASSWORD in local.secret.ts');
     }
 
     const baseUrl = 'https://lexue.bit.edu.cn';
@@ -100,7 +100,7 @@ export class LexueCalendarFastPathCase extends DebugCase {
     } catch (e) {
       this.logInfo('[step 3] 第一次 exportCalendar() 发生错误:', String(e));
       this.logInfo('=== LexueCalendarFastPathCase ABORT ===');
-      return;
+      throw e;
     }
 
     const cachedAfterFirst = await store.getCachedSubscribeUrl(TEST_USERNAME, baseUrl);
@@ -125,7 +125,7 @@ export class LexueCalendarFastPathCase extends DebugCase {
     } catch (e) {
       this.logInfo('[step 4] 第二次 exportCalendar() 发生错误:', String(e));
       this.logInfo('=== LexueCalendarFastPathCase ABORT ===');
-      return;
+      throw e;
     }
 
     const cachedAfterSecond = await store.getCachedSubscribeUrl(TEST_USERNAME, baseUrl);
@@ -135,6 +135,8 @@ export class LexueCalendarFastPathCase extends DebugCase {
     this.logInfo('[step 5] 简单一致性检查:');
     this.logInfo('  - 两次 subscribeUrl 是否相同 =', subUrl1 === subUrl2);
     this.logInfo('  - 缓存中的 URL 是否等于第二次返回的 URL =', cachedAfterSecond === subUrl2);
+    this.assertEquals(subUrl2, subUrl1, 'FastPath should reuse the cached subscribe URL');
+    this.assertTrue(cachedAfterSecond === subUrl2, 'Cached subscribe URL should match the second export result');
 
     this.logInfo('=== LexueCalendarFastPathCase END ===');
   }

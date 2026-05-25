@@ -11,7 +11,7 @@ export class SchoolWebvpnPortalCase extends DebugCase {
     if (!TEST_USERNAME || !TEST_PASSWORD) {
       this.logInfo('Missing TEST_USERNAME / TEST_PASSWORD in local.secret.ts');
       this.logInfo('=== SchoolWebvpnPortalCase ABORT ===');
-      return;
+      this.fail('Missing TEST_USERNAME / TEST_PASSWORD in local.secret.ts');
     }
 
     const auth = new SchoolAuthService({ debug: true });
@@ -22,6 +22,7 @@ export class SchoolWebvpnPortalCase extends DebugCase {
       this.logInfo('cookie names =', auth.getCookieDump().map((c) => c.name));
     } catch (e) {
       this.logError('SchoolWebvpnPortalCase failed =', e);
+      throw e;
     }
 
     this.logInfo('=== SchoolWebvpnPortalCase END ===');

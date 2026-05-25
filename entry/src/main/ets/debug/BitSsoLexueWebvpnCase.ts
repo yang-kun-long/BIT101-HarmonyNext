@@ -58,7 +58,8 @@ export class BitSsoLexueWebvpnCase extends DebugCase {
         throw new Error('ICS 内容不是有效的 VCALENDAR 文本');
       }
     } catch (e) {
-      this.logInfo('BitSsoLexueWebvpnCase 发生异常：', `${e}`);
+      this.logError('BitSsoLexueWebvpnCase 发生异常：', e);
+      throw e;
     }
 
     this.logInfo('=== BitSsoLexueWebvpnCase END ===');

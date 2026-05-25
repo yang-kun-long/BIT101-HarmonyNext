@@ -18,7 +18,7 @@ export class SchoolLexueWebvpnCase extends DebugCase {
     if (!TEST_USERNAME || !TEST_PASSWORD) {
       this.logInfo('Missing TEST_USERNAME / TEST_PASSWORD in local.secret.ts');
       this.logInfo('=== SchoolLexueWebvpnCase ABORT ===');
-      return;
+      this.fail('Missing TEST_USERNAME / TEST_PASSWORD in local.secret.ts');
     }
 
     const auth = new SchoolAuthService({ debug: true });
@@ -72,9 +72,11 @@ export class SchoolLexueWebvpnCase extends DebugCase {
       if (!exportUsable) {
         const preview = (exportResp.bodyText ?? '').replace(/\s+/g, ' ').slice(0, 300);
         this.logInfo('export preview =', preview);
+        this.fail('WebVPN Lexue export page should be usable after login');
       }
     } catch (e) {
       this.logError('SchoolLexueWebvpnCase failed =', e);
+      throw e;
     }
 
     this.logInfo('=== SchoolLexueWebvpnCase END ===');

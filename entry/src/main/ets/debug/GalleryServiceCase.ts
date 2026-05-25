@@ -40,6 +40,7 @@ export class GalleryServiceCase extends DebugCase {
 
     } catch (e) {
       this.logError('   ❌ 请求失败 / 解析异常', e);
+      throw e;
     }
 
     // 3. 测试获取最新 (验证参数传递)
@@ -49,6 +50,7 @@ export class GalleryServiceCase extends DebugCase {
       this.logInfo(`   ✅ 最新列表获取成功, 条数: ${listNew.length}`);
     } catch (e) {
       this.logError('   ❌ 最新列表请求失败', e);
+      throw e;
     }
 
     this.logInfo('=== 🏁 测试结束 ===');

@@ -17,7 +17,7 @@ export class WebvpnLexueRestoreCase extends DebugCase {
     if (!TEST_USERNAME || !TEST_PASSWORD) {
       this.logInfo('Missing TEST_USERNAME / TEST_PASSWORD in local.secret.ts');
       this.logInfo('=== WebvpnLexueRestoreCase ABORT ===');
-      return;
+      this.fail('Missing TEST_USERNAME / TEST_PASSWORD in local.secret.ts');
     }
 
     const cookieStore = new LexueCookieStore('webvpn');
@@ -65,6 +65,7 @@ export class WebvpnLexueRestoreCase extends DebugCase {
       exportUsable,
       sesskey,
     });
+    this.assertTrue(exportUsable, 'Restored WebVPN Lexue export page should be usable');
 
     this.logInfo('=== WebvpnLexueRestoreCase END ===');
   }

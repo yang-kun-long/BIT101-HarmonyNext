@@ -37,7 +37,7 @@ export class LexueCookiePersistCase extends DebugCase {
       this.logInfo('[step 0] 未配置 TEST_USERNAME / TEST_PASSWORD');
       this.logInfo('请在 entry/src/main/ets/debug/local.secret.ts 中配置调试账号后再运行。');
       this.logInfo('=== LexueCookiePersistCase ABORT ===');
-      return;
+      this.fail('Missing TEST_USERNAME / TEST_PASSWORD in local.secret.ts');
     }
 
     this.logInfo('[step 0] 使用调试账号:', {
@@ -68,6 +68,7 @@ export class LexueCookiePersistCase extends DebugCase {
       '[step 3] loginToLexue 完成，isFullyLoggedIn =',
       session1.isFullyLoggedIn(),
     );
+    this.assertTrue(session1.isFullyLoggedIn(), 'session1 should be fully logged in after loginToLexue');
 
     // 可选：简单请求一下乐学首页，验证 HTTP 状态
     try {
@@ -95,6 +96,7 @@ export class LexueCookiePersistCase extends DebugCase {
       this.logInfo(
         '[step 4] 持久化 cookie 为空，这不符合预期，请检查 ensureLexueSession 中 saveCookieDump 调用。',
       );
+      this.fail('Lexue cookie dump should not be empty after login');
     }
 
     // ---------- step 5: 新建第二个实例，仅从持久化恢复 ----------
@@ -105,6 +107,7 @@ export class LexueCookiePersistCase extends DebugCase {
       '[step 5] session2.restoreFromStorage() 之后 isFullyLoggedIn =',
       session2.isFullyLoggedIn(),
     );
+    this.assertTrue(session2.isFullyLoggedIn(), 'session2 should restore a reusable Lexue login state');
 
     try {
       const resp2 = await session2.getHttpClient().get('https://lexue.bit.edu.cn/', {

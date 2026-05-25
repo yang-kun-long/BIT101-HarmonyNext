@@ -23,6 +23,7 @@ export class SchoolNetworkProbeCase extends DebugCase {
       this.logInfo('auto session ready =', sso.isFullyLoggedIn());
     } catch (e) {
       this.logError('SchoolNetworkProbeCase failed =', e);
+      throw e;
     }
 
     this.logInfo('=== SchoolNetworkProbeCase END ===');

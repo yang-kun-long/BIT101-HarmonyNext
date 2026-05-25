@@ -33,6 +33,7 @@ export class BitSsoLexueCase extends DebugCase {
       );
     } catch (e) {
       this.logError('[BitSsoLexueCase] error =', e);
+      throw e;
     }
   }
 }

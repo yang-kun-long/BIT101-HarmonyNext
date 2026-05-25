@@ -49,6 +49,7 @@ export class BitSsoSessionCase extends DebugCase {
       this.logInfo('[BitSsoSessionCase] BitSsoSessionCase 完成，没有发现明显错误');
     } catch (e) {
       this.logError('[BitSsoSessionCase] error =', e);
+      throw e;
     }
   }
 }

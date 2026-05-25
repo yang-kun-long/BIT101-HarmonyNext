@@ -45,7 +45,7 @@ export class LexueCalendarSyncCase extends DebugCase {
       this.logInfo('[step 0] 未配置 TEST_USERNAME / TEST_PASSWORD');
       this.logInfo('请在 entry/src/main/ets/debug/local.secret.ts 中配置调试账号后再运行。');
       this.logInfo('=== LexueCalendarSyncCase ABORT ===');
-      return;
+      this.fail('Missing TEST_USERNAME / TEST_PASSWORD in local.secret.ts');
     }
 
     this.logInfo('[step 0] 使用调试账号:', {
@@ -110,7 +110,7 @@ export class LexueCalendarSyncCase extends DebugCase {
     } catch (e) {
       this.logInfo('[step 3] exportCalendar 发生错误:', String(e));
       this.logInfo('=== LexueCalendarSyncCase ABORT ===');
-      return;
+      throw e;
     }
 
     this.logInfo('[step 3] 订阅 URL =', subscribeUrl);
@@ -125,7 +125,7 @@ export class LexueCalendarSyncCase extends DebugCase {
     } catch (e) {
       this.logInfo('[step 4] parseLexueIcs 解析失败:', String(e));
       this.logInfo('=== LexueCalendarSyncCase ABORT ===');
-      return;
+      throw e;
     }
 
     this.logInfo('[step 4] 解析完成，事件数量 =', events.length);
@@ -154,7 +154,7 @@ export class LexueCalendarSyncCase extends DebugCase {
     } catch (e) {
       this.logInfo('[step 5] 持久化过程中发生错误:', String(e));
       this.logInfo('=== LexueCalendarSyncCase ABORT ===');
-      return;
+      throw e;
     }
 
     // ---------- step 6: 从 LexueCalendarStore 再读回来，确认一致性 ----------
