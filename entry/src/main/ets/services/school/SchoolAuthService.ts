@@ -1,5 +1,5 @@
 import { Logger } from '../../utils/Logger';
-import RcpSession from '../../core/network/rcpSession';
+import RcpSession, { RcpResponseData } from '../../core/network/rcpSession';
 import SimpleCookieJar, { CookieDump } from '../../core/network/cookieJar';
 import { SchoolCasClient } from './SchoolCasClient';
 import { SchoolServiceResolutionError, SchoolWebvpnLandingError } from './SchoolAuthErrors';
@@ -21,13 +21,30 @@ function findHeader(headers: Record<string, Object> | undefined, wanted: string)
     const key = keys[i];
     if (key.toLowerCase() !== wanted.toLowerCase()) continue;
     const value = headers[key];
-    return typeof value === 'string' ? value : '';
+    if (typeof value === 'string') return value;
+    if (Array.isArray(value) && value.length > 0) {
+      const first = value[0];
+      return typeof first === 'string' ? first : String(first);
+    }
+    if (value !== null && value !== undefined) {
+      return String(value);
+    }
+    return '';
   }
   return '';
 }
 
 function looksLikeCasLoginUrl(url: string): boolean {
   return url.includes('/cas/login');
+}
+
+export function appendTicketToServiceUrl(service: string, ticket: string): string {
+  if (!service || !ticket) {
+    throw new Error('service and ticket are required');
+  }
+  return service.includes('?')
+    ? `${service}&ticket=${encodeURIComponent(ticket)}`
+    : `${service}?ticket=${encodeURIComponent(ticket)}`;
 }
 
 export interface SchoolAuthServiceOptions {
@@ -188,5 +205,88 @@ export class SchoolAuthService {
       targetName,
       effectiveUrl,
     };
+  }
+
+  async resolveInnerTargetService(targetUrl: string, maxRedirects: number = 10): Promise<string> {
+    let currentUrl = targetUrl;
+
+    for (let i = 0; i < maxRedirects; i++) {
+      const resp = await this.client.get(currentUrl, {
+        autoRedirect: false,
+        collectTimeInfo: false,
+      });
+
+      const location = findHeader(resp.headers as Record<string, Object>, 'location');
+      logger.debug('resolveInnerTargetService step =', i, 'status =', resp.statusCode, 'currentUrl =', currentUrl, 'location =', location);
+
+      if (!location) {
+        return currentUrl;
+      }
+
+      const nextUrl = resolveAbsoluteUrl(currentUrl, location);
+      if (looksLikeCasLoginUrl(nextUrl)) {
+        const service = resolveServiceFromRedirect(currentUrl, location);
+        return service;
+      }
+      currentUrl = nextUrl;
+    }
+
+    throw new SchoolServiceResolutionError(`Cannot resolve inner target service from ${targetUrl}`);
+  }
+
+  async loginInnerTarget(targetUrl: string, targetName: string, username: string, password: string): Promise<SchoolLoginResult> {
+    const targetService = await this.resolveInnerTargetService(targetUrl);
+    const tgtUrl = await this.casClient.getTgt(username, password);
+    this.lastTgtUrl = tgtUrl;
+    const st = await this.casClient.getSt(tgtUrl, targetService);
+    const jumpUrl = appendTicketToServiceUrl(targetService, st);
+    logger.info('loginInnerTarget targetName =', targetName, 'targetService =', targetService);
+
+    const resp = await this.getWithManualRedirects(jumpUrl, 15);
+    const effectiveUrl = String(resp.effectiveUrl ?? '');
+    logger.debug('loginInnerTarget effectiveUrl =', effectiveUrl, 'status =', resp.statusCode);
+
+    if (resp.statusCode >= 400) {
+      throw new SchoolWebvpnLandingError(`Inner target landing failed: ${resp.statusCode}`);
+    }
+    if (looksLikeCasLoginUrl(effectiveUrl)) {
+      throw new SchoolWebvpnLandingError(`Inner target jump returned to CAS login page: ${effectiveUrl}`);
+    }
+
+    return {
+      mode: 'inner',
+      portalLoggedIn: false,
+      targetLoggedIn: true,
+      targetName,
+      effectiveUrl,
+    };
+  }
+
+  private async getWithManualRedirects(initialUrl: string, maxRedirects: number): Promise<RcpResponseData> {
+    let currentUrl = initialUrl;
+    for (let i = 0; i <= maxRedirects; i++) {
+      const resp = await this.client.get(currentUrl, {
+        autoRedirect: false,
+        collectTimeInfo: false,
+      });
+      const location = findHeader(resp.headers as Record<string, Object>, 'location');
+      logger.debug('manual redirect step =', i, 'status =', resp.statusCode, 'url =', currentUrl, 'location =', location);
+
+      if (
+        resp.statusCode === 301 ||
+          resp.statusCode === 302 ||
+          resp.statusCode === 303 ||
+          resp.statusCode === 307 ||
+          resp.statusCode === 308
+      ) {
+        if (!location) {
+          return resp;
+        }
+        currentUrl = resolveAbsoluteUrl(currentUrl, location);
+        continue;
+      }
+      return resp;
+    }
+    throw new SchoolServiceResolutionError(`Manual redirect exceeded ${maxRedirects}: ${initialUrl}`);
   }
 }

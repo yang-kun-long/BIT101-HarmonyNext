@@ -237,8 +237,10 @@ export class BitSsoSession {
       this.loggedInSso = restored.hasSso;
       this.loggedInLexue = restored.hasLexue;
 
-      if (this.useWebvpn && this.loggedInLexue) {
-        const stillUsable = await this.validateRestoredWebvpnLexueSession();
+      if (this.loggedInLexue) {
+        const stillUsable = this.useWebvpn
+          ? await this.validateRestoredWebvpnLexueSession()
+          : await this.validateRestoredInnerLexueSession();
         this.loggedInLexue = stillUsable;
       }
 
@@ -304,6 +306,40 @@ export class BitSsoSession {
     } catch (e) {
       if (this.debug) {
         this.logger.warn('validateRestoredWebvpnLexueSession failed:', e);
+      }
+      return false;
+    }
+  }
+
+  private async validateRestoredInnerLexueSession(): Promise<boolean> {
+    try {
+      const resp = await this.client.get(`${LEXUE_BASE}/calendar/export.php`, {
+        autoRedirect: true,
+        collectTimeInfo: false,
+        headers: {
+          Referer: `${LEXUE_BASE}/`,
+        },
+      });
+      const usable = isRestoredLexueExportUsable(
+        resp.statusCode,
+        String(resp.effectiveUrl ?? ''),
+        resp.bodyText ?? '',
+      );
+      if (this.debug) {
+        this.logger.info(
+          'validateRestoredInnerLexueSession:',
+          'usable=',
+          usable,
+          'status=',
+          resp.statusCode,
+          'effectiveUrl=',
+          resp.effectiveUrl,
+        );
+      }
+      return usable;
+    } catch (e) {
+      if (this.debug) {
+        this.logger.warn('validateRestoredInnerLexueSession failed:', e);
       }
       return false;
     }

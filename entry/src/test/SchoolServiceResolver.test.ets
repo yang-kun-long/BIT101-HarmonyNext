@@ -4,6 +4,7 @@ import {
   inferSchoolLoginModeFromProbe,
   inferSchoolLoginModeFromWebvpnProbe,
 } from '../main/ets/services/school/SchoolNetworkProbe';
+import { appendTicketToServiceUrl } from '../main/ets/services/school/SchoolAuthService';
 
 export default function schoolServiceResolverTest() {
   describe('School service resolver', () => {
@@ -53,6 +54,13 @@ export default function schoolServiceResolverTest() {
     it('treats unreachable webvpn portal as inner mode', 0, () => {
       const mode = inferSchoolLoginModeFromWebvpnProbe(0, 0, 'connect timeout');
       expect(mode).assertEqual('inner');
+    });
+
+    it('appends CAS ticket to direct service urls', 0, () => {
+      expect(appendTicketToServiceUrl('https://jxzxehallapp.bit.edu.cn/path', 'ST-1'))
+        .assertEqual('https://jxzxehallapp.bit.edu.cn/path?ticket=ST-1');
+      expect(appendTicketToServiceUrl('https://jxzxehallapp.bit.edu.cn/path?a=1', 'ST-2'))
+        .assertEqual('https://jxzxehallapp.bit.edu.cn/path?a=1&ticket=ST-2');
     });
   });
 }

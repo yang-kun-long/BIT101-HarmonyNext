@@ -7,6 +7,8 @@ import { BusinessError } from '@kit.BasicServicesKit'; // 引入系统错误类�
 import { Logger } from '../utils/Logger';
 import { TokenStore } from '../services/storage/tokenStore';
 import { uiGetParams, uiReplaceUrl } from '../utils/uiContextBridge';
+import { loginBit101AndVerifyWebvpn } from '../services/auth/bit101LoginFlow';
+import { prepareFreeClassroomSession } from '../services/jw/freeClassroomSession';
 
 interface RedirectParams {
   redirect?: string
@@ -36,17 +38,19 @@ struct LoginPage {
     this.msg = ''
 
     try {
-      // 1. BIT101 后端登录
-      const bit101FakeCookie = await this.auth.loginBit101({
+      // 1. BIT101 后端登录 + WebVPN verify。课程表后端依赖 verify 写入的 webvpn_cookie。
+      const bit101Login = await loginBit101AndVerifyWebvpn(this.auth, {
         sid: this.sid.trim(),
         password: this.password,
+        captcha: this.captcha,
       })
+      const bit101FakeCookie = bit101Login.fakeCookie
 
       if (this.showRaw) {
-        this.logger.debug('bit101FakeCookie saved:', !!bit101FakeCookie);
+        this.logger.debug('bit101FakeCookie saved:', !!bit101FakeCookie, 'webvpnVerify:', bit101Login.webvpn.ok);
       }
 
-      const okBit101 = !!(bit101FakeCookie && bit101FakeCookie.length > 0)
+      const okBit101 = bit101Login.ok
 
       // 2. 学校登录流程（inner / webvpn 自动选择）
       const GeneratedDestructObj_1 = await createBitSsoSessionAuto({
@@ -69,6 +73,13 @@ struct LoginPage {
         } else {
           this.logger.warn('WebVPN 模式下未取到 cookie header');
         }
+      }
+
+      try {
+        await prepareFreeClassroomSession(this.sid.trim(), this.password, mode, true);
+        this.logger.info('空教室教务 session 已准备 mode=', mode);
+      } catch (freeRoomErr) {
+        this.logger.warn('空教室教务 session 准备失败，不阻断登录:', freeRoomErr);
       }
 
       // 3. 判定登录结果并同步数据
