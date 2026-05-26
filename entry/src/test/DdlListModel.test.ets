@@ -1,6 +1,7 @@
 import { describe, it, expect } from '@ohos/hypium';
 import {
   buildDdlSettingsDataItems,
+  buildDdlSettingsResultToast,
   buildDdlDeleteConfirmModel,
   buildDdlEditDialogModel,
   buildDdlDetailModel,
@@ -18,6 +19,7 @@ import type {
   DdlDetailModel,
   DdlEditDialogModel,
   DdlSettingsItem,
+  DdlSettingsResultAction,
   DdlEditValidationResult,
 } from '../main/ets/components/deadline/ddlListModel';
 import type { DdlItem } from '../main/ets/services/deadline/DdlModels';
@@ -42,6 +44,16 @@ export default function ddlListModelTest() {
       expect(items[1].title).assertEqual('重新拉取乐学日程');
       expect(items[1].subTitle).assertEqual('请先获取订阅链接哦');
       expect(items[1].enabled).assertFalse();
+    });
+
+    it('builds Android-style DDL settings result toast copy', 0, () => {
+      const urlAction: DdlSettingsResultAction = 'refreshSubscribeUrl';
+      const calendarAction: DdlSettingsResultAction = 'refreshLexueCalendar';
+
+      expect(buildDdlSettingsResultToast(urlAction, true)).assertEqual('获取成功');
+      expect(buildDdlSettingsResultToast(urlAction, false)).assertEqual('获取失败');
+      expect(buildDdlSettingsResultToast(calendarAction, true)).assertEqual('拉取成功');
+      expect(buildDdlSettingsResultToast(calendarAction, false)).assertEqual('拉取失败');
     });
 
     it('uses Android DDL floating action button dimensions and order', 0, () => {

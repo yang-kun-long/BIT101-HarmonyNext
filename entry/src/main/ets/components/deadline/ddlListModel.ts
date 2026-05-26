@@ -62,6 +62,7 @@ export interface DdlEditValidationResult {
 }
 
 export type DdlSettingsDataAction = 'refreshSubscribeUrl' | 'refreshLexueCalendar';
+export type DdlSettingsResultAction = DdlSettingsDataAction;
 
 export interface DdlSettingsItem {
   action: DdlSettingsDataAction;
@@ -124,6 +125,13 @@ export function buildDdlSettingsDataItems(
       enabled: !isUpdatingLexueCalendar,
     },
   ];
+}
+
+export function buildDdlSettingsResultToast(action: DdlSettingsResultAction, success: boolean): string {
+  if (action === 'refreshSubscribeUrl') {
+    return success ? '获取成功' : '获取失败';
+  }
+  return success ? '拉取成功' : '拉取失败';
 }
 
 export function getDdlFabSpecs(): DdlFabSpec[] {

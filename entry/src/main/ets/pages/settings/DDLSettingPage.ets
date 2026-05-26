@@ -7,6 +7,7 @@ import {
 } from '../../services/storage/DdlSettingsStore';
 import {
   buildDdlSettingsDataItems,
+  buildDdlSettingsResultToast,
 } from '../../components/deadline/ddlListModel';
 import type {
   DdlSettingsItem,
@@ -160,17 +161,15 @@ struct DDLSettingPage {
     uiShowToast(this.getUIContext(), { message: "正在获取订阅链接..." });
     refreshDdlSubscribeUrl(this.currentUsername)
       .then((_url: string) => {
-        uiShowToast(this.getUIContext(), { message: "获取成功" });
+        uiShowToast(this.getUIContext(), {
+          message: buildDdlSettingsResultToast('refreshSubscribeUrl', true),
+        });
       })
       .catch((err: Error) => {
         this.logger.error('refresh DDL subscribe URL failed', err);
-        let message: string = '获取失败';
-        if (err.message.includes('redirects hit maximum')) {
-          message = '获取失败：登录状态失效，请重新登录';
-        } else if (err.message.length > 0) {
-          message = '获取失败：' + err.message;
-        }
-        uiShowToast(this.getUIContext(), { message });
+        uiShowToast(this.getUIContext(), {
+          message: buildDdlSettingsResultToast('refreshSubscribeUrl', false),
+        });
       })
       .finally(() => {
         this.isUpdatingLexueCalendarUrl = false;
@@ -184,18 +183,16 @@ struct DDLSettingPage {
     this.isUpdatingLexueCalendar = true;
     uiShowToast(this.getUIContext(), { message: "正在拉取日程..." });
     syncDdlFromLexue(this.currentUsername)
-      .then((count: number) => {
-        uiShowToast(this.getUIContext(), { message: `同步成功，更新了 ${count} 条 DDL` });
+      .then((_count: number) => {
+        uiShowToast(this.getUIContext(), {
+          message: buildDdlSettingsResultToast('refreshLexueCalendar', true),
+        });
       })
       .catch((err: Error) => {
         this.logger.error('sync DDL from Lexue failed', err);
-        let message: string = '拉取失败';
-        if (err.message.includes('redirects hit maximum')) {
-          message = '拉取失败：登录状态失效，请重新登录';
-        } else if (err.message.length > 0) {
-          message = '拉取失败：' + err.message;
-        }
-        uiShowToast(this.getUIContext(), { message });
+        uiShowToast(this.getUIContext(), {
+          message: buildDdlSettingsResultToast('refreshLexueCalendar', false),
+        });
       })
       .finally(() => {
         this.isUpdatingLexueCalendar = false;
