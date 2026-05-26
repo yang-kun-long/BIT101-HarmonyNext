@@ -21,6 +21,13 @@ import {
   FREE_CLASSROOM_APP_HIDE_BUSY,
   FreeClassroomSettingsStore,
 } from '../services/storage/FreeClassroomSettingsStore';
+import {
+  FREE_CLASSROOM_FAB_BOTTOM_PADDING_VP,
+  FREE_CLASSROOM_FAB_GAP_VP,
+  FREE_CLASSROOM_FAB_ICON_VP,
+  FREE_CLASSROOM_FAB_RIGHT_PADDING_VP,
+  FREE_CLASSROOM_FAB_SIZE_VP,
+} from '../components/freeClassroom/freeClassroomUiModel';
 
 interface BuildingClassroomState {
   buildingId: string;
@@ -488,17 +495,16 @@ export default struct FreeClassroomPage {
 
   @Builder
   private FloatingButtons() {
-    Column({ space: 10 }) {
+    Column({ space: FREE_CLASSROOM_FAB_GAP_VP }) {
       if (this.showBackToTop) {
         Button({ type: ButtonType.Circle, stateEffect: true }) {
           SymbolGlyph($r('sys.symbol.arrow_up'))
-            .fontSize(24)
+            .fontSize(FREE_CLASSROOM_FAB_ICON_VP)
             .fontColor(['#1D4ED8'])
         }
-        .width(48)
-        .height(48)
+        .width(FREE_CLASSROOM_FAB_SIZE_VP)
+        .height(FREE_CLASSROOM_FAB_SIZE_VP)
         .backgroundColor('#DBEAFE')
-        .shadow({ radius: 5, color: '#26000000', offsetY: 3 })
         .onClick(() => {
           this.listScroller.scrollToIndex(0, true);
         })
@@ -506,18 +512,17 @@ export default struct FreeClassroomPage {
 
       Button({ type: ButtonType.Circle, stateEffect: true }) {
         SymbolGlyph($r('sys.symbol.gearshape'))
-          .fontSize(24)
+          .fontSize(FREE_CLASSROOM_FAB_ICON_VP)
           .fontColor(['#1D4ED8'])
       }
-      .width(48)
-      .height(48)
+      .width(FREE_CLASSROOM_FAB_SIZE_VP)
+      .height(FREE_CLASSROOM_FAB_SIZE_VP)
       .backgroundColor('#DBEAFE')
-      .shadow({ radius: 5, color: '#26000000', offsetY: 3 })
       .onClick(() => {
         uiPushUrl(this.getUIContext(), { url: 'pages/settings/FreeClassroomSettingPage' });
       })
     }
-    .padding({ right: 14, bottom: 20 })
+    .padding({ right: FREE_CLASSROOM_FAB_RIGHT_PADDING_VP, bottom: FREE_CLASSROOM_FAB_BOTTOM_PADDING_VP })
   }
 
   build() {

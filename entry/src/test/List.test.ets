@@ -16,6 +16,7 @@ import courseScheduleDetailTest from './CourseScheduleDetail.test';
 import courseTermRepositoryTest from './CourseTermRepository.test';
 import weekNavigatorModelTest from './WeekNavigatorModel.test';
 import ddlListModelTest from './DdlListModel.test';
+import freeClassroomUiModelTest from './FreeClassroomUiModel.test';
 
 export default function testsuite() {
   localUnitTest();
@@ -36,4 +37,5 @@ export default function testsuite() {
   courseTermRepositoryTest();
   weekNavigatorModelTest();
   ddlListModelTest();
+  freeClassroomUiModelTest();
 }
