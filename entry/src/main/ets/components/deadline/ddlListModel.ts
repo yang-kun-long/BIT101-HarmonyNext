@@ -13,6 +13,7 @@ export const DDL_FAB_ICON_VP = 24;
 export const DDL_FAB_GAP_VP = 10;
 export const DDL_FAB_RIGHT_PADDING_VP = 10;
 export const DDL_FAB_BOTTOM_PADDING_VP = 20;
+export const DDL_EMPTY_TEXT = '怎么会有人没事儿了啊ヽ(`Д´)ﾉ\n快去卷😭';
 
 export function resolveDdlContentState(
   loading: boolean,
@@ -46,4 +47,8 @@ export function getDdlFabSpecs(): DdlFabSpec[] {
       gapVp: DDL_FAB_GAP_VP,
     },
   ];
+}
+
+export function getDdlEmptyText(): string {
+  return DDL_EMPTY_TEXT;
 }

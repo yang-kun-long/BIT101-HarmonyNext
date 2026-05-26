@@ -1,5 +1,6 @@
 import { describe, it, expect } from '@ohos/hypium';
 import {
+  getDdlEmptyText,
   getDdlFabSpecs,
   resolveDdlContentState,
 } from '../main/ets/components/deadline/ddlListModel';
@@ -23,6 +24,10 @@ export default function ddlListModelTest() {
       expect(specs[0].iconVp).assertEqual(24);
       expect(specs[0].gapVp).assertEqual(10);
       expect(specs[1].sizeVp).assertEqual(42);
+    });
+
+    it('uses Android DDL empty-state copy', 0, () => {
+      expect(getDdlEmptyText()).assertEqual('怎么会有人没事儿了啊ヽ(`Д´)ﾉ\n快去卷😭');
     });
   });
 }

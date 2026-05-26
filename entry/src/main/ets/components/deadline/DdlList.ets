@@ -17,6 +17,7 @@ import {
   DDL_FAB_RIGHT_PADDING_VP,
   DdlContentState,
   DdlFabSpec,
+  getDdlEmptyText,
   getDdlFabSpecs,
   resolveDdlContentState,
 } from './ddlListModel';
@@ -392,10 +393,11 @@ export default struct DdlList {
           this.FetchLexueEntry()
         } else if (this.contentState() === 'empty') {
           Column() {
-            Text('暂无即将到来的 DDL')
+            Text(getDdlEmptyText())
               .fontSize(14)
               .fontColor('#9CA3AF')
               .margin({ top: 24 })
+              .textAlign(TextAlign.Center)
           }
           .width('100%')
           .layoutWeight(1)
