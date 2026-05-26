@@ -28,7 +28,10 @@ import {
   FREE_CLASSROOM_FAB_RIGHT_PADDING_VP,
   FREE_CLASSROOM_FAB_SIZE_VP,
   formatNoBuildingTip,
+  resolveFreeClassroomBuildingListState,
   resolveExpandedClassroomState,
+  shouldRenderFreeClassroomSummaryHeader,
+  shouldShowFreeClassroomBackToTop,
   shouldResetFreeClassroomCampus,
 } from '../components/freeClassroom/freeClassroomUiModel';
 
@@ -137,6 +140,7 @@ export default struct FreeClassroomPage {
       const msg = this.friendlyError(e instanceof Error ? e.message : String(e));
       this.errorText = msg;
       this.logger.error('load buildings failed:', msg);
+      this.showToast('拉取教学楼信息失败 Orz...');
     } finally {
       this.loadingBuildings = false;
     }
@@ -386,35 +390,6 @@ export default struct FreeClassroomPage {
   }
 
   @Builder
-  private HeaderItem() {
-    Row() {
-      Column() {
-        Text(`现在 ${this.nowClockText}`)
-          .fontSize(19)
-          .fontWeight(FontWeight.Bold)
-          .fontColor('#111827')
-          .width('100%')
-        Text(`${this.loginMode === 'inner' ? '校内直连' : 'WebVPN'}${this.currentCampusName.length > 0 ? ` · ${this.currentCampusName}` : ''} · 点击教学楼查看空闲教室`)
-          .fontSize(12)
-          .fontColor('#64748B')
-          .margin({ top: 4 })
-          .width('100%')
-      }
-      .layoutWeight(1)
-      .alignItems(HorizontalAlign.Start)
-
-      Text(this.loadingBuildings ? '加载中' : `${this.visibleBuildingList().length} 栋`)
-        .fontSize(12)
-        .fontColor('#2563EB')
-        .padding({ left: 10, right: 10, top: 5, bottom: 5 })
-        .backgroundColor('#DBEAFE')
-        .borderRadius(12)
-    }
-    .width('100%')
-    .padding({ left: 12, right: 12, top: 8, bottom: 8 })
-  }
-
-  @Builder
   private BuildingHeader(building: BuildingInfo) {
     Row() {
       Column() {
@@ -567,28 +542,25 @@ export default struct FreeClassroomPage {
   build() {
     Stack({ alignContent: Alignment.BottomEnd }) {
       List({ scroller: this.listScroller }) {
-        ListItem() {
-          this.HeaderItem()
+        if (shouldRenderFreeClassroomSummaryHeader()) {
+          ListItem() {
+            Row().height(0)
+          }
         }
 
-        if (this.loadingBuildings) {
+        if (resolveFreeClassroomBuildingListState(
+          this.loadingBuildings,
+          this.errorText,
+          this.visibleBuildingList().length,
+        ) === 'loading') {
           ListItem() {
             this.LoadingTip('正在拉取教学楼列表...')
           }
-        } else if (this.errorText.length > 0) {
-          ListItem() {
-            Column({ space: 12 }) {
-              this.MessageTip(this.errorText)
-              Button('重试')
-                .type(ButtonType.Capsule)
-                .onClick(() => {
-                  this.bootstrap();
-                })
-            }
-            .width('100%')
-            .padding({ top: 12 })
-          }
-        } else if (this.visibleBuildingList().length === 0 && this.noBuildingTip().length > 0) {
+        } else if (resolveFreeClassroomBuildingListState(
+          this.loadingBuildings,
+          this.errorText,
+          this.visibleBuildingList().length,
+        ) === 'empty' && this.noBuildingTip().length > 0) {
           ListItem() {
             this.MessageTip(this.noBuildingTip())
           }
@@ -610,7 +582,7 @@ export default struct FreeClassroomPage {
       .scrollBar(BarState.Off)
       .edgeEffect(EdgeEffect.Spring)
       .onScrollIndex((firstIndex: number) => {
-        this.showBackToTop = firstIndex > 1;
+        this.showBackToTop = shouldShowFreeClassroomBackToTop(firstIndex);
       })
 
       this.FloatingButtons()

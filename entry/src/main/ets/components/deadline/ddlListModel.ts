@@ -61,6 +61,15 @@ export interface DdlEditValidationResult {
   errorText: string;
 }
 
+export type DdlSettingsDataAction = 'refreshSubscribeUrl' | 'refreshLexueCalendar';
+
+export interface DdlSettingsItem {
+  action: DdlSettingsDataAction;
+  title: string;
+  subTitle: string;
+  enabled: boolean;
+}
+
 export interface DdlDatePickerResultValue {
   year?: number;
   month?: number;
@@ -88,13 +97,33 @@ export function resolveDdlContentState(
   if (loading) {
     return 'loading';
   }
-  if (visibleItemCount > 0) {
-    return 'list';
-  }
   if (!hasSubscribeUrl) {
     return 'fetch-lexue';
   }
+  if (visibleItemCount > 0) {
+    return 'list';
+  }
   return 'empty';
+}
+
+export function buildDdlSettingsDataItems(
+  isUpdatingLexueCalendarUrl: boolean,
+  isUpdatingLexueCalendar: boolean,
+): DdlSettingsItem[] {
+  return [
+    {
+      action: 'refreshSubscribeUrl',
+      title: '重新获取订阅链接',
+      subTitle: '重新获取订阅链接',
+      enabled: !isUpdatingLexueCalendarUrl,
+    },
+    {
+      action: 'refreshLexueCalendar',
+      title: '重新拉取乐学日程',
+      subTitle: '请先获取订阅链接哦',
+      enabled: !isUpdatingLexueCalendar,
+    },
+  ];
 }
 
 export function getDdlFabSpecs(): DdlFabSpec[] {

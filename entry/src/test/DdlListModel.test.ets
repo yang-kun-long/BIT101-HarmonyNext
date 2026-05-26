@@ -1,5 +1,6 @@
 import { describe, it, expect } from '@ohos/hypium';
 import {
+  buildDdlSettingsDataItems,
   buildDdlDeleteConfirmModel,
   buildDdlEditDialogModel,
   buildDdlDetailModel,
@@ -16,6 +17,7 @@ import type {
   DdlDeleteConfirmModel,
   DdlDetailModel,
   DdlEditDialogModel,
+  DdlSettingsItem,
   DdlEditValidationResult,
 } from '../main/ets/components/deadline/ddlListModel';
 import type { DdlItem } from '../main/ets/services/deadline/DdlModels';
@@ -25,8 +27,21 @@ export default function ddlListModelTest() {
     it('shows Lexue fetch CTA before any subscription URL exists', 0, () => {
       expect(resolveDdlContentState(true, false, 0)).assertEqual('loading');
       expect(resolveDdlContentState(false, false, 0)).assertEqual('fetch-lexue');
-      expect(resolveDdlContentState(false, false, 2)).assertEqual('list');
+      expect(resolveDdlContentState(false, false, 2)).assertEqual('fetch-lexue');
       expect(resolveDdlContentState(false, true, 0)).assertEqual('empty');
+      expect(resolveDdlContentState(false, true, 2)).assertEqual('list');
+    });
+
+    it('builds Android-style DDL settings data rows', 0, () => {
+      const items: DdlSettingsItem[] = buildDdlSettingsDataItems(false, true);
+
+      expect(items.length).assertEqual(2);
+      expect(items[0].title).assertEqual('重新获取订阅链接');
+      expect(items[0].subTitle).assertEqual('重新获取订阅链接');
+      expect(items[0].enabled).assertTrue();
+      expect(items[1].title).assertEqual('重新拉取乐学日程');
+      expect(items[1].subTitle).assertEqual('请先获取订阅链接哦');
+      expect(items[1].enabled).assertFalse();
     });
 
     it('uses Android DDL floating action button dimensions and order', 0, () => {

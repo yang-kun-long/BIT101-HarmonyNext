@@ -2,10 +2,20 @@ import { describe, it, expect } from '@ohos/hypium';
 import {
   FREE_CLASSROOM_FAB_BOTTOM_PADDING_VP,
   FREE_CLASSROOM_FAB_RIGHT_PADDING_VP,
+  buildFreeClassroomCampusDialogModel,
+  buildFreeClassroomSettingsMainItems,
   formatNoBuildingTip,
   getFreeClassroomFabSpecs,
+  resolveFreeClassroomBuildingListState,
   resolveExpandedClassroomState,
+  shouldShowFreeClassroomBackToTop,
   shouldResetFreeClassroomCampus,
+  shouldRenderFreeClassroomSummaryHeader,
+  shouldRenderFreeClassroomSettingsInlineError,
+} from '../main/ets/components/freeClassroom/freeClassroomUiModel';
+import type {
+  FreeClassroomCampusDialogModel,
+  FreeClassroomSettingsMainItem,
 } from '../main/ets/components/freeClassroom/freeClassroomUiModel';
 
 export default function freeClassroomUiModelTest() {
@@ -37,11 +47,60 @@ export default function freeClassroomUiModelTest() {
       expect(resolveExpandedClassroomState(false, 'network failed', 0)).assertEqual('empty');
     });
 
+    it('does not show an inline building-load error row like Android', 0, () => {
+      expect(resolveFreeClassroomBuildingListState(true, '', 0)).assertEqual('loading');
+      expect(resolveFreeClassroomBuildingListState(false, '', 2)).assertEqual('list');
+      expect(resolveFreeClassroomBuildingListState(false, '', 0)).assertEqual('empty');
+      expect(resolveFreeClassroomBuildingListState(false, 'network failed', 0)).assertEqual('empty');
+    });
+
     it('requests Android-style reset when selected campus changes', 0, () => {
       expect(shouldResetFreeClassroomCampus('', '', '', '')).assertFalse();
       expect(shouldResetFreeClassroomCampus('01', '中关村校区', '01', '中关村校区')).assertFalse();
       expect(shouldResetFreeClassroomCampus('01', '中关村校区', '02', '良乡校区')).assertTrue();
       expect(shouldResetFreeClassroomCampus('01', '中关村校区', '01', '良乡校区')).assertTrue();
+    });
+
+    it('shows Android back-to-top FAB once the first row has scrolled away', 0, () => {
+      expect(shouldShowFreeClassroomBackToTop(0)).assertFalse();
+      expect(shouldShowFreeClassroomBackToTop(1)).assertTrue();
+    });
+
+    it('does not render the non-Android free classroom summary header', 0, () => {
+      expect(shouldRenderFreeClassroomSummaryHeader()).assertFalse();
+    });
+
+    it('does not render raw settings load errors inline like Android', 0, () => {
+      expect(shouldRenderFreeClassroomSettingsInlineError('network failed')).assertFalse();
+      expect(shouldRenderFreeClassroomSettingsInlineError('')).assertFalse();
+    });
+
+    it('builds Android-style free classroom settings main rows without inline campus choices', 0, () => {
+      const items: FreeClassroomSettingsMainItem[] = buildFreeClassroomSettingsMainItems({
+        currentCampusName: '中关村校区',
+        hideBusyClassroom: true,
+        freeMinutesThreshold: 5,
+      });
+
+      expect(items.length).assertEqual(3);
+      expect(items[0].title).assertEqual('当前校区');
+      expect(items[0].valueText).assertEqual('中关村校区');
+      expect(items[1].title).assertEqual('隐藏当前不空闲的教室');
+      expect(items[1].checked).assertTrue();
+      expect(items[2].title).assertEqual('空闲时段阈值');
+      expect(items[2].valueText).assertEqual('5 分钟');
+    });
+
+    it('builds Android-style campus dialog selection without an extra all-campus row', 0, () => {
+      const model: FreeClassroomCampusDialogModel = buildFreeClassroomCampusDialogModel([
+        { code: '1', displayName: '中关村校区' },
+        { code: '2', displayName: '良乡校区' },
+      ], 'unknown');
+
+      expect(model.title).assertEqual('切换校区');
+      expect(model.selectedCode).assertEqual('1');
+      expect(model.campuses.length).assertEqual(2);
+      expect(model.campuses[0].displayName).assertEqual('中关村校区');
     });
   });
 }

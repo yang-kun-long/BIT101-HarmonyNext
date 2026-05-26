@@ -5,6 +5,12 @@ import {
   applyDdlDisplaySettingsToAppStorage,
   DdlSettingsStore,
 } from '../../services/storage/DdlSettingsStore';
+import {
+  buildDdlSettingsDataItems,
+} from '../../components/deadline/ddlListModel';
+import type {
+  DdlSettingsItem,
+} from '../../components/deadline/ddlListModel';
 
 // ----------------------------------------------------------------------------
 // 1. Main Page Structure
@@ -23,6 +29,10 @@ struct DDLSettingPage {
   // Loading States
   @State isUpdatingLexueCalendarUrl: boolean = false;
   @State isUpdatingLexueCalendar: boolean = false;
+
+  private dataSettingItems(): DdlSettingsItem[] {
+    return buildDdlSettingsDataItems(this.isUpdatingLexueCalendarUrl, this.isUpdatingLexueCalendar);
+  }
 
   // --- Dialog Controllers ---
   // 1. Warning Color Days Dialog
@@ -88,18 +98,18 @@ struct DDLSettingPage {
             Column() {
               // 1. Fetch Subscription Link
               SettingItem({
-                title: "重新获取订阅链接",
-                subTitle: "订阅链接有时效，失败时可先重新获取",
-                enable: !this.isUpdatingLexueCalendarUrl,
+                title: this.dataSettingItems()[0].title,
+                subTitle: this.dataSettingItems()[0].subTitle,
+                enable: this.dataSettingItems()[0].enabled,
                 onItemClick: () => { this.handleUpdateLexueCalendarUrl() }
               })
               Divider().color($r('sys.color.ohos_id_color_list_separator')).margin({ left: 16 })
 
               // 2. Fetch Schedule
               SettingItem({
-                title: "重新拉取乐学日程",
-                subTitle: "使用当前订阅链接拉取并更新本地 DDL",
-                enable: !this.isUpdatingLexueCalendar,
+                title: this.dataSettingItems()[1].title,
+                subTitle: this.dataSettingItems()[1].subTitle,
+                enable: this.dataSettingItems()[1].enabled,
                 onItemClick: () => { this.handleUpdateLexueCalendar() }
               })
             }
@@ -134,6 +144,7 @@ struct DDLSettingPage {
       }
       .layoutWeight(1)
       .width('100%')
+      .height('100%')
     }
     .height('100%')
     .backgroundColor($r('sys.color.ohos_id_color_sub_background'))

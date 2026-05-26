@@ -3,6 +3,16 @@ import { CampusInfo, FreeClassroomRepository } from '../../services/jw/freeClass
 import { detectSchoolLoginMode } from '../../services/school/SchoolNetworkProbe';
 import type { SchoolLoginMode } from '../../services/school/SchoolAuthTypes';
 import {
+  buildFreeClassroomCampusDialogModel,
+  buildFreeClassroomSettingsMainItems,
+  shouldRenderFreeClassroomSettingsInlineError,
+} from '../../components/freeClassroom/freeClassroomUiModel';
+import type {
+  FreeClassroomCampusDialogModel,
+  FreeClassroomSettingsItemKind,
+  FreeClassroomSettingsMainItem,
+} from '../../components/freeClassroom/freeClassroomUiModel';
+import {
   DEFAULT_FREE_CLASSROOM_SETTINGS,
   FREE_CLASSROOM_APP_CAMPUS_CODE,
   FREE_CLASSROOM_APP_CAMPUS_NAME,
@@ -27,6 +37,7 @@ struct FreeClassroomSettingPage {
   @State loadingCampus: boolean = false;
   @State errorText: string = '';
   @State loginMode: SchoolLoginMode = 'inner';
+  @State showCampusDialog: boolean = false;
   private thresholdDialogController: CustomDialogController | null = null;
 
   aboutToAppear(): void {
@@ -85,14 +96,6 @@ struct FreeClassroomSettingPage {
     uiShowToast(this.getUIContext(), { message: '设置成功' });
   }
 
-  private async selectAllCampus(): Promise<void> {
-    this.currentCampusCode = '';
-    this.currentCampusName = '';
-    await this.store.saveCampus('', '');
-    this.syncAppStorage();
-    uiShowToast(this.getUIContext(), { message: '设置成功' });
-  }
-
   private async setHideBusy(value: boolean): Promise<void> {
     this.hideBusyClassroom = value;
     await this.store.saveHideBusyClassroom(value);
@@ -127,6 +130,30 @@ struct FreeClassroomSettingPage {
     });
     this.thresholdDialogController = controller;
     controller.open();
+  }
+
+  private settingsItems(): FreeClassroomSettingsMainItem[] {
+    return buildFreeClassroomSettingsMainItems({
+      currentCampusName: this.currentCampusName,
+      hideBusyClassroom: this.hideBusyClassroom,
+      freeMinutesThreshold: this.freeMinutesThreshold,
+    });
+  }
+
+  private settingItem(kind: FreeClassroomSettingsItemKind): FreeClassroomSettingsMainItem {
+    const items: FreeClassroomSettingsMainItem[] = this.settingsItems();
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].kind === kind) {
+        return items[i];
+      }
+    }
+    return {
+      kind,
+      title: '',
+      subTitle: '',
+      valueText: '',
+      checked: false,
+    };
   }
 
   @Builder
@@ -171,103 +198,51 @@ struct FreeClassroomSettingPage {
   }
 
   @Builder
-  private CampusRow(campus: CampusInfo) {
-    Row() {
-      Radio({ value: campus.code, group: 'freeClassroomCampus' })
-        .checked(campus.code === this.currentCampusCode)
-        .onChange((checked: boolean) => {
-          if (checked) {
-            this.selectCampus(campus);
-          }
-        })
-      Text(campus.displayName)
-        .fontSize(16)
-        .fontColor($r('sys.color.ohos_id_color_text_primary'))
-        .margin({ left: 10 })
-        .layoutWeight(1)
-        .maxLines(1)
-        .textOverflow({ overflow: TextOverflow.Ellipsis })
-    }
-    .width('100%')
-    .constraintSize({ minHeight: 54 })
-    .padding({ left: 12, right: 16, top: 10, bottom: 10 })
-    .onClick(() => {
-      this.selectCampus(campus);
-    })
-  }
-
-  @Builder
   private CampusSettings() {
     Column() {
-      this.SettingsGroup('校区')
+      this.SettingsGroup('空教室查询设置')
       Column() {
         Row() {
           Column() {
-            Text('当前校区')
+            Text(this.settingItem('campus').title)
               .fontSize(16)
               .fontColor($r('sys.color.ohos_id_color_text_primary'))
-            Text(this.currentCampusName.length > 0 ? this.currentCampusName : '全部校区')
-              .fontSize(12)
-              .fontColor($r('sys.color.ohos_id_color_text_secondary'))
-              .margin({ top: 4 })
+            if (this.settingItem('campus').valueText.length > 0) {
+              Text(this.settingItem('campus').valueText)
+                .fontSize(12)
+                .fontColor($r('sys.color.ohos_id_color_text_secondary'))
+                .margin({ top: 4 })
+            }
           }
           .layoutWeight(1)
           .alignItems(HorizontalAlign.Start)
 
-          Button('重新拉取')
-            .type(ButtonType.Capsule)
-            .fontSize(13)
-            .height(32)
-            .onClick(() => {
-              this.loadCampusList();
-            })
+          Image($r('app.media.ic_chevron_right'))
+            .width(20)
+            .height(20)
+            .fillColor($r('sys.color.ohos_id_color_text_tertiary'))
         }
         .padding({ left: 16, right: 16, top: 12, bottom: 12 })
+        .onClick(() => {
+          this.showCampusDialog = true;
+          if (this.campusList.length === 0 && !this.loadingCampus) {
+            this.loadCampusList();
+          }
+        })
 
         Divider().color($r('sys.color.ohos_id_color_list_separator')).margin({ left: 16 })
 
-        if (this.loadingCampus) {
-          Row() {
-            LoadingProgress().width(22).height(22).margin({ right: 8 })
-            Text('正在拉取校区列表...')
-              .fontSize(14)
-              .fontColor($r('sys.color.ohos_id_color_text_secondary'))
-          }
-          .width('100%')
-          .height(56)
-          .justifyContent(FlexAlign.Center)
-        } else {
-          Row() {
-            Radio({ value: '', group: 'freeClassroomCampus' })
-              .checked(this.currentCampusCode.length === 0)
-              .onChange((checked: boolean) => {
-                if (checked) {
-                  this.selectAllCampus();
-                }
-              })
-            Text('全部校区')
-              .fontSize(16)
-              .fontColor($r('sys.color.ohos_id_color_text_primary'))
-              .margin({ left: 10 })
-          }
-          .width('100%')
-          .constraintSize({ minHeight: 54 })
-          .padding({ left: 12, right: 16, top: 10, bottom: 10 })
-          .onClick(() => {
-            this.selectAllCampus();
-          })
+        this.HideBusyRow()
 
-          ForEach(this.campusList, (campus: CampusInfo) => {
-            Divider().color($r('sys.color.ohos_id_color_list_separator')).margin({ left: 16 })
-            this.CampusRow(campus)
-          }, (campus: CampusInfo) => campus.code)
-        }
+        Divider().color($r('sys.color.ohos_id_color_list_separator')).margin({ left: 16 })
+
+        this.ThresholdRow()
       }
       .backgroundColor($r('sys.color.ohos_id_color_card_bg'))
       .borderRadius(12)
       .clip(true)
 
-      if (this.errorText.length > 0) {
+      if (shouldRenderFreeClassroomSettingsInlineError(this.errorText)) {
         Text(this.errorText)
           .fontSize(12)
           .fontColor('#B91C1C')
@@ -280,90 +255,181 @@ struct FreeClassroomSettingPage {
   }
 
   @Builder
-  private DisplaySettings() {
-    Column() {
-      this.SettingsGroup('空教室查询设置')
+  private HideBusyRow() {
+    Row() {
       Column() {
-        Row() {
-          Column() {
-            Text('隐藏当前不空闲的教室')
-              .fontSize(16)
-              .fontColor($r('sys.color.ohos_id_color_text_primary'))
-            Text('开启后列表只显示当前可用教室')
-              .fontSize(12)
-              .fontColor($r('sys.color.ohos_id_color_text_secondary'))
-              .margin({ top: 4 })
-          }
-          .layoutWeight(1)
-          .alignItems(HorizontalAlign.Start)
-
-          Toggle({ type: ToggleType.Switch, isOn: this.hideBusyClassroom })
-            .selectedColor($r('sys.color.ohos_id_color_text_primary_activated'))
-            .onChange((isOn: boolean) => {
-              this.setHideBusy(isOn);
-            })
-        }
-        .padding({ left: 16, right: 16, top: 12, bottom: 12 })
-
-        Divider().color($r('sys.color.ohos_id_color_list_separator')).margin({ left: 16 })
-
-        Row() {
-          Column() {
-            Text('空闲时段阈值')
-              .fontSize(16)
-              .fontColor($r('sys.color.ohos_id_color_text_primary'))
-            Text('不大于此值的空闲时段将被忽略')
-              .fontSize(12)
-              .fontColor($r('sys.color.ohos_id_color_text_secondary'))
-              .margin({ top: 4 })
-          }
-          .layoutWeight(1)
-          .alignItems(HorizontalAlign.Start)
-
-          Text(`${this.freeMinutesThreshold} 分钟`)
-            .fontSize(14)
-            .fontColor($r('sys.color.ohos_id_color_text_secondary'))
-            .margin({ right: 8 })
-
-          Image($r('app.media.ic_chevron_right'))
-            .width(20)
-            .height(20)
-            .fillColor($r('sys.color.ohos_id_color_text_tertiary'))
-        }
-        .width('100%')
-        .constraintSize({ minHeight: 56 })
-        .padding({ left: 16, right: 16, top: 12, bottom: 12 })
-        .onClick(() => {
-          this.openThresholdDialog();
-        })
+        Text(this.settingItem('hideBusy').title)
+          .fontSize(16)
+          .fontColor($r('sys.color.ohos_id_color_text_primary'))
       }
-      .backgroundColor($r('sys.color.ohos_id_color_card_bg'))
-      .borderRadius(12)
-      .clip(true)
+      .layoutWeight(1)
+      .alignItems(HorizontalAlign.Start)
+
+      Toggle({ type: ToggleType.Switch, isOn: this.settingItem('hideBusy').checked })
+        .selectedColor($r('sys.color.ohos_id_color_text_primary_activated'))
+        .onChange((isOn: boolean) => {
+          this.setHideBusy(isOn);
+        })
     }
     .width('100%')
+    .padding({ left: 16, right: 16, top: 12, bottom: 12 })
+  }
+
+  @Builder
+  private ThresholdRow() {
+    Row() {
+      Column() {
+        Text(this.settingItem('threshold').title)
+          .fontSize(16)
+          .fontColor($r('sys.color.ohos_id_color_text_primary'))
+        Text(this.settingItem('threshold').subTitle)
+          .fontSize(12)
+          .fontColor($r('sys.color.ohos_id_color_text_secondary'))
+          .margin({ top: 4 })
+      }
+      .layoutWeight(1)
+      .alignItems(HorizontalAlign.Start)
+
+      Text(this.settingItem('threshold').valueText)
+        .fontSize(14)
+        .fontColor($r('sys.color.ohos_id_color_text_secondary'))
+        .margin({ right: 8 })
+
+      Image($r('app.media.ic_chevron_right'))
+        .width(20)
+        .height(20)
+        .fillColor($r('sys.color.ohos_id_color_text_tertiary'))
+    }
+    .width('100%')
+    .constraintSize({ minHeight: 56 })
+    .padding({ left: 16, right: 16, top: 12, bottom: 12 })
+    .onClick(() => {
+      this.openThresholdDialog();
+    })
   }
 
   build() {
-    Column() {
-      this.TopBar()
-      List() {
-        ListItem() {
-          this.CampusSettings()
+    Stack() {
+      Column() {
+        this.TopBar()
+        List() {
+          ListItem() {
+            this.CampusSettings()
+          }
+          .padding({ left: 16, right: 16, top: 16, bottom: 32 })
         }
-        .padding({ left: 16, right: 16, top: 16 })
-
-        ListItem() {
-          this.DisplaySettings()
-        }
-        .padding({ left: 16, right: 16, top: 16, bottom: 32 })
+        .layoutWeight(1)
+        .width('100%')
+        .height('100%')
+        .backgroundColor($r('sys.color.ohos_id_color_sub_background'))
       }
-      .layoutWeight(1)
-      .width('100%')
-      .backgroundColor($r('sys.color.ohos_id_color_sub_background'))
+
+      if (this.showCampusDialog) {
+        FreeClassroomCampusSelectOverlay({
+          campusList: this.campusList,
+          currentCampusCode: this.currentCampusCode,
+          loading: this.loadingCampus,
+          onDismiss: () => {
+            this.showCampusDialog = false;
+          },
+          onSelect: (campus: CampusInfo) => {
+            this.selectCampus(campus);
+            this.showCampusDialog = false;
+          },
+        })
+      }
     }
     .height('100%')
     .backgroundColor($r('sys.color.ohos_id_color_sub_background'))
+  }
+}
+
+@Component
+struct FreeClassroomCampusSelectOverlay {
+  @Prop campusList: CampusInfo[] = [];
+  @Prop currentCampusCode: string = '';
+  @Prop loading: boolean = false;
+  onDismiss: () => void = () => {};
+  onSelect: (campus: CampusInfo) => void = () => {};
+
+  private dialogModel(): FreeClassroomCampusDialogModel {
+    return buildFreeClassroomCampusDialogModel(this.campusList, this.currentCampusCode);
+  }
+
+  build() {
+    Stack() {
+      Row() {}
+      .width('100%')
+      .height('100%')
+      .backgroundColor('rgba(0,0,0,0.25)')
+      .onClick(() => {
+        this.onDismiss();
+      })
+
+      Column() {
+        Text(this.dialogModel().title)
+          .fontSize(20)
+          .fontWeight(FontWeight.Bold)
+          .fontColor($r('sys.color.ohos_id_color_text_primary'))
+          .width('100%')
+          .padding({ left: 24, right: 24, top: 22, bottom: 12 })
+
+        if (this.loading) {
+          Column() {
+            LoadingProgress()
+              .width(28)
+              .height(28)
+            Text('正在拉取校区列表...')
+              .fontSize(14)
+              .fontColor($r('sys.color.ohos_id_color_text_secondary'))
+              .margin({ top: 12 })
+          }
+          .width('100%')
+          .height(240)
+          .justifyContent(FlexAlign.Center)
+          .alignItems(HorizontalAlign.Center)
+        } else {
+          List() {
+            ForEach(this.campusList, (campus: CampusInfo) => {
+              ListItem() {
+                Row() {
+                  Radio({ value: campus.code, group: 'freeClassroomCampusDialog' })
+                    .checked(campus.code === this.dialogModel().selectedCode)
+                    .onChange((checked: boolean) => {
+                      if (checked) {
+                        this.onSelect(campus);
+                      }
+                    })
+                  Text(campus.displayName)
+                    .fontSize(16)
+                    .fontColor($r('sys.color.ohos_id_color_text_primary'))
+                    .margin({ left: 10 })
+                    .layoutWeight(1)
+                    .maxLines(1)
+                    .textOverflow({ overflow: TextOverflow.Ellipsis })
+                }
+                .width('100%')
+                .constraintSize({ minHeight: 54 })
+                .padding({ left: 12, right: 16, top: 8, bottom: 8 })
+                .onClick(() => {
+                  this.onSelect(campus);
+                })
+              }
+            }, (campus: CampusInfo) => campus.code)
+          }
+          .width('100%')
+          .height(360)
+        }
+      }
+      .width('86%')
+      .constraintSize({ maxHeight: '90%' })
+      .backgroundColor($r('sys.color.ohos_id_color_dialog_bg'))
+      .borderRadius(28)
+      .clip(true)
+      .align(Alignment.Center)
+    }
+    .width('100%')
+    .height('100%')
   }
 }
 
