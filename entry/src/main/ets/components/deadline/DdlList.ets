@@ -25,6 +25,7 @@ import {
   getDdlEmptyText,
   getDdlFabSpecs,
   resolveDdlContentState,
+  shouldAutoSyncDdlOnAppear,
   validateDdlEditInput,
 } from './ddlListModel';
 
@@ -67,6 +68,7 @@ export default struct DdlList {
     }
     await this.loadSubscribeState();
     await this.loadDdl();
+    this.autoSyncDdlFromLexue();
   }
 
   private onRetentionDaysChanged(): void {
@@ -296,6 +298,23 @@ export default struct DdlList {
           message = '获取失败：' + err.message;
         }
         uiShowToast(this.getUIContext(), { message });
+      })
+      .finally(() => {
+        this.isFetchingLexue = false;
+      });
+  }
+
+  private autoSyncDdlFromLexue(): void {
+    if (!shouldAutoSyncDdlOnAppear(this.hasSubscribeUrl, this.loading, this.isFetchingLexue)) {
+      return;
+    }
+    this.isFetchingLexue = true;
+    syncDdlFromLexue(this.currentUsername)
+      .then((_count: number) => {
+        return this.loadDdl();
+      })
+      .catch((err: Error) => {
+        this.logger.error('auto sync Lexue DDL failed', err);
       })
       .finally(() => {
         this.isFetchingLexue = false;

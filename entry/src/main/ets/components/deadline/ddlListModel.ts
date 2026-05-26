@@ -113,6 +113,14 @@ export function resolveDdlContentState(
   return 'empty';
 }
 
+export function shouldAutoSyncDdlOnAppear(
+  hasSubscribeUrl: boolean,
+  loading: boolean,
+  isFetchingLexue: boolean,
+): boolean {
+  return hasSubscribeUrl && !loading && !isFetchingLexue;
+}
+
 export function buildDdlSettingsDataItems(
   isUpdatingLexueCalendarUrl: boolean,
   isUpdatingLexueCalendar: boolean,

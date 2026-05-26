@@ -11,6 +11,7 @@ import {
   getDdlEmptyText,
   getDdlFabSpecs,
   resolveDdlContentState,
+  shouldAutoSyncDdlOnAppear,
   validateDdlSettingsNumberInput,
   validateDdlEditInput,
 } from '../main/ets/components/deadline/ddlListModel';
@@ -34,6 +35,13 @@ export default function ddlListModelTest() {
       expect(resolveDdlContentState(false, false, 2)).assertEqual('fetch-lexue');
       expect(resolveDdlContentState(false, true, 0)).assertEqual('empty');
       expect(resolveDdlContentState(false, true, 2)).assertEqual('list');
+    });
+
+    it('auto-syncs DDL silently on appear only after a subscription URL exists', 0, () => {
+      expect(shouldAutoSyncDdlOnAppear(false, false, false)).assertFalse();
+      expect(shouldAutoSyncDdlOnAppear(true, true, false)).assertFalse();
+      expect(shouldAutoSyncDdlOnAppear(true, false, true)).assertFalse();
+      expect(shouldAutoSyncDdlOnAppear(true, false, false)).assertTrue();
     });
 
     it('builds Android-style DDL settings data rows', 0, () => {
