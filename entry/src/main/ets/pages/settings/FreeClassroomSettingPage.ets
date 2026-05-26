@@ -6,6 +6,7 @@ import {
   buildFreeClassroomCampusDialogModel,
   buildFreeClassroomSettingsMainItems,
   shouldRenderFreeClassroomSettingsInlineError,
+  shouldShowFreeClassroomSettingFailureToast,
   shouldShowFreeClassroomSettingSuccessToast,
 } from '../../components/freeClassroom/freeClassroomUiModel';
 import type {
@@ -90,12 +91,23 @@ struct FreeClassroomSettingPage {
   }
 
   private async selectCampus(campus: CampusInfo): Promise<void> {
+    const previousCampusCode = this.currentCampusCode;
+    const previousCampusName = this.currentCampusName;
     this.currentCampusCode = campus.code;
     this.currentCampusName = campus.displayName;
-    await this.store.saveCampus(campus.code, campus.displayName);
-    this.syncAppStorage();
-    if (shouldShowFreeClassroomSettingSuccessToast('campus')) {
-      uiShowToast(this.getUIContext(), { message: '设置成功' });
+    try {
+      await this.store.saveCampus(campus.code, campus.displayName);
+      this.syncAppStorage();
+      if (shouldShowFreeClassroomSettingSuccessToast('campus')) {
+        uiShowToast(this.getUIContext(), { message: '设置成功' });
+      }
+    } catch (_) {
+      this.currentCampusCode = previousCampusCode;
+      this.currentCampusName = previousCampusName;
+      this.syncAppStorage();
+      if (shouldShowFreeClassroomSettingFailureToast('campus')) {
+        uiShowToast(this.getUIContext(), { message: '设置失败' });
+      }
     }
   }
 
@@ -110,11 +122,20 @@ struct FreeClassroomSettingPage {
 
   private async setThreshold(value: number): Promise<void> {
     const safe = normalizeFreeClassroomThreshold(value);
+    const previousThreshold = this.freeMinutesThreshold;
     this.freeMinutesThreshold = safe;
-    await this.store.saveFreeMinutesThreshold(safe);
-    this.syncAppStorage();
-    if (shouldShowFreeClassroomSettingSuccessToast('threshold')) {
-      uiShowToast(this.getUIContext(), { message: '设置成功' });
+    try {
+      await this.store.saveFreeMinutesThreshold(safe);
+      this.syncAppStorage();
+      if (shouldShowFreeClassroomSettingSuccessToast('threshold')) {
+        uiShowToast(this.getUIContext(), { message: '设置成功' });
+      }
+    } catch (_) {
+      this.freeMinutesThreshold = previousThreshold;
+      this.syncAppStorage();
+      if (shouldShowFreeClassroomSettingFailureToast('threshold')) {
+        uiShowToast(this.getUIContext(), { message: '设置失败' });
+      }
     }
   }
 

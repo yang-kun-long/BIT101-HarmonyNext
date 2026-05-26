@@ -120,6 +120,10 @@ export function shouldShowFreeClassroomSettingSuccessToast(kind: FreeClassroomSe
   return kind === 'campus' || kind === 'threshold';
 }
 
+export function shouldShowFreeClassroomSettingFailureToast(kind: FreeClassroomSettingsItemKind): boolean {
+  return kind === 'campus' || kind === 'threshold';
+}
+
 export function buildFreeClassroomSettingsMainItems(
   input: FreeClassroomSettingsMainInput,
 ): FreeClassroomSettingsMainItem[] {
