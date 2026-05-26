@@ -1,7 +1,7 @@
 // entry/src/main/ets/components/deadline/DdlCard.ets
 
 import type { DdlItem } from '../../services/deadline/DdlModels';
-import { computeDdlRemainRatio } from '../../services/deadline/DdlModels';
+import { computeDdlRemainRatio, formatDdlRemainText } from '../../services/deadline/DdlModels';
 
 @Component
 export struct DdlCard {
@@ -44,23 +44,10 @@ export struct DdlCard {
     return raw;
   }
 
-  private formatTime(ts: number): string {
-    const d: Date = new Date(ts);
-    const m: number = d.getMonth() + 1;
-    const day: number = d.getDate();
-    const hour: string = d.getHours().toString().padStart(2, '0');
-    const minute: string = d.getMinutes().toString().padStart(2, '0');
-    return `${m}/${day} ${hour}:${minute}`;
-  }
-
-  // start == end -> 截止
-  private timeText(): string {
-    const start: string = this.formatTime(this.event.startTime);
-    if (!this.event.endTime || this.event.endTime === this.event.startTime) {
-      return `截止：${start}`;
-    }
-    const end: string = this.formatTime(this.event.endTime);
-    return `${start} - ${end}`;
+  private remainTimeText(): string {
+    const deadline = this.event.endTime > 0 ? this.event.endTime : this.event.startTime;
+    const now = this.nowMs > 0 ? this.nowMs : Date.now();
+    return formatDdlRemainText(deadline, now);
   }
 
   // 一行摘要：从 description 里挑第一行非空，去掉 bullet，截断
@@ -188,7 +175,7 @@ export struct DdlCard {
           .textAlign(TextAlign.Center)          // ✅ 文本在整行内居中
 
         // 时间
-        Text(this.timeText())
+        Text(this.remainTimeText())
           .fontSize(this.baseFont)
           .fontColor('#9CA3AF')
           .margin({ top: 2 })

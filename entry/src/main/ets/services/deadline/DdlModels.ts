@@ -158,6 +158,26 @@ export function computeDdlRemainRatio(deadlineMs: number, nowMs: number, warning
   return diff / warningMs;
 }
 
+export function formatDdlRemainText(deadlineMs: number, nowMs: number): string {
+  let diffMinutes: number = Math.trunc((deadlineMs - nowMs) / (60 * 1000));
+  let prefix = '剩余 ';
+  if (diffMinutes < 0) {
+    prefix = '已过 ';
+    diffMinutes = Math.abs(diffMinutes);
+  }
+
+  const day: number = Math.trunc(diffMinutes / 1440);
+  const hour: number = Math.trunc((diffMinutes % 1440) / 60);
+  const minute: number = diffMinutes % 60;
+  if (day > 0) {
+    return `${prefix}${day}天 ${hour}小时 ${minute}分钟`;
+  }
+  if (hour > 0) {
+    return `${prefix}${hour}小时 ${minute}分钟`;
+  }
+  return `${prefix}${minute}分钟`;
+}
+
 function cloneDdlItem(item: DdlItem): DdlItem {
   return {
     uid: item.uid,

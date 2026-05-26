@@ -4,6 +4,7 @@ import {
   buildDdlItemFromManualInput,
   computeDdlRemainRatio,
   deleteDdlItem,
+  formatDdlRemainText,
   listVisibleDdlItems,
   mergeLexueEventsWithDdlItems,
   parseDdlItemsJson,
@@ -148,6 +149,19 @@ export default function ddlLocalTest() {
       expect(computeDdlRemainRatio(now + 7 * dayMs, now, 7)).assertEqual(1);
       expect(computeDdlRemainRatio(now + 14 * dayMs, now, 7)).assertEqual(1);
       expect(computeDdlRemainRatio(now + 3.5 * dayMs, now, 7)).assertEqual(0.5);
+    });
+
+    it('formats Android-style DDL remaining time text', 0, () => {
+      const minuteMs: number = 60 * 1000;
+      const now: number = new Date(2026, 4, 26, 8, 0, 0).getTime();
+
+      expect(formatDdlRemainText(now + (2 * 1440 + 3 * 60 + 4) * minuteMs, now))
+        .assertEqual('剩余 2天 3小时 4分钟');
+      expect(formatDdlRemainText(now + (3 * 60 + 4) * minuteMs, now))
+        .assertEqual('剩余 3小时 4分钟');
+      expect(formatDdlRemainText(now + 4 * minuteMs, now)).assertEqual('剩余 4分钟');
+      expect(formatDdlRemainText(now - (3 * 60 + 4) * minuteMs, now))
+        .assertEqual('已过 3小时 4分钟');
     });
 
     it('normalizes DDL display settings to non-negative whole days', 0, () => {
