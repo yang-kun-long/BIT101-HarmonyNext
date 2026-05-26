@@ -3,6 +3,7 @@ import { formatDdlRemainText } from '../../services/deadline/DdlModels';
 
 export type DdlContentState = 'loading' | 'fetch-lexue' | 'empty' | 'list';
 export type DdlFabAction = 'add' | 'settings';
+export type DdlEditFieldType = 'picker';
 
 export interface DdlFabSpec {
   action: DdlFabAction;
@@ -41,6 +42,9 @@ export interface DdlEditDialogModel {
   titlePlaceholder: string;
   datePlaceholder: string;
   timePlaceholder: string;
+  dateFieldType: DdlEditFieldType;
+  timeFieldType: DdlEditFieldType;
+  timeRequiresDate: boolean;
   detailPlaceholder: string;
   confirmText: string;
   cancelText: string;
@@ -55,6 +59,18 @@ export interface DdlEditDialogModel {
 export interface DdlEditValidationResult {
   isValid: boolean;
   errorText: string;
+}
+
+export interface DdlDatePickerResultValue {
+  year?: number;
+  month?: number;
+  day?: number;
+}
+
+export interface DdlTimePickerResultValue {
+  hour?: number;
+  minute?: number;
+  second?: number;
 }
 
 export const DDL_FAB_SIZE_VP = 42;
@@ -147,6 +163,33 @@ function formatDdlEditDate(timestamp: number): string {
   return `${year}-${month}-${day}`;
 }
 
+export function formatDdlDatePickerValue(value: Date | DdlDatePickerResultValue): string {
+  if (value instanceof Date) {
+    return formatDdlEditDate(value.getTime());
+  }
+
+  if (value.year === undefined || value.month === undefined || value.day === undefined) {
+    return '';
+  }
+
+  const year = value.year.toString();
+  const month = (value.month + 1).toString().padStart(2, '0');
+  const day = value.day.toString().padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+export function formatDdlTimePickerValue(value: DdlTimePickerResultValue): string {
+  if (value.hour === undefined || value.minute === undefined) {
+    return '';
+  }
+
+  const second = value.second === undefined ? 0 : value.second;
+  const hourText = value.hour.toString().padStart(2, '0');
+  const minuteText = value.minute.toString().padStart(2, '0');
+  const secondText = second.toString().padStart(2, '0');
+  return `${hourText}:${minuteText}:${secondText}`;
+}
+
 function formatDdlEditTime(timestamp: number): string {
   const d = new Date(timestamp);
   const hour = d.getHours().toString().padStart(2, '0');
@@ -194,6 +237,9 @@ export function buildDdlEditDialogModel(item: DdlItem | null): DdlEditDialogMode
     titlePlaceholder: '标题',
     datePlaceholder: '请选择日期',
     timePlaceholder: '请选择时间',
+    dateFieldType: 'picker',
+    timeFieldType: 'picker',
+    timeRequiresDate: true,
     detailPlaceholder: '详情',
     confirmText: '确定',
     cancelText: '取消',

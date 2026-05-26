@@ -20,6 +20,8 @@ import {
   DdlEditValidationResult,
   DdlFabSpec,
   buildDdlEditDialogModel,
+  formatDdlDatePickerValue,
+  formatDdlTimePickerValue,
   getDdlEmptyText,
   getDdlFabSpecs,
   resolveDdlContentState,
@@ -514,6 +516,11 @@ struct DdlEditOverlay {
   @State private timeText: string = '';
   @State private description: string = '';
   @State private errorText: string = '';
+  @State private pickerMode: 'none' | 'date' | 'time' = 'none';
+  @State private pendingDate: Date = new Date();
+  @State private pendingTimeHour: number = 0;
+  @State private pendingTimeMinute: number = 0;
+  @State private pendingTimeSecond: number = 0;
 
   aboutToAppear(): void {
     const model: DdlEditDialogModel = buildDdlEditDialogModel(this.editItem);
@@ -549,6 +556,69 @@ struct DdlEditOverlay {
     return new Date(year, month, day, hour, minute, second).getTime();
   }
 
+  private formatDateText(value: Date): string {
+    return formatDdlDatePickerValue(value);
+  }
+
+  private fallbackPickerDate(): Date {
+    const parsed = this.parseDeadline(
+      this.dateText.length > 0 ? this.dateText : this.formatDateText(new Date()),
+      this.timeText.length > 0 ? this.timeText : '00:00:00'
+    );
+    if (parsed > 0) {
+      return new Date(parsed);
+    }
+    return new Date();
+  }
+
+  private applyDatePickerText(value: string): void {
+    if (value.length === 0) {
+      return;
+    }
+    this.dateText = value;
+    if (this.timeText.length === 0) {
+      this.timeText = '00:00:00';
+    }
+    this.errorText = '';
+  }
+
+  private showDatePicker(): void {
+    this.pendingDate = this.fallbackPickerDate();
+    this.pickerMode = 'date';
+  }
+
+  private showTimePicker(): void {
+    if (this.dateText.length === 0) {
+      return;
+    }
+    const selected = this.fallbackPickerDate();
+    this.pendingTimeHour = selected.getHours();
+    this.pendingTimeMinute = selected.getMinutes();
+    this.pendingTimeSecond = selected.getSeconds();
+    this.pickerMode = 'time';
+  }
+
+  private cancelPicker(): void {
+    this.pickerMode = 'none';
+  }
+
+  private confirmPicker(): void {
+    if (this.pickerMode === 'date') {
+      this.applyDatePickerText(formatDdlDatePickerValue(this.pendingDate));
+    } else if (this.pickerMode === 'time') {
+      const value = formatDdlTimePickerValue({
+        hour: this.pendingTimeHour,
+        minute: this.pendingTimeMinute,
+        second: this.pendingTimeSecond,
+      });
+      if (value.length > 0) {
+        this.timeText = value;
+        this.errorText = '';
+      }
+    }
+    this.pickerMode = 'none';
+  }
+
   private submit(): void {
     const title = this.title.trim();
     const deadline = this.parseDeadline(this.dateText, this.timeText);
@@ -568,6 +638,139 @@ struct DdlEditOverlay {
 
   private editModel(): DdlEditDialogModel {
     return buildDdlEditDialogModel(this.editItem);
+  }
+
+  private canPickTime(): boolean {
+    return !this.editModel().timeRequiresDate || this.dateText.length > 0;
+  }
+
+  @Builder
+  private DatePickerButton() {
+    Button({ type: ButtonType.Capsule, stateEffect: true }) {
+      Row({ space: 6 }) {
+        Text(this.dateText.length > 0 ? this.dateText : this.editModel().datePlaceholder)
+          .fontSize(14)
+          .fontColor('#334155')
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+      }
+      .justifyContent(FlexAlign.Center)
+      .width('100%')
+    }
+    .height(44)
+    .backgroundColor('#E9F1FF')
+    .onClick(() => this.showDatePicker())
+  }
+
+  @Builder
+  private TimePickerButton() {
+    Button({ type: ButtonType.Capsule, stateEffect: true }) {
+      Row({ space: 6 }) {
+        Text(this.timeText.length > 0 ? this.timeText : this.editModel().timePlaceholder)
+          .fontSize(14)
+          .fontColor(this.canPickTime() ? '#334155' : '#94A3B8')
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+      }
+      .justifyContent(FlexAlign.Center)
+      .width('100%')
+    }
+    .height(44)
+    .enabled(this.canPickTime())
+    .backgroundColor('#E9F1FF')
+    .onClick(() => this.showTimePicker())
+  }
+
+  @Builder
+  private PickerOverlay() {
+    if (this.pickerMode !== 'none') {
+      Stack() {
+        Column({ space: 12 }) {
+          if (this.pickerMode === 'date') {
+            Text(formatDdlDatePickerValue(this.pendingDate))
+              .fontSize(18)
+              .fontWeight(FontWeight.Bold)
+              .width('100%')
+              .textAlign(TextAlign.Center)
+
+            DatePicker({
+              start: new Date('2000-01-01T00:00:00'),
+              end: new Date('2100-12-31T23:59:59'),
+              selected: this.pendingDate,
+            })
+              .height(230)
+              .width('100%')
+              .onDateChange((value: Date) => {
+                this.pendingDate = value;
+              })
+          } else {
+            Text(formatDdlTimePickerValue({
+              hour: this.pendingTimeHour,
+              minute: this.pendingTimeMinute,
+              second: this.pendingTimeSecond,
+            }))
+              .fontSize(18)
+              .fontWeight(FontWeight.Bold)
+              .width('100%')
+              .textAlign(TextAlign.Center)
+
+            TimePicker({
+              selected: new Date(2026, 0, 1, this.pendingTimeHour, this.pendingTimeMinute, this.pendingTimeSecond),
+              format: TimePickerFormat.HOUR_MINUTE_SECOND,
+            })
+              .useMilitaryTime(true)
+              .height(230)
+              .width('100%')
+              .onChange((value: TimePickerResult) => {
+                if (value.hour !== undefined) {
+                  this.pendingTimeHour = value.hour;
+                }
+                if (value.minute !== undefined) {
+                  this.pendingTimeMinute = value.minute;
+                }
+                this.pendingTimeSecond = value.second === undefined ? 0 : value.second;
+              })
+          }
+
+          Row() {
+            Text('取消')
+              .fontSize(16)
+              .fontWeight(FontWeight.Medium)
+              .fontColor('#0A59F7')
+              .textAlign(TextAlign.Center)
+              .height('100%')
+              .layoutWeight(1)
+              .onClick(() => this.cancelPicker())
+
+            Divider()
+              .vertical(true)
+              .height(28)
+              .color('#E5E7EB')
+
+            Text('确定')
+              .fontSize(16)
+              .fontWeight(FontWeight.Medium)
+              .fontColor('#0A59F7')
+              .textAlign(TextAlign.Center)
+              .height('100%')
+              .layoutWeight(1)
+              .onClick(() => this.confirmPicker())
+          }
+          .width('100%')
+          .height(52)
+          .alignItems(VerticalAlign.Center)
+        }
+        .padding({ left: 24, right: 24, top: 22, bottom: 16 })
+        .width('88%')
+        .backgroundColor('#FFFFFF')
+        .borderRadius(24)
+        .align(Alignment.Center)
+      }
+      .width('100%')
+      .height('100%')
+      .backgroundColor('rgba(0,0,0,0.18)')
+      .zIndex(10)
+    }
   }
 
   build() {
@@ -599,21 +802,15 @@ struct DdlEditOverlay {
           })
 
         Row({ space: 10 }) {
-          TextInput({ placeholder: this.editModel().datePlaceholder, text: this.dateText })
-            .height(44)
+          Column() {
+            this.DatePickerButton()
+          }
             .layoutWeight(1)
-            .onChange((value: string) => {
-              this.dateText = value;
-              this.errorText = '';
-            })
 
-          TextInput({ placeholder: this.editModel().timePlaceholder, text: this.timeText })
-            .height(44)
+          Column() {
+            this.TimePickerButton()
+          }
             .layoutWeight(1)
-            .onChange((value: string) => {
-              this.timeText = value;
-              this.errorText = '';
-            })
         }
         .width('100%')
 
@@ -643,6 +840,8 @@ struct DdlEditOverlay {
       .backgroundColor('#FFFFFF')
       .borderRadius(12)
       .align(Alignment.Center)
+
+      this.PickerOverlay()
     }
     .width('100%')
     .height('100%')

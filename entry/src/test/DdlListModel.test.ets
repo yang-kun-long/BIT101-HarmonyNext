@@ -4,6 +4,8 @@ import {
   buildDdlEditDialogModel,
   buildDdlDetailModel,
   buildDdlCardTextLines,
+  formatDdlDatePickerValue,
+  formatDdlTimePickerValue,
   getDdlEmptyText,
   getDdlFabSpecs,
   resolveDdlContentState,
@@ -136,6 +138,9 @@ export default function ddlListModelTest() {
       expect(createModel.titlePlaceholder).assertEqual('标题');
       expect(createModel.datePlaceholder).assertEqual('请选择日期');
       expect(createModel.timePlaceholder).assertEqual('请选择时间');
+      expect(createModel.dateFieldType).assertEqual('picker');
+      expect(createModel.timeFieldType).assertEqual('picker');
+      expect(createModel.timeRequiresDate).assertTrue();
       expect(createModel.detailPlaceholder).assertEqual('详情');
       expect(createModel.confirmText).assertEqual('确定');
       expect(createModel.cancelText).assertEqual('取消');
@@ -164,6 +169,15 @@ export default function ddlListModelTest() {
       expect(editModel.initialDateText).assertEqual('2026-05-26');
       expect(editModel.initialTimeText).assertEqual('23:59:00');
       expect(editModel.initialDetail).assertEqual('自定义备注');
+    });
+
+    it('formats legacy DatePicker accept results for DDL date chips', 0, () => {
+      expect(formatDdlDatePickerValue({ year: 2026, month: 4, day: 26 })).assertEqual('2026-05-26');
+    });
+
+    it('formats TimePicker results for DDL time chips', 0, () => {
+      expect(formatDdlTimePickerValue({ hour: 8, minute: 5 })).assertEqual('08:05:00');
+      expect(formatDdlTimePickerValue({ hour: 23, minute: 59, second: 7 })).assertEqual('23:59:07');
     });
 
     it('validates DDL edit input with Android error copy', 0, () => {
