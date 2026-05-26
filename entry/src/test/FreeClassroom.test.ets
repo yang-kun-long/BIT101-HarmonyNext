@@ -8,6 +8,10 @@ import {
   parseBusyPeriods,
   sortFreeClassroomRowsForAndroidDisplay,
 } from '../main/ets/services/jw/freeClassroomRepository';
+import {
+  normalizeFreeClassroomThreshold,
+  parseFreeClassroomThresholdInput,
+} from '../main/ets/services/storage/FreeClassroomSettingsStore';
 import type {
   ClassroomInfo,
   ClassroomBusyStatus,
@@ -165,6 +169,19 @@ export default function freeClassroomTest() {
 
       expect(visible.map((row: FreeClassroomRow) => row.classroomName).join(',')).assertEqual('103,101,104,102');
       expect(freeOnly.map((row: FreeClassroomRow) => row.classroomName).join(',')).assertEqual('103,101,104');
+    });
+
+    it('normalizes Android-style free classroom threshold without upper cap', 0, () => {
+      expect(normalizeFreeClassroomThreshold(7.8)).assertEqual(7);
+      expect(normalizeFreeClassroomThreshold(-1)).assertEqual(0);
+      expect(normalizeFreeClassroomThreshold(999)).assertEqual(999);
+    });
+
+    it('parses threshold input with Android InputNumberDialog rules', 0, () => {
+      expect(parseFreeClassroomThresholdInput('999')).assertEqual(999);
+      expect(parseFreeClassroomThresholdInput('')).assertEqual(null);
+      expect(parseFreeClassroomThresholdInput('-1')).assertEqual(null);
+      expect(parseFreeClassroomThresholdInput('7.8')).assertEqual(null);
     });
   });
 }

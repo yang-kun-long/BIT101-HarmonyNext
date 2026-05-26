@@ -9,6 +9,8 @@ import {
   FREE_CLASSROOM_APP_FREE_THRESHOLD,
   FREE_CLASSROOM_APP_HIDE_BUSY,
   FreeClassroomSettingsStore,
+  normalizeFreeClassroomThreshold,
+  parseFreeClassroomThresholdInput,
 } from '../../services/storage/FreeClassroomSettingsStore';
 
 @Entry
@@ -25,6 +27,7 @@ struct FreeClassroomSettingPage {
   @State loadingCampus: boolean = false;
   @State errorText: string = '';
   @State loginMode: SchoolLoginMode = 'inner';
+  private thresholdDialogController: CustomDialogController | null = null;
 
   aboutToAppear(): void {
     this.bootstrap();
@@ -98,11 +101,32 @@ struct FreeClassroomSettingPage {
   }
 
   private async setThreshold(value: number): Promise<void> {
-    const safe = Math.max(0, Math.min(120, Math.floor(value)));
+    const safe = normalizeFreeClassroomThreshold(value);
     this.freeMinutesThreshold = safe;
     await this.store.saveFreeMinutesThreshold(safe);
     this.syncAppStorage();
     uiShowToast(this.getUIContext(), { message: '设置成功' });
+  }
+
+  private openThresholdDialog(): void {
+    if (this.thresholdDialogController !== null) {
+      this.thresholdDialogController.close();
+    }
+    const controller = new CustomDialogController({
+      builder: FreeClassroomThresholdDialog({
+        title: '空闲时段阈值',
+        text: '不大于此值的空闲时段将被忽略 (单位: 分钟)',
+        initValue: this.freeMinutesThreshold,
+        onConfirm: (value: number) => {
+          this.setThreshold(value);
+        },
+      }),
+      alignment: DialogAlignment.Center,
+      autoCancel: true,
+      customStyle: true,
+    });
+    this.thresholdDialogController = controller;
+    controller.open();
   }
 
   @Builder
@@ -283,72 +307,35 @@ struct FreeClassroomSettingPage {
 
         Divider().color($r('sys.color.ohos_id_color_list_separator')).margin({ left: 16 })
 
-        Column() {
-          Row() {
-            Column() {
-              Text('空闲时段阈值')
-                .fontSize(16)
-                .fontColor($r('sys.color.ohos_id_color_text_primary'))
-              Text('不大于此值的空闲时段将被忽略')
-                .fontSize(12)
-                .fontColor($r('sys.color.ohos_id_color_text_secondary'))
-                .margin({ top: 4 })
-            }
-            .layoutWeight(1)
-            .alignItems(HorizontalAlign.Start)
-
-            Text(`${this.freeMinutesThreshold} 分钟`)
-              .fontSize(14)
+        Row() {
+          Column() {
+            Text('空闲时段阈值')
+              .fontSize(16)
+              .fontColor($r('sys.color.ohos_id_color_text_primary'))
+            Text('不大于此值的空闲时段将被忽略')
+              .fontSize(12)
               .fontColor($r('sys.color.ohos_id_color_text_secondary'))
+              .margin({ top: 4 })
           }
-          .width('100%')
+          .layoutWeight(1)
+          .alignItems(HorizontalAlign.Start)
 
-          Row({ space: 12 }) {
-            Button({ type: ButtonType.Circle, stateEffect: true }) {
-              SymbolGlyph($r('sys.symbol.minus'))
-                .fontSize(20)
-                .fontColor([$r('sys.color.ohos_id_color_text_primary')])
-            }
-            .width(40)
-            .height(40)
-            .backgroundColor('#E8EEF8')
-            .onClick(() => {
-              this.setThreshold(this.freeMinutesThreshold - 1);
-            })
+          Text(`${this.freeMinutesThreshold} 分钟`)
+            .fontSize(14)
+            .fontColor($r('sys.color.ohos_id_color_text_secondary'))
+            .margin({ right: 8 })
 
-            Slider({
-              value: this.freeMinutesThreshold,
-              min: 0,
-              max: 60,
-              step: 1,
-              style: SliderStyle.OutSet,
-            })
-              .layoutWeight(1)
-              .onChange((value: number) => {
-                this.freeMinutesThreshold = Math.floor(value);
-              })
-              .onTouch((event: TouchEvent) => {
-                if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
-                  this.setThreshold(this.freeMinutesThreshold);
-                }
-              })
-
-            Button({ type: ButtonType.Circle, stateEffect: true }) {
-              SymbolGlyph($r('sys.symbol.plus'))
-                .fontSize(20)
-                .fontColor([$r('sys.color.ohos_id_color_text_primary')])
-            }
-            .width(40)
-            .height(40)
-            .backgroundColor('#E8EEF8')
-            .onClick(() => {
-              this.setThreshold(this.freeMinutesThreshold + 1);
-            })
-          }
-          .width('100%')
-          .margin({ top: 12 })
+          Image($r('app.media.ic_chevron_right'))
+            .width(20)
+            .height(20)
+            .fillColor($r('sys.color.ohos_id_color_text_tertiary'))
         }
+        .width('100%')
+        .constraintSize({ minHeight: 56 })
         .padding({ left: 16, right: 16, top: 12, bottom: 12 })
+        .onClick(() => {
+          this.openThresholdDialog();
+        })
       }
       .backgroundColor($r('sys.color.ohos_id_color_card_bg'))
       .borderRadius(12)
@@ -377,5 +364,90 @@ struct FreeClassroomSettingPage {
     }
     .height('100%')
     .backgroundColor($r('sys.color.ohos_id_color_sub_background'))
+  }
+}
+
+@CustomDialog
+struct FreeClassroomThresholdDialog {
+  controller: CustomDialogController;
+  title: string = '';
+  text: string = '';
+  initValue: number = 0;
+  onConfirm: (value: number) => void = () => {};
+
+  @State inputValue: string = '';
+  @State errorMessage: string = '';
+
+  aboutToAppear(): void {
+    this.inputValue = this.initValue.toString();
+  }
+
+  build() {
+    Column() {
+      Text(this.title)
+        .fontSize(20)
+        .fontWeight(FontWeight.Bold)
+        .fontColor($r('sys.color.ohos_id_color_text_primary'))
+        .padding({ top: 24, left: 24, right: 24, bottom: 8 })
+        .width('100%')
+
+      Text(this.text)
+        .fontSize(12)
+        .fontColor($r('sys.color.ohos_id_color_text_secondary'))
+        .padding({ left: 24, right: 24, bottom: 16 })
+        .width('100%')
+
+      TextInput({ text: this.inputValue })
+        .width('90%')
+        .height(56)
+        .type(InputType.Number)
+        .backgroundColor(Color.Transparent)
+        .border({ width: 1, color: $r('sys.color.ohos_id_color_text_tertiary'), radius: 8 })
+        .onChange((value: string) => {
+          this.inputValue = value;
+          this.errorMessage = '';
+        })
+        .margin({ bottom: 4 })
+
+      if (this.errorMessage.length > 0) {
+        Text(this.errorMessage)
+          .fontSize(12)
+          .fontColor(Color.Red)
+          .padding({ left: 24, bottom: 8 })
+          .width('100%')
+      } else {
+        Blank().height(22)
+      }
+
+      Row() {
+        Button('取消', { type: ButtonType.Normal })
+          .onClick(() => {
+            this.controller.close();
+          })
+          .backgroundColor(Color.Transparent)
+          .fontColor($r('sys.color.ohos_id_color_text_primary'))
+          .layoutWeight(1)
+
+        Button('确定', { type: ButtonType.Normal })
+          .onClick(() => {
+            const value = parseFreeClassroomThresholdInput(this.inputValue);
+            if (value !== null) {
+              this.onConfirm(value);
+              this.controller.close();
+            } else {
+              this.errorMessage = '格式校验失败Orz';
+            }
+          })
+          .backgroundColor(Color.Transparent)
+          .fontColor($r('sys.color.ohos_id_color_text_primary'))
+          .layoutWeight(1)
+      }
+      .width('100%')
+      .height(52)
+      .margin({ bottom: 8 })
+    }
+    .backgroundColor($r('sys.color.ohos_id_color_dialog_bg'))
+    .borderRadius(28)
+    .width('80%')
   }
 }

@@ -26,6 +26,24 @@ export const DEFAULT_FREE_CLASSROOM_SETTINGS: FreeClassroomSettingsData = {
   freeMinutesThreshold: 5,
 };
 
+export function normalizeFreeClassroomThreshold(value: number): number {
+  if (!Number.isFinite(value)) {
+    return DEFAULT_FREE_CLASSROOM_SETTINGS.freeMinutesThreshold;
+  }
+  return Math.max(0, Math.floor(value));
+}
+
+export function parseFreeClassroomThresholdInput(text: string): number | null {
+  if (!/^\d+$/.test(text)) {
+    return null;
+  }
+  const value = Number(text);
+  if (!Number.isSafeInteger(value)) {
+    return null;
+  }
+  return value;
+}
+
 export class FreeClassroomSettingsStore {
   private static abilityContext: any | null = null;
 
@@ -67,7 +85,7 @@ export class FreeClassroomSettingsStore {
       currentCampusCode,
       currentCampusName,
       hideBusyClassroom,
-      freeMinutesThreshold: Number.isFinite(freeMinutesThreshold) ? Math.max(0, Math.floor(freeMinutesThreshold)) : 5,
+      freeMinutesThreshold: normalizeFreeClassroomThreshold(freeMinutesThreshold),
     };
   }
 
@@ -77,7 +95,7 @@ export class FreeClassroomSettingsStore {
       await pref.put(KEY_CAMPUS_CODE, data.currentCampusCode);
       await pref.put(KEY_CAMPUS_NAME, data.currentCampusName);
       await pref.put(KEY_HIDE_BUSY, data.hideBusyClassroom);
-      await pref.put(KEY_FREE_THRESHOLD, Math.max(0, Math.floor(data.freeMinutesThreshold)));
+      await pref.put(KEY_FREE_THRESHOLD, normalizeFreeClassroomThreshold(data.freeMinutesThreshold));
       await pref.flush();
     });
   }
