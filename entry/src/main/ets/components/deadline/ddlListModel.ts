@@ -36,6 +36,27 @@ export interface DdlDeleteConfirmModel {
   successToast: string;
 }
 
+export interface DdlEditDialogModel {
+  title: string;
+  titlePlaceholder: string;
+  datePlaceholder: string;
+  timePlaceholder: string;
+  detailPlaceholder: string;
+  confirmText: string;
+  cancelText: string;
+  addSuccessToast: string;
+  editSuccessToast: string;
+  initialTitle: string;
+  initialDateText: string;
+  initialTimeText: string;
+  initialDetail: string;
+}
+
+export interface DdlEditValidationResult {
+  isValid: boolean;
+  errorText: string;
+}
+
 export const DDL_FAB_SIZE_VP = 42;
 export const DDL_FAB_ICON_VP = 24;
 export const DDL_FAB_GAP_VP = 10;
@@ -118,6 +139,22 @@ function formatDdlDetailTime(timestamp: number): string {
   return `${year}-${month}-${day} ${hour}:${minute}:${second}`;
 }
 
+function formatDdlEditDate(timestamp: number): string {
+  const d = new Date(timestamp);
+  const year = d.getFullYear().toString();
+  const month = (d.getMonth() + 1).toString().padStart(2, '0');
+  const day = d.getDate().toString().padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function formatDdlEditTime(timestamp: number): string {
+  const d = new Date(timestamp);
+  const hour = d.getHours().toString().padStart(2, '0');
+  const minute = d.getMinutes().toString().padStart(2, '0');
+  const second = d.getSeconds().toString().padStart(2, '0');
+  return `${hour}:${minute}:${second}`;
+}
+
 export function buildDdlDetailModel(item: DdlItem): DdlDetailModel {
   const deadline: number = item.endTime > 0 ? item.endTime : item.startTime;
   const courseName: string = normalizeDdlText(item.courseName ?? '');
@@ -147,5 +184,43 @@ export function buildDdlDeleteConfirmModel(item: DdlItem): DdlDeleteConfirmModel
     confirmText: '删除',
     cancelText: '取消',
     successToast: '删除成功OvO',
+  };
+}
+
+export function buildDdlEditDialogModel(item: DdlItem | null): DdlEditDialogModel {
+  const deadline: number = item ? (item.endTime > 0 ? item.endTime : item.startTime) : 0;
+  return {
+    title: item === null ? '添加DDL' : '编辑DDL',
+    titlePlaceholder: '标题',
+    datePlaceholder: '请选择日期',
+    timePlaceholder: '请选择时间',
+    detailPlaceholder: '详情',
+    confirmText: '确定',
+    cancelText: '取消',
+    addSuccessToast: '添加成功OvO',
+    editSuccessToast: '修改成功OvO',
+    initialTitle: item?.title ?? '',
+    initialDateText: item === null ? '' : formatDdlEditDate(deadline),
+    initialTimeText: item === null ? '' : formatDdlEditTime(deadline),
+    initialDetail: item?.description ?? '',
+  };
+}
+
+export function validateDdlEditInput(title: string, deadline: number): DdlEditValidationResult {
+  if (title.trim().length === 0) {
+    return {
+      isValid: false,
+      errorText: '标题不能为空',
+    };
+  }
+  if (deadline <= 0 || !Number.isFinite(deadline)) {
+    return {
+      isValid: false,
+      errorText: '请选择日期和时间',
+    };
+  }
+  return {
+    isValid: true,
+    errorText: '',
   };
 }

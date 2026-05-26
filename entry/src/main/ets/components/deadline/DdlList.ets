@@ -16,10 +16,14 @@ import {
   DDL_FAB_BOTTOM_PADDING_VP,
   DDL_FAB_RIGHT_PADDING_VP,
   DdlContentState,
+  DdlEditDialogModel,
+  DdlEditValidationResult,
   DdlFabSpec,
+  buildDdlEditDialogModel,
   getDdlEmptyText,
   getDdlFabSpecs,
   resolveDdlContentState,
+  validateDdlEditInput,
 } from './ddlListModel';
 
 @Component
@@ -243,7 +247,7 @@ export default struct DdlList {
     this.showEditor = false;
     this.editingItem = null;
     await this.loadDdl();
-    uiShowToast(this.getUIContext(), { message: '已新增 DDL' });
+    uiShowToast(this.getUIContext(), { message: buildDdlEditDialogModel(null).addSuccessToast });
   }
 
   private async updateManualDdl(uid: string, input: ManualDdlInput): Promise<void> {
@@ -251,7 +255,7 @@ export default struct DdlList {
     this.showEditor = false;
     this.editingItem = null;
     await this.loadDdl();
-    uiShowToast(this.getUIContext(), { message: '已保存' });
+    uiShowToast(this.getUIContext(), { message: buildDdlEditDialogModel(null).editSuccessToast });
   }
 
   private openCreateEditor(): void {
@@ -506,73 +510,64 @@ struct DdlEditOverlay {
   onConfirm: (input: ManualDdlInput) => void = () => {};
 
   @State private title: string = '';
-  @State private courseName: string = '';
+  @State private dateText: string = '';
   @State private timeText: string = '';
   @State private description: string = '';
-  @State private location: string = '';
   @State private errorText: string = '';
 
   aboutToAppear(): void {
-    if (this.editItem) {
-      this.title = this.editItem.title;
-      this.courseName = this.editItem.courseName;
-      this.timeText = this.formatDeadline(this.editItem.endTime > 0 ? this.editItem.endTime : this.editItem.startTime);
-      this.description = this.editItem.description;
-      this.location = this.editItem.location;
-    } else if (this.timeText.length === 0) {
-      const d = new Date(Date.now() + 24 * 60 * 60 * 1000);
-      this.timeText = this.formatDeadline(new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 0).getTime());
+    const model: DdlEditDialogModel = buildDdlEditDialogModel(this.editItem);
+    this.title = model.initialTitle;
+    this.dateText = model.initialDateText;
+    this.timeText = model.initialTimeText;
+    this.description = model.initialDetail;
+    if (!this.editItem) {
+      this.errorText = '';
     }
   }
 
-  private formatDeadline(ts: number): string {
-    const d = new Date(ts);
-    const y = d.getFullYear().toString();
-    const m = (d.getMonth() + 1).toString().padStart(2, '0');
-    const day = d.getDate().toString().padStart(2, '0');
-    const h = d.getHours().toString().padStart(2, '0');
-    const min = d.getMinutes().toString().padStart(2, '0');
-    return `${y}-${m}-${day} ${h}:${min}`;
-  }
-
-  private parseDeadline(text: string): number {
-    const matched = /^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})$/.exec(text.trim());
-    if (!matched) {
+  private parseDeadline(dateText: string, timeText: string): number {
+    const dateMatched = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateText.trim());
+    const timeMatched = /^(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(timeText.trim());
+    if (!dateMatched || !timeMatched) {
       return 0;
     }
-    const year = Number(matched[1]);
-    const month = Number(matched[2]) - 1;
-    const day = Number(matched[3]);
-    const hour = Number(matched[4]);
-    const minute = Number(matched[5]);
+    const year = Number(dateMatched[1]);
+    const month = Number(dateMatched[2]) - 1;
+    const day = Number(dateMatched[3]);
+    const hour = Number(timeMatched[1]);
+    const minute = Number(timeMatched[2]);
+    const second = timeMatched[3] ? Number(timeMatched[3]) : 0;
     if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day) ||
-      !Number.isFinite(hour) || !Number.isFinite(minute)) {
+      !Number.isFinite(hour) || !Number.isFinite(minute) || !Number.isFinite(second)) {
       return 0;
     }
-    if (month < 0 || month > 11 || day < 1 || day > 31 || hour < 0 || hour > 23 || minute < 0 || minute > 59) {
+    if (month < 0 || month > 11 || day < 1 || day > 31 || hour < 0 || hour > 23 ||
+      minute < 0 || minute > 59 || second < 0 || second > 59) {
       return 0;
     }
-    return new Date(year, month, day, hour, minute, 0).getTime();
+    return new Date(year, month, day, hour, minute, second).getTime();
   }
 
   private submit(): void {
     const title = this.title.trim();
-    if (title.length === 0) {
-      this.errorText = '标题不能为空';
-      return;
-    }
-    const deadline = this.parseDeadline(this.timeText);
-    if (deadline <= 0) {
-      this.errorText = '时间格式应为 YYYY-MM-DD HH:mm';
+    const deadline = this.parseDeadline(this.dateText, this.timeText);
+    const validation: DdlEditValidationResult = validateDdlEditInput(title, deadline);
+    if (!validation.isValid) {
+      this.errorText = validation.errorText;
       return;
     }
     this.onConfirm({
       title,
-      courseName: this.courseName,
+      courseName: this.editItem?.courseName ?? '',
       time: deadline,
       description: this.description,
-      location: this.location,
+      location: this.editItem?.location ?? '',
     });
+  }
+
+  private editModel(): DdlEditDialogModel {
+    return buildDdlEditDialogModel(this.editItem);
   }
 
   build() {
@@ -584,42 +579,10 @@ struct DdlEditOverlay {
       .onClick(() => this.onCancel())
 
       Column({ space: 10 }) {
-        Text(this.editItem ? '编辑 DDL' : '新增 DDL')
+        Text(this.editModel().title)
           .fontSize(18)
           .fontWeight(FontWeight.Bold)
           .width('100%')
-
-        TextInput({ placeholder: '标题', text: this.title })
-          .height(44)
-          .onChange((value: string) => {
-            this.title = value;
-            this.errorText = '';
-          })
-
-        TextInput({ placeholder: '课程名，可选', text: this.courseName })
-          .height(44)
-          .onChange((value: string) => {
-            this.courseName = value;
-          })
-
-        TextInput({ placeholder: 'YYYY-MM-DD HH:mm', text: this.timeText })
-          .height(44)
-          .onChange((value: string) => {
-            this.timeText = value;
-            this.errorText = '';
-          })
-
-        TextInput({ placeholder: '地点，可选', text: this.location })
-          .height(44)
-          .onChange((value: string) => {
-            this.location = value;
-          })
-
-        TextInput({ placeholder: '备注，可选', text: this.description })
-          .height(44)
-          .onChange((value: string) => {
-            this.description = value;
-          })
 
         if (this.errorText.length > 0) {
           Text(this.errorText)
@@ -628,13 +591,45 @@ struct DdlEditOverlay {
             .width('100%')
         }
 
+        TextInput({ placeholder: this.editModel().titlePlaceholder, text: this.title })
+          .height(44)
+          .onChange((value: string) => {
+            this.title = value;
+            this.errorText = '';
+          })
+
         Row({ space: 10 }) {
-          Button('取消')
+          TextInput({ placeholder: this.editModel().datePlaceholder, text: this.dateText })
+            .height(44)
+            .layoutWeight(1)
+            .onChange((value: string) => {
+              this.dateText = value;
+              this.errorText = '';
+            })
+
+          TextInput({ placeholder: this.editModel().timePlaceholder, text: this.timeText })
+            .height(44)
+            .layoutWeight(1)
+            .onChange((value: string) => {
+              this.timeText = value;
+              this.errorText = '';
+            })
+        }
+        .width('100%')
+
+        TextInput({ placeholder: this.editModel().detailPlaceholder, text: this.description })
+          .height(44)
+          .onChange((value: string) => {
+            this.description = value;
+          })
+
+        Row({ space: 10 }) {
+          Button(this.editModel().cancelText)
             .type(ButtonType.Capsule)
             .layoutWeight(1)
             .onClick(() => this.onCancel())
 
-          Button('保存')
+          Button(this.editModel().confirmText)
             .type(ButtonType.Capsule)
             .layoutWeight(1)
             .backgroundColor('#10B981')

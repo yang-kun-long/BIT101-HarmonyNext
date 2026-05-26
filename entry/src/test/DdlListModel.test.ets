@@ -1,13 +1,21 @@
 import { describe, it, expect } from '@ohos/hypium';
 import {
   buildDdlDeleteConfirmModel,
+  buildDdlEditDialogModel,
   buildDdlDetailModel,
   buildDdlCardTextLines,
   getDdlEmptyText,
   getDdlFabSpecs,
   resolveDdlContentState,
+  validateDdlEditInput,
 } from '../main/ets/components/deadline/ddlListModel';
-import type { DdlCardTextLines, DdlDeleteConfirmModel, DdlDetailModel } from '../main/ets/components/deadline/ddlListModel';
+import type {
+  DdlCardTextLines,
+  DdlDeleteConfirmModel,
+  DdlDetailModel,
+  DdlEditDialogModel,
+  DdlEditValidationResult,
+} from '../main/ets/components/deadline/ddlListModel';
 import type { DdlItem } from '../main/ets/services/deadline/DdlModels';
 
 export default function ddlListModelTest() {
@@ -120,6 +128,55 @@ export default function ddlListModelTest() {
       expect(model.confirmText).assertEqual('删除');
       expect(model.cancelText).assertEqual('取消');
       expect(model.successToast).assertEqual('删除成功OvO');
+    });
+
+    it('builds Android-style DDL edit dialog labels and defaults', 0, () => {
+      const createModel: DdlEditDialogModel = buildDdlEditDialogModel(null);
+      expect(createModel.title).assertEqual('添加DDL');
+      expect(createModel.titlePlaceholder).assertEqual('标题');
+      expect(createModel.datePlaceholder).assertEqual('请选择日期');
+      expect(createModel.timePlaceholder).assertEqual('请选择时间');
+      expect(createModel.detailPlaceholder).assertEqual('详情');
+      expect(createModel.confirmText).assertEqual('确定');
+      expect(createModel.cancelText).assertEqual('取消');
+      expect(createModel.addSuccessToast).assertEqual('添加成功OvO');
+      expect(createModel.editSuccessToast).assertEqual('修改成功OvO');
+      expect(createModel.initialDateText).assertEqual('');
+      expect(createModel.initialTimeText).assertEqual('');
+
+      const deadline: number = new Date(2026, 4, 26, 23, 59, 0).getTime();
+      const item: DdlItem = {
+        uid: 'manual-1',
+        source: 'manual',
+        title: '自定义 DDL',
+        courseName: '被详情合并，不在编辑框单独显示',
+        startTime: deadline,
+        endTime: deadline,
+        description: '自定义备注',
+        location: '地点不在 Android 编辑框单独显示',
+        done: false,
+        updatedAt: deadline,
+      };
+
+      const editModel: DdlEditDialogModel = buildDdlEditDialogModel(item);
+      expect(editModel.title).assertEqual('编辑DDL');
+      expect(editModel.initialTitle).assertEqual('自定义 DDL');
+      expect(editModel.initialDateText).assertEqual('2026-05-26');
+      expect(editModel.initialTimeText).assertEqual('23:59:00');
+      expect(editModel.initialDetail).assertEqual('自定义备注');
+    });
+
+    it('validates DDL edit input with Android error copy', 0, () => {
+      const titleResult: DdlEditValidationResult = validateDdlEditInput('', 1000);
+      const timeResult: DdlEditValidationResult = validateDdlEditInput('自定义 DDL', 0);
+      const okResult: DdlEditValidationResult = validateDdlEditInput('自定义 DDL', 1000);
+
+      expect(titleResult.isValid).assertFalse();
+      expect(titleResult.errorText).assertEqual('标题不能为空');
+      expect(timeResult.isValid).assertFalse();
+      expect(timeResult.errorText).assertEqual('请选择日期和时间');
+      expect(okResult.isValid).assertTrue();
+      expect(okResult.errorText).assertEqual('');
     });
   });
 }
