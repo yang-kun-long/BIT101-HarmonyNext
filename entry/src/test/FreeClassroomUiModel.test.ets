@@ -5,6 +5,7 @@ import {
   formatNoBuildingTip,
   getFreeClassroomFabSpecs,
   resolveExpandedClassroomState,
+  shouldResetFreeClassroomCampus,
 } from '../main/ets/components/freeClassroom/freeClassroomUiModel';
 
 export default function freeClassroomUiModelTest() {
@@ -34,6 +35,13 @@ export default function freeClassroomUiModelTest() {
       expect(resolveExpandedClassroomState(false, '', 2)).assertEqual('list');
       expect(resolveExpandedClassroomState(false, '', 0)).assertEqual('empty');
       expect(resolveExpandedClassroomState(false, 'network failed', 0)).assertEqual('empty');
+    });
+
+    it('requests Android-style reset when selected campus changes', 0, () => {
+      expect(shouldResetFreeClassroomCampus('', '', '', '')).assertFalse();
+      expect(shouldResetFreeClassroomCampus('01', '中关村校区', '01', '中关村校区')).assertFalse();
+      expect(shouldResetFreeClassroomCampus('01', '中关村校区', '02', '良乡校区')).assertTrue();
+      expect(shouldResetFreeClassroomCampus('01', '中关村校区', '01', '良乡校区')).assertTrue();
     });
   });
 }

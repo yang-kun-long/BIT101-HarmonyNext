@@ -52,3 +52,12 @@ export function resolveExpandedClassroomState(
   }
   return 'empty';
 }
+
+export function shouldResetFreeClassroomCampus(
+  loadedCampusCode: string,
+  loadedCampusName: string,
+  currentCampusCode: string,
+  currentCampusName: string,
+): boolean {
+  return loadedCampusCode !== currentCampusCode || loadedCampusName !== currentCampusName;
+}

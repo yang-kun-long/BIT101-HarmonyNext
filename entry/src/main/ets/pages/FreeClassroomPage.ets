@@ -29,6 +29,7 @@ import {
   FREE_CLASSROOM_FAB_SIZE_VP,
   formatNoBuildingTip,
   resolveExpandedClassroomState,
+  shouldResetFreeClassroomCampus,
 } from '../components/freeClassroom/freeClassroomUiModel';
 
 interface BuildingClassroomState {
@@ -77,6 +78,8 @@ export default struct FreeClassroomPage {
   @State termCode: string = guessCurrentSchoolTermCode();
   @State loginMode: SchoolLoginMode = 'inner';
   @State showBackToTop: boolean = false;
+  @State loadedCampusCode: string = DEFAULT_FREE_CLASSROOM_SETTINGS.currentCampusCode;
+  @State loadedCampusName: string = DEFAULT_FREE_CLASSROOM_SETTINGS.currentCampusName;
   @StorageLink(FREE_CLASSROOM_APP_CAMPUS_CODE) currentCampusCode: string = DEFAULT_FREE_CLASSROOM_SETTINGS.currentCampusCode;
   @StorageLink(FREE_CLASSROOM_APP_CAMPUS_NAME) currentCampusName: string = DEFAULT_FREE_CLASSROOM_SETTINGS.currentCampusName;
   @StorageLink(FREE_CLASSROOM_APP_HIDE_BUSY) hideBusyClassroom: boolean = DEFAULT_FREE_CLASSROOM_SETTINGS.hideBusyClassroom;
@@ -97,7 +100,7 @@ export default struct FreeClassroomPage {
   }
 
   onPageShow(): void {
-    this.reloadSettings();
+    this.refreshAfterSettingsPage();
   }
 
   private showToast(message: string): void {
@@ -116,6 +119,9 @@ export default struct FreeClassroomPage {
     this.errorText = '';
     try {
       await this.reloadSettings();
+      const campusCodeForRequest = this.currentCampusCode;
+      const campusNameForRequest = this.currentCampusName;
+      this.resetBuildingSelection();
       try {
         this.loginMode = await detectSchoolLoginMode({ debug: true });
       } catch (modeError) {
@@ -124,15 +130,35 @@ export default struct FreeClassroomPage {
       }
       this.repo = new FreeClassroomRepository({ debug: true, mode: this.loginMode });
       await this.repo.restoreWebvpnCookiesFromStorage();
-      this.buildingList = await this.repo.getBuildingInfos();
-      this.expandedBuildingIds = [];
-      this.classroomStates = [];
+      this.buildingList = await this.repo.getBuildingInfos(campusCodeForRequest);
+      this.loadedCampusCode = campusCodeForRequest;
+      this.loadedCampusName = campusNameForRequest;
     } catch (e) {
       const msg = this.friendlyError(e instanceof Error ? e.message : String(e));
       this.errorText = msg;
       this.logger.error('load buildings failed:', msg);
     } finally {
       this.loadingBuildings = false;
+    }
+  }
+
+  private resetBuildingSelection(): void {
+    this.expandedBuildingIds = [];
+    this.classroomStates = [];
+    this.showBackToTop = false;
+    this.listScroller.scrollToIndex(0, false);
+  }
+
+  private async refreshAfterSettingsPage(): Promise<void> {
+    await this.reloadSettings();
+    if (shouldResetFreeClassroomCampus(
+      this.loadedCampusCode,
+      this.loadedCampusName,
+      this.currentCampusCode,
+      this.currentCampusName,
+    )) {
+      this.resetBuildingSelection();
+      await this.bootstrap();
     }
   }
 
