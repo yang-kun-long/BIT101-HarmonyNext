@@ -1,7 +1,7 @@
 import type { DdlItem } from '../../services/deadline/DdlModels';
 import { Logger } from '../../utils/Logger';
-import { buildDdlDetailModel } from './ddlListModel';
-import type { DdlDetailModel, DdlDetailRow } from './ddlListModel';
+import { buildDdlDeleteConfirmModel, buildDdlDetailModel } from './ddlListModel';
+import type { DdlDeleteConfirmModel, DdlDetailModel, DdlDetailRow } from './ddlListModel';
 
 @Component
 export struct DdlDetailDialog {
@@ -16,6 +16,7 @@ export struct DdlDetailDialog {
   @State private opacityVal: number = 0;
   @State private scaleVal: number = 0.96;
   @State private offsetY: number = 24;
+  @State private showDeleteConfirm: boolean = false;
 
   aboutToAppear(): void {
     this.logger.info('aboutToAppear, evNull=', this.ev === null);
@@ -43,6 +44,13 @@ export struct DdlDetailDialog {
       return null;
     }
     return buildDdlDetailModel(this.ev);
+  }
+
+  private deleteConfirmModel(): DdlDeleteConfirmModel | null {
+    if (!this.ev) {
+      return null;
+    }
+    return buildDdlDeleteConfirmModel(this.ev);
   }
 
   @Builder
@@ -77,10 +85,7 @@ export struct DdlDetailDialog {
           .backgroundColor('#E9F1FF')
           .fontColor('#334155')
           .onClick(() => {
-            if (this.ev) {
-              this.onDelete(this.ev.uid);
-            }
-            this.closeAnim();
+            this.showDeleteConfirm = true;
           })
         Button('编辑')
           .type(ButtonType.Capsule)
@@ -96,6 +101,64 @@ export struct DdlDetailDialog {
       }
       .width('100%')
       .margin({ top: 10 })
+    }
+  }
+
+  @Builder
+  private DeleteConfirmDialog() {
+    if (this.showDeleteConfirm && this.deleteConfirmModel()) {
+      Row() { }
+      .width('100%')
+      .height('100%')
+      .backgroundColor('rgba(0,0,0,0.12)')
+      .onClick(() => {
+        this.showDeleteConfirm = false;
+      })
+
+      Column() {
+        Text(this.deleteConfirmModel()?.title ?? '')
+          .fontSize(20)
+          .fontWeight(FontWeight.Bold)
+          .fontColor('#111827')
+          .width('100%')
+
+        Text(this.deleteConfirmModel()?.message ?? '')
+          .fontSize(15)
+          .fontColor('#374151')
+          .margin({ top: 16 })
+          .width('100%')
+
+        Row({ space: 10 }) {
+          Button(this.deleteConfirmModel()?.cancelText ?? '取消')
+            .type(ButtonType.Capsule)
+            .layoutWeight(1)
+            .backgroundColor('#E9F1FF')
+            .fontColor('#334155')
+            .onClick(() => {
+              this.showDeleteConfirm = false;
+            })
+
+          Button(this.deleteConfirmModel()?.confirmText ?? '删除')
+            .type(ButtonType.Capsule)
+            .layoutWeight(1)
+            .backgroundColor('#E9F1FF')
+            .fontColor('#334155')
+            .onClick(() => {
+              if (this.ev) {
+                this.onDelete(this.ev.uid);
+              }
+              this.showDeleteConfirm = false;
+              this.closeAnim();
+            })
+        }
+        .width('100%')
+        .margin({ top: 22 })
+      }
+      .padding(20)
+      .width('82%')
+      .backgroundColor('#FFFFFF')
+      .borderRadius(12)
+      .align(Alignment.Center)
     }
   }
 
@@ -150,6 +213,8 @@ export struct DdlDetailDialog {
         .scale({ x: this.scaleVal, y: this.scaleVal })
         .translate({ y: this.offsetY })
       }
+
+      this.DeleteConfirmDialog()
     }
     .width('100%')
     .height('100%')

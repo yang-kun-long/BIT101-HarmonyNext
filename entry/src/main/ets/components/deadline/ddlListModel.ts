@@ -28,6 +28,14 @@ export interface DdlDetailModel {
   canEditDelete: boolean;
 }
 
+export interface DdlDeleteConfirmModel {
+  title: string;
+  message: string;
+  confirmText: string;
+  cancelText: string;
+  successToast: string;
+}
+
 export const DDL_FAB_SIZE_VP = 42;
 export const DDL_FAB_ICON_VP = 24;
 export const DDL_FAB_GAP_VP = 10;
@@ -129,5 +137,15 @@ export function buildDdlDetailModel(item: DdlItem): DdlDetailModel {
       { title: '详情：', content: detail },
     ],
     canEditDelete: item.source !== 'lexue',
+  };
+}
+
+export function buildDdlDeleteConfirmModel(item: DdlItem): DdlDeleteConfirmModel {
+  return {
+    title: '确认删除吗？',
+    message: `${item.title ?? '(未命名 DDL)'} 删除后不可恢复`,
+    confirmText: '删除',
+    cancelText: '取消',
+    successToast: '删除成功OvO',
   };
 }

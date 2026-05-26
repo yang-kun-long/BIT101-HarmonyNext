@@ -1,12 +1,13 @@
 import { describe, it, expect } from '@ohos/hypium';
 import {
+  buildDdlDeleteConfirmModel,
   buildDdlDetailModel,
   buildDdlCardTextLines,
   getDdlEmptyText,
   getDdlFabSpecs,
   resolveDdlContentState,
 } from '../main/ets/components/deadline/ddlListModel';
-import type { DdlCardTextLines, DdlDetailModel } from '../main/ets/components/deadline/ddlListModel';
+import type { DdlCardTextLines, DdlDeleteConfirmModel, DdlDetailModel } from '../main/ets/components/deadline/ddlListModel';
 import type { DdlItem } from '../main/ets/services/deadline/DdlModels';
 
 export default function ddlListModelTest() {
@@ -95,6 +96,30 @@ export default function ddlListModelTest() {
       expect(lexueModel.canEditDelete).assertFalse();
       expect(manualModel.canEditDelete).assertTrue();
       expect(manualModel.rows[1].content).assertEqual('自定义');
+    });
+
+    it('builds Android-style DDL delete confirmation copy', 0, () => {
+      const deadline: number = new Date(2026, 4, 26, 23, 59, 0).getTime();
+      const item: DdlItem = {
+        uid: 'manual-1',
+        source: 'manual',
+        title: '自定义 DDL',
+        courseName: '',
+        startTime: deadline,
+        endTime: deadline,
+        description: '',
+        location: '',
+        done: false,
+        updatedAt: deadline,
+      };
+
+      const model: DdlDeleteConfirmModel = buildDdlDeleteConfirmModel(item);
+
+      expect(model.title).assertEqual('确认删除吗？');
+      expect(model.message).assertEqual('自定义 DDL 删除后不可恢复');
+      expect(model.confirmText).assertEqual('删除');
+      expect(model.cancelText).assertEqual('取消');
+      expect(model.successToast).assertEqual('删除成功OvO');
     });
   });
 }

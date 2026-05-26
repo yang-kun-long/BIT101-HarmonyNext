@@ -235,7 +235,7 @@ export default struct DdlList {
   private async deleteItem(uid: string): Promise<void> {
     await this.store.delete(uid);
     await this.loadDdl();
-    uiShowToast(this.getUIContext(), { message: '已删除' });
+    uiShowToast(this.getUIContext(), { message: '删除成功OvO' });
   }
 
   private async addManualDdl(input: ManualDdlInput): Promise<void> {
