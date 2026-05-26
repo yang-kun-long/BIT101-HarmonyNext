@@ -17,6 +17,17 @@ export interface DdlCardTextLines {
   remain: string;
 }
 
+export interface DdlDetailRow {
+  title: string;
+  content: string;
+}
+
+export interface DdlDetailModel {
+  title: string;
+  rows: DdlDetailRow[];
+  canEditDelete: boolean;
+}
+
 export const DDL_FAB_SIZE_VP = 42;
 export const DDL_FAB_ICON_VP = 24;
 export const DDL_FAB_GAP_VP = 10;
@@ -85,5 +96,38 @@ export function buildDdlCardTextLines(item: DdlItem, nowMs: number): DdlCardText
     title,
     body,
     remain: formatDdlRemainText(deadline, nowMs),
+  };
+}
+
+function formatDdlDetailTime(timestamp: number): string {
+  const d = new Date(timestamp);
+  const year = d.getFullYear().toString();
+  const month = (d.getMonth() + 1).toString().padStart(2, '0');
+  const day = d.getDate().toString().padStart(2, '0');
+  const hour = d.getHours().toString().padStart(2, '0');
+  const minute = d.getMinutes().toString().padStart(2, '0');
+  const second = d.getSeconds().toString().padStart(2, '0');
+  return `${year}-${month}-${day} ${hour}:${minute}:${second}`;
+}
+
+export function buildDdlDetailModel(item: DdlItem): DdlDetailModel {
+  const deadline: number = item.endTime > 0 ? item.endTime : item.startTime;
+  const courseName: string = normalizeDdlText(item.courseName ?? '');
+  const description: string = normalizeDdlText(item.description ?? '');
+  let detail: string = description;
+  if (courseName.length > 0 && description.length > 0) {
+    detail = `${courseName}\n\n${description}`;
+  } else if (courseName.length > 0) {
+    detail = courseName;
+  }
+
+  return {
+    title: item.title ?? '(未命名 DDL)',
+    rows: [
+      { title: 'DDL：', content: formatDdlDetailTime(deadline) },
+      { title: '分组：', content: item.source === 'lexue' ? '乐学' : '自定义' },
+      { title: '详情：', content: detail },
+    ],
+    canEditDelete: item.source !== 'lexue',
   };
 }

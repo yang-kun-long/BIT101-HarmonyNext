@@ -1,11 +1,12 @@
 import { describe, it, expect } from '@ohos/hypium';
 import {
+  buildDdlDetailModel,
   buildDdlCardTextLines,
   getDdlEmptyText,
   getDdlFabSpecs,
   resolveDdlContentState,
 } from '../main/ets/components/deadline/ddlListModel';
-import type { DdlCardTextLines } from '../main/ets/components/deadline/ddlListModel';
+import type { DdlCardTextLines, DdlDetailModel } from '../main/ets/components/deadline/ddlListModel';
 import type { DdlItem } from '../main/ets/services/deadline/DdlModels';
 
 export default function ddlListModelTest() {
@@ -53,6 +54,47 @@ export default function ddlListModelTest() {
       expect(lines.title).assertEqual('实验报告');
       expect(lines.body).assertEqual('数据结构\n\n提交 PDF');
       expect(lines.remain).assertEqual('剩余 1小时 0分钟');
+    });
+
+    it('builds Android-style DDL detail sections and actions', 0, () => {
+      const deadline: number = new Date(2026, 4, 26, 23, 59, 0).getTime();
+      const lexueItem: DdlItem = {
+        uid: 'lexue-1',
+        source: 'lexue',
+        title: '实验报告 已到期',
+        courseName: '数据结构',
+        startTime: deadline,
+        endTime: deadline,
+        description: '提交 PDF',
+        location: '线上',
+        done: false,
+        updatedAt: deadline,
+      };
+      const manualItem: DdlItem = {
+        uid: 'manual-1',
+        source: 'manual',
+        title: '自定义 DDL',
+        courseName: '',
+        startTime: deadline,
+        endTime: deadline,
+        description: '自定义备注',
+        location: '',
+        done: false,
+        updatedAt: deadline,
+      };
+
+      const lexueModel: DdlDetailModel = buildDdlDetailModel(lexueItem);
+      const manualModel: DdlDetailModel = buildDdlDetailModel(manualItem);
+
+      expect(lexueModel.title).assertEqual('实验报告 已到期');
+      expect(lexueModel.rows.length).assertEqual(3);
+      expect(lexueModel.rows[0].title).assertEqual('DDL：');
+      expect(lexueModel.rows[0].content).assertEqual('2026-05-26 23:59:00');
+      expect(lexueModel.rows[1].content).assertEqual('乐学');
+      expect(lexueModel.rows[2].content).assertEqual('数据结构\n\n提交 PDF');
+      expect(lexueModel.canEditDelete).assertFalse();
+      expect(manualModel.canEditDelete).assertTrue();
+      expect(manualModel.rows[1].content).assertEqual('自定义');
     });
   });
 }
