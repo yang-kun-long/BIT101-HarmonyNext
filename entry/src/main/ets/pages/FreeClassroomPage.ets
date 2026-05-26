@@ -27,6 +27,7 @@ import {
   FREE_CLASSROOM_FAB_ICON_VP,
   FREE_CLASSROOM_FAB_RIGHT_PADDING_VP,
   FREE_CLASSROOM_FAB_SIZE_VP,
+  formatNoBuildingTip,
 } from '../components/freeClassroom/freeClassroomUiModel';
 
 interface BuildingClassroomState {
@@ -319,6 +320,10 @@ export default struct FreeClassroomPage {
     );
   }
 
+  private noBuildingTip(): string {
+    return formatNoBuildingTip(this.currentCampusName);
+  }
+
   @Builder
   private LoadingTip(text: string) {
     Stack({ alignContent: Alignment.BottomStart }) {
@@ -549,9 +554,9 @@ export default struct FreeClassroomPage {
             .width('100%')
             .padding({ top: 12 })
           }
-        } else if (this.visibleBuildingList().length === 0) {
+        } else if (this.visibleBuildingList().length === 0 && this.noBuildingTip().length > 0) {
           ListItem() {
-            this.MessageTip('没有获取到教学楼QwQ')
+            this.MessageTip(this.noBuildingTip())
           }
         } else {
           ForEach(this.visibleBuildingList(), (building: BuildingInfo) => {

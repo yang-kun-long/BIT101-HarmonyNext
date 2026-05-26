@@ -2,6 +2,7 @@ import { describe, it, expect } from '@ohos/hypium';
 import {
   FREE_CLASSROOM_FAB_BOTTOM_PADDING_VP,
   FREE_CLASSROOM_FAB_RIGHT_PADDING_VP,
+  formatNoBuildingTip,
   getFreeClassroomFabSpecs,
 } from '../main/ets/components/freeClassroom/freeClassroomUiModel';
 
@@ -19,6 +20,12 @@ export default function freeClassroomUiModelTest() {
       expect(specs[1].sizeVp).assertEqual(42);
       expect(FREE_CLASSROOM_FAB_RIGHT_PADDING_VP).assertEqual(10);
       expect(FREE_CLASSROOM_FAB_BOTTOM_PADDING_VP).assertEqual(20);
+    });
+
+    it('formats Android empty-building tip for selected campus', 0, () => {
+      expect(formatNoBuildingTip('')).assertEqual('');
+      expect(formatNoBuildingTip('中关村校区')).assertEqual('没有获取到中关村校区的教学楼QwQ\n(请尝试在设置中切换校区)');
+      expect(formatNoBuildingTip('良乡')).assertEqual('没有获取到良乡校区的教学楼QwQ\n(请尝试在设置中切换校区)');
     });
   });
 }

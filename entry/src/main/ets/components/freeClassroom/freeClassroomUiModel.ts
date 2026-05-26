@@ -29,3 +29,11 @@ export function getFreeClassroomFabSpecs(): FreeClassroomFabSpec[] {
     },
   ];
 }
+
+export function formatNoBuildingTip(campusName: string): string {
+  if (campusName.length === 0) {
+    return '';
+  }
+  const displayName = campusName.endsWith('校区') ? campusName : `${campusName}校区`;
+  return `没有获取到${displayName}的教学楼QwQ\n(请尝试在设置中切换校区)`;
+}
