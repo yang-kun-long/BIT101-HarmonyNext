@@ -6,6 +6,7 @@ import {
   buildFreeClassroomCampusDialogModel,
   buildFreeClassroomSettingsMainItems,
   shouldRenderFreeClassroomSettingsInlineError,
+  shouldShowFreeClassroomSettingSuccessToast,
 } from '../../components/freeClassroom/freeClassroomUiModel';
 import type {
   FreeClassroomCampusDialogModel,
@@ -93,14 +94,18 @@ struct FreeClassroomSettingPage {
     this.currentCampusName = campus.displayName;
     await this.store.saveCampus(campus.code, campus.displayName);
     this.syncAppStorage();
-    uiShowToast(this.getUIContext(), { message: '设置成功' });
+    if (shouldShowFreeClassroomSettingSuccessToast('campus')) {
+      uiShowToast(this.getUIContext(), { message: '设置成功' });
+    }
   }
 
   private async setHideBusy(value: boolean): Promise<void> {
     this.hideBusyClassroom = value;
     await this.store.saveHideBusyClassroom(value);
     this.syncAppStorage();
-    uiShowToast(this.getUIContext(), { message: '设置成功' });
+    if (shouldShowFreeClassroomSettingSuccessToast('hideBusy')) {
+      uiShowToast(this.getUIContext(), { message: '设置成功' });
+    }
   }
 
   private async setThreshold(value: number): Promise<void> {
@@ -108,7 +113,9 @@ struct FreeClassroomSettingPage {
     this.freeMinutesThreshold = safe;
     await this.store.saveFreeMinutesThreshold(safe);
     this.syncAppStorage();
-    uiShowToast(this.getUIContext(), { message: '设置成功' });
+    if (shouldShowFreeClassroomSettingSuccessToast('threshold')) {
+      uiShowToast(this.getUIContext(), { message: '设置成功' });
+    }
   }
 
   private openThresholdDialog(): void {

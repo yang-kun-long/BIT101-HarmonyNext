@@ -171,6 +171,45 @@ export default function freeClassroomTest() {
       expect(freeOnly.map((row: FreeClassroomRow) => row.classroomName).join(',')).assertEqual('103,101,104');
     });
 
+    it('sorts busy classrooms that recover sooner before later busy classrooms like Android', 0, () => {
+      const periodTimes: PeriodTime[] = [
+        { start: '08:00', end: '08:45' },
+        { start: '08:50', end: '09:35' },
+        { start: '09:55', end: '10:40' },
+        { start: '10:45', end: '11:30' },
+      ];
+      const rows: FreeClassroomRow[] = [
+        {
+          classroomName: 'late',
+          busyPeriods: [1, 2, 3],
+          freePeriods: [4],
+          freePeriodsText: '4',
+        },
+        {
+          classroomName: 'early',
+          busyPeriods: [1],
+          freePeriods: [2, 3, 4],
+          freePeriodsText: '2~4',
+        },
+        {
+          classroomName: 'free',
+          busyPeriods: [4],
+          freePeriods: [1, 2, 3],
+          freePeriodsText: '1~3',
+        },
+      ];
+
+      const visible: FreeClassroomRow[] = sortFreeClassroomRowsForAndroidDisplay(
+        rows,
+        periodTimes,
+        '08:10',
+        5,
+        false,
+      );
+
+      expect(visible.map((row: FreeClassroomRow) => row.classroomName).join(',')).assertEqual('free,early,late');
+    });
+
     it('normalizes Android-style free classroom threshold without upper cap', 0, () => {
       expect(normalizeFreeClassroomThreshold(7.8)).assertEqual(7);
       expect(normalizeFreeClassroomThreshold(-1)).assertEqual(0);

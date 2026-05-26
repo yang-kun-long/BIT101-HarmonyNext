@@ -12,6 +12,7 @@ import {
   shouldResetFreeClassroomCampus,
   shouldRenderFreeClassroomSummaryHeader,
   shouldRenderFreeClassroomSettingsInlineError,
+  shouldShowFreeClassroomSettingSuccessToast,
 } from '../main/ets/components/freeClassroom/freeClassroomUiModel';
 import type {
   FreeClassroomCampusDialogModel,
@@ -89,6 +90,12 @@ export default function freeClassroomUiModelTest() {
       expect(items[1].checked).assertTrue();
       expect(items[2].title).assertEqual('空闲时段阈值');
       expect(items[2].valueText).assertEqual('5 分钟');
+    });
+
+    it('matches Android free classroom settings success toast triggers', 0, () => {
+      expect(shouldShowFreeClassroomSettingSuccessToast('campus')).assertTrue();
+      expect(shouldShowFreeClassroomSettingSuccessToast('threshold')).assertTrue();
+      expect(shouldShowFreeClassroomSettingSuccessToast('hideBusy')).assertFalse();
     });
 
     it('builds Android-style campus dialog selection without an extra all-campus row', 0, () => {
