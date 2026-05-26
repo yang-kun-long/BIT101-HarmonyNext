@@ -11,6 +11,7 @@ import {
   getDdlEmptyText,
   getDdlFabSpecs,
   resolveDdlContentState,
+  validateDdlSettingsNumberInput,
   validateDdlEditInput,
 } from '../main/ets/components/deadline/ddlListModel';
 import type {
@@ -20,6 +21,7 @@ import type {
   DdlEditDialogModel,
   DdlSettingsItem,
   DdlSettingsResultAction,
+  DdlSettingsNumberValidationResult,
   DdlEditValidationResult,
 } from '../main/ets/components/deadline/ddlListModel';
 import type { DdlItem } from '../main/ets/services/deadline/DdlModels';
@@ -54,6 +56,22 @@ export default function ddlListModelTest() {
       expect(buildDdlSettingsResultToast(urlAction, false)).assertEqual('获取失败');
       expect(buildDdlSettingsResultToast(calendarAction, true)).assertEqual('拉取成功');
       expect(buildDdlSettingsResultToast(calendarAction, false)).assertEqual('拉取失败');
+    });
+
+    it('validates DDL settings number input like Android InputNumberDialog', 0, () => {
+      const ok: DdlSettingsNumberValidationResult = validateDdlSettingsNumberInput('12');
+      const empty: DdlSettingsNumberValidationResult = validateDdlSettingsNumberInput('');
+      const mixed: DdlSettingsNumberValidationResult = validateDdlSettingsNumberInput('12abc');
+      const negative: DdlSettingsNumberValidationResult = validateDdlSettingsNumberInput('-1');
+
+      expect(ok.isValid).assertTrue();
+      expect(ok.value).assertEqual(12);
+      expect(empty.isValid).assertFalse();
+      expect(empty.errorText).assertEqual('格式校验失败Orz');
+      expect(mixed.isValid).assertFalse();
+      expect(mixed.errorText).assertEqual('格式校验失败Orz');
+      expect(negative.isValid).assertFalse();
+      expect(negative.errorText).assertEqual('格式校验失败Orz');
     });
 
     it('uses Android DDL floating action button dimensions and order', 0, () => {

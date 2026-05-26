@@ -8,8 +8,10 @@ import {
 import {
   buildDdlSettingsDataItems,
   buildDdlSettingsResultToast,
+  validateDdlSettingsNumberInput,
 } from '../../components/deadline/ddlListModel';
 import type {
+  DdlSettingsNumberValidationResult,
   DdlSettingsItem,
 } from '../../components/deadline/ddlListModel';
 
@@ -314,12 +316,12 @@ struct InputNumberDialog {
 
         Button("确定", { type: ButtonType.Normal })
           .onClick(() => {
-            const num = parseInt(this.inputValue);
-            if (!isNaN(num) && num >= 0) {
-              this.onConfirm(num);
+            const validation: DdlSettingsNumberValidationResult = validateDdlSettingsNumberInput(this.inputValue);
+            if (validation.isValid) {
+              this.onConfirm(validation.value);
               this.controller.close();
             } else {
-              this.errorMessage = "格式校验失败Orz";
+              this.errorMessage = validation.errorText;
             }
           })
           .backgroundColor(Color.Transparent)

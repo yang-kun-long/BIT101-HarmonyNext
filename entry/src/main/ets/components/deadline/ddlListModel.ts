@@ -71,6 +71,12 @@ export interface DdlSettingsItem {
   enabled: boolean;
 }
 
+export interface DdlSettingsNumberValidationResult {
+  isValid: boolean;
+  value: number;
+  errorText: string;
+}
+
 export interface DdlDatePickerResultValue {
   year?: number;
   month?: number;
@@ -132,6 +138,30 @@ export function buildDdlSettingsResultToast(action: DdlSettingsResultAction, suc
     return success ? '获取成功' : '获取失败';
   }
   return success ? '拉取成功' : '拉取失败';
+}
+
+export function validateDdlSettingsNumberInput(input: string): DdlSettingsNumberValidationResult {
+  const trimmed: string = input.trim();
+  if (!/^\d+$/.test(trimmed)) {
+    return {
+      isValid: false,
+      value: 0,
+      errorText: '格式校验失败Orz',
+    };
+  }
+  const value: number = Number(trimmed);
+  if (!Number.isFinite(value) || value < 0) {
+    return {
+      isValid: false,
+      value: 0,
+      errorText: '格式校验失败Orz',
+    };
+  }
+  return {
+    isValid: true,
+    value,
+    errorText: '',
+  };
 }
 
 export function getDdlFabSpecs(): DdlFabSpec[] {
