@@ -28,6 +28,7 @@ import {
   FREE_CLASSROOM_FAB_RIGHT_PADDING_VP,
   FREE_CLASSROOM_FAB_SIZE_VP,
   formatNoBuildingTip,
+  resolveExpandedClassroomState,
 } from '../components/freeClassroom/freeClassroomUiModel';
 
 interface BuildingClassroomState {
@@ -295,6 +296,7 @@ export default struct FreeClassroomPage {
     } catch (e) {
       const msg = this.friendlyError(e instanceof Error ? e.message : String(e));
       this.logger.error('load classrooms failed:', building.buildingName, msg);
+      this.showToast('拉取教室信息失败 Orz...');
       this.upsertBuildingState({
         buildingId,
         loading: false,
@@ -470,11 +472,17 @@ export default struct FreeClassroomPage {
   @Builder
   private ExpandedBuildingContent(building: BuildingInfo) {
     Column({ space: 8 }) {
-      if (this.findBuildingState(building.buildingIndex).loading) {
+      if (resolveExpandedClassroomState(
+        this.findBuildingState(building.buildingIndex).loading,
+        this.findBuildingState(building.buildingIndex).errorText,
+        this.findBuildingState(building.buildingIndex).rows.length,
+      ) === 'loading') {
         this.LoadingTip('正在获取教室列表...')
-      } else if (this.findBuildingState(building.buildingIndex).errorText.length > 0) {
-        this.MessageTip(this.findBuildingState(building.buildingIndex).errorText)
-      } else if (this.findBuildingState(building.buildingIndex).rows.length === 0) {
+      } else if (resolveExpandedClassroomState(
+        this.findBuildingState(building.buildingIndex).loading,
+        this.findBuildingState(building.buildingIndex).errorText,
+        this.findBuildingState(building.buildingIndex).rows.length,
+      ) === 'empty') {
         this.MessageTip('未找到教室 :(')
       } else {
         ForEach(this.classroomRowsForDisplay(this.findBuildingState(building.buildingIndex).rows), (row: FreeClassroomRow) => {

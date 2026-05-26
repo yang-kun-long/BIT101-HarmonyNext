@@ -4,6 +4,7 @@ import {
   FREE_CLASSROOM_FAB_RIGHT_PADDING_VP,
   formatNoBuildingTip,
   getFreeClassroomFabSpecs,
+  resolveExpandedClassroomState,
 } from '../main/ets/components/freeClassroom/freeClassroomUiModel';
 
 export default function freeClassroomUiModelTest() {
@@ -26,6 +27,13 @@ export default function freeClassroomUiModelTest() {
       expect(formatNoBuildingTip('')).assertEqual('');
       expect(formatNoBuildingTip('中关村校区')).assertEqual('没有获取到中关村校区的教学楼QwQ\n(请尝试在设置中切换校区)');
       expect(formatNoBuildingTip('良乡')).assertEqual('没有获取到良乡校区的教学楼QwQ\n(请尝试在设置中切换校区)');
+    });
+
+    it('matches Android expanded classroom content states', 0, () => {
+      expect(resolveExpandedClassroomState(true, '', 0)).assertEqual('loading');
+      expect(resolveExpandedClassroomState(false, '', 2)).assertEqual('list');
+      expect(resolveExpandedClassroomState(false, '', 0)).assertEqual('empty');
+      expect(resolveExpandedClassroomState(false, 'network failed', 0)).assertEqual('empty');
     });
   });
 }

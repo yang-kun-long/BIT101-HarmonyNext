@@ -1,4 +1,5 @@
 export type FreeClassroomFabAction = 'backToTop' | 'settings';
+export type ExpandedClassroomState = 'loading' | 'empty' | 'list';
 
 export interface FreeClassroomFabSpec {
   action: FreeClassroomFabAction;
@@ -36,4 +37,18 @@ export function formatNoBuildingTip(campusName: string): string {
   }
   const displayName = campusName.endsWith('校区') ? campusName : `${campusName}校区`;
   return `没有获取到${displayName}的教学楼QwQ\n(请尝试在设置中切换校区)`;
+}
+
+export function resolveExpandedClassroomState(
+  loading: boolean,
+  _errorText: string,
+  rowCount: number,
+): ExpandedClassroomState {
+  if (loading) {
+    return 'loading';
+  }
+  if (rowCount > 0) {
+    return 'list';
+  }
+  return 'empty';
 }
