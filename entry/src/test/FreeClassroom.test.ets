@@ -6,6 +6,7 @@ import {
   computeClassroomBusyStatus,
   formatFreePeriods,
   parseBusyPeriods,
+  resolveFreeClassroomTermCode,
   sortFreeClassroomRowsForAndroidDisplay,
 } from '../main/ets/services/jw/freeClassroomRepository';
 import {
@@ -38,6 +39,11 @@ export default function freeClassroomTest() {
       expect(params.XNDM).assertEqual('2025-2026');
       expect(params.JXLDM).assertEqual('LH01');
       expect(params.RQ).assertEqual('2026-05-25');
+    });
+
+    it('uses course schedule term for Android-style free classroom queries', 0, () => {
+      expect(resolveFreeClassroomTermCode('2024-2025-1', new Date('2026-05-26T12:00:00'))).assertEqual('2024-2025-1');
+      expect(resolveFreeClassroomTermCode('', new Date('2026-05-26T12:00:00'))).assertEqual('2025-2026-2');
     });
 
     it('parses nullable busy period strings', 0, () => {

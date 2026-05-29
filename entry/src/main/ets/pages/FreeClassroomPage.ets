@@ -8,6 +8,7 @@ import {
   FreeClassroomRepository,
   FreeClassroomRow,
   guessCurrentSchoolTermCode,
+  resolveFreeClassroomTermCode,
   sortFreeClassroomRowsForAndroidDisplay,
 } from '../services/jw/freeClassroomRepository';
 import { getPeriodTimesInMemory, PeriodTime } from '../services/jw/periodTimes';
@@ -21,6 +22,7 @@ import {
   FREE_CLASSROOM_APP_HIDE_BUSY,
   FreeClassroomSettingsStore,
 } from '../services/storage/FreeClassroomSettingsStore';
+import { COURSE_SCHEDULE_APP_CURRENT_TERM } from '../services/storage/CourseScheduleSettingsStore';
 import {
   FREE_CLASSROOM_FAB_BOTTOM_PADDING_VP,
   FREE_CLASSROOM_FAB_GAP_VP,
@@ -83,6 +85,7 @@ export default struct FreeClassroomPage {
   @State showBackToTop: boolean = false;
   @State loadedCampusCode: string = DEFAULT_FREE_CLASSROOM_SETTINGS.currentCampusCode;
   @State loadedCampusName: string = DEFAULT_FREE_CLASSROOM_SETTINGS.currentCampusName;
+  @StorageLink(COURSE_SCHEDULE_APP_CURRENT_TERM) courseScheduleCurrentTerm: string = '';
   @StorageLink(FREE_CLASSROOM_APP_CAMPUS_CODE) currentCampusCode: string = DEFAULT_FREE_CLASSROOM_SETTINGS.currentCampusCode;
   @StorageLink(FREE_CLASSROOM_APP_CAMPUS_NAME) currentCampusName: string = DEFAULT_FREE_CLASSROOM_SETTINGS.currentCampusName;
   @StorageLink(FREE_CLASSROOM_APP_HIDE_BUSY) hideBusyClassroom: boolean = DEFAULT_FREE_CLASSROOM_SETTINGS.hideBusyClassroom;
@@ -173,8 +176,10 @@ export default struct FreeClassroomPage {
       this.currentCampusName = settings.currentCampusName;
       this.hideBusyClassroom = settings.hideBusyClassroom;
       this.freeMinutesThreshold = settings.freeMinutesThreshold;
+      this.termCode = resolveFreeClassroomTermCode(this.courseScheduleCurrentTerm);
     } catch (e) {
       this.logger.warn('reloadSettings failed:', e);
+      this.termCode = resolveFreeClassroomTermCode(this.courseScheduleCurrentTerm);
     }
   }
 

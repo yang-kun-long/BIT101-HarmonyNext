@@ -18,6 +18,7 @@ import { LexueDdlExtractionCase } from './LexueDdlExtractionCase';
 import { FreeClassroomCase } from './FreeClassroomCase';
 import { CourseScheduleSettingsCase } from './CourseScheduleSettingsCase';
 import { CourseScheduleSyncCase } from './CourseScheduleSyncCase';
+import { LoginHealthCase } from './LoginHealthCase';
 import { DebugLog } from './DebugLog';
 import {
   DebugCaseRunResult,
@@ -51,7 +52,8 @@ export enum DebugTarget {
   LEXUE_DDL_EXTRACTION = 'LEXUE_DDL_EXTRACTION',
   FREE_CLASSROOM = 'FREE_CLASSROOM',
   COURSE_SCHEDULE_SETTINGS = 'COURSE_SCHEDULE_SETTINGS',
-  COURSE_SCHEDULE_SYNC = 'COURSE_SCHEDULE_SYNC'
+  COURSE_SCHEDULE_SYNC = 'COURSE_SCHEDULE_SYNC',
+  LOGIN_HEALTH = 'LOGIN_HEALTH'
 }
 
 interface DebugCaseEntry {
@@ -78,6 +80,7 @@ const DEBUG_CASES: DebugCaseEntry[] = [
   { target: DebugTarget.FREE_CLASSROOM, create: () => new FreeClassroomCase() },
   { target: DebugTarget.COURSE_SCHEDULE_SETTINGS, create: () => new CourseScheduleSettingsCase() },
   { target: DebugTarget.COURSE_SCHEDULE_SYNC, create: () => new CourseScheduleSyncCase() },
+  { target: DebugTarget.LOGIN_HEALTH, create: () => new LoginHealthCase() },
 ];
 
 /**

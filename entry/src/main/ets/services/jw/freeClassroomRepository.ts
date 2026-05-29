@@ -244,6 +244,11 @@ export function guessCurrentSchoolTermCode(now: Date = new Date()): string {
   return `${year - 1}-${year}-2`;
 }
 
+export function resolveFreeClassroomTermCode(scheduleCurrentTerm: string, now: Date = new Date()): string {
+  const trimmed = scheduleCurrentTerm.trim();
+  return trimmed.length > 0 ? trimmed : guessCurrentSchoolTermCode(now);
+}
+
 export function buildClassroomQueryParams(query: FreeClassroomQuery): ClassroomQueryParams {
   const parts = query.termCode.split('-');
   if (parts.length < 3) {

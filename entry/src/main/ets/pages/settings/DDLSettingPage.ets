@@ -1,5 +1,6 @@
 import { uiBack, uiShowToast } from '../../utils/uiContextBridge';
 import { refreshDdlSubscribeUrl, syncDdlFromLexue } from '../../services/deadline/DdlSyncService';
+import { doOperationRequiresLogin, LoginHealthService } from '../../services/auth/LoginHealthService';
 import { Logger } from '../../utils/Logger';
 import {
   applyDdlDisplaySettingsToAppStorage,
@@ -28,6 +29,7 @@ struct DDLSettingPage {
   @StorageProp('current_username') currentUsername: string = '';
   private logger: Logger = new Logger('DDLSettingPage');
   private settingsStore: DdlSettingsStore = new DdlSettingsStore();
+  private loginHealthService: LoginHealthService = new LoginHealthService();
 
   // Loading States
   @State isUpdatingLexueCalendarUrl: boolean = false;
@@ -155,50 +157,54 @@ struct DDLSettingPage {
 
   // --- Actions ---
 
-  handleUpdateLexueCalendarUrl() {
+  async handleUpdateLexueCalendarUrl(): Promise<void> {
     if (this.isUpdatingLexueCalendarUrl) {
       return;
     }
     this.isUpdatingLexueCalendarUrl = true;
     uiShowToast(this.getUIContext(), { message: "正在获取订阅链接..." });
-    refreshDdlSubscribeUrl(this.currentUsername)
-      .then((_url: string) => {
-        uiShowToast(this.getUIContext(), {
-          message: buildDdlSettingsResultToast('refreshSubscribeUrl', true),
-        });
-      })
-      .catch((err: Error) => {
-        this.logger.error('refresh DDL subscribe URL failed', err);
-        uiShowToast(this.getUIContext(), {
-          message: buildDdlSettingsResultToast('refreshSubscribeUrl', false),
-        });
-      })
-      .finally(() => {
-        this.isUpdatingLexueCalendarUrl = false;
+    try {
+      await doOperationRequiresLogin<string>(
+        async (): Promise<string> => await refreshDdlSubscribeUrl(this.currentUsername),
+        async () => await this.loginHealthService.checkLogin(),
+        'core',
+      );
+      uiShowToast(this.getUIContext(), {
+        message: buildDdlSettingsResultToast('refreshSubscribeUrl', true),
       });
+    } catch (err) {
+      this.logger.error('refresh DDL subscribe URL failed', err);
+      uiShowToast(this.getUIContext(), {
+        message: buildDdlSettingsResultToast('refreshSubscribeUrl', false),
+      });
+    } finally {
+      this.isUpdatingLexueCalendarUrl = false;
+    }
   }
 
-  handleUpdateLexueCalendar() {
+  async handleUpdateLexueCalendar(): Promise<void> {
     if (this.isUpdatingLexueCalendar) {
       return;
     }
     this.isUpdatingLexueCalendar = true;
     uiShowToast(this.getUIContext(), { message: "正在拉取日程..." });
-    syncDdlFromLexue(this.currentUsername)
-      .then((_count: number) => {
-        uiShowToast(this.getUIContext(), {
-          message: buildDdlSettingsResultToast('refreshLexueCalendar', true),
-        });
-      })
-      .catch((err: Error) => {
-        this.logger.error('sync DDL from Lexue failed', err);
-        uiShowToast(this.getUIContext(), {
-          message: buildDdlSettingsResultToast('refreshLexueCalendar', false),
-        });
-      })
-      .finally(() => {
-        this.isUpdatingLexueCalendar = false;
+    try {
+      await doOperationRequiresLogin<number>(
+        async (): Promise<number> => await syncDdlFromLexue(this.currentUsername),
+        async () => await this.loginHealthService.checkLogin(),
+        'core',
+      );
+      uiShowToast(this.getUIContext(), {
+        message: buildDdlSettingsResultToast('refreshLexueCalendar', true),
       });
+    } catch (err) {
+      this.logger.error('sync DDL from Lexue failed', err);
+      uiShowToast(this.getUIContext(), {
+        message: buildDdlSettingsResultToast('refreshLexueCalendar', false),
+      });
+    } finally {
+      this.isUpdatingLexueCalendar = false;
+    }
   }
 
   private loadDisplaySettings(): void {

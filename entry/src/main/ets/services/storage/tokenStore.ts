@@ -11,6 +11,7 @@ const PREF_FILE = 'bit101_prefs';
 const KEY_TOKEN = 'access_token';
 // 用户信息（JSON 字符串）
 const KEY_USER = 'user_info';
+const KEY_USERNAME = 'current_username';
 
 // BIT101 自身后台使用的会话 cookie
 const KEY_FAKE_COOKIE = 'bit101_fake_cookie';
@@ -97,6 +98,21 @@ export class TokenStore {
     }
   }
 
+  async saveUsername(username: string) {
+    const pref = await this.getPref();
+    await guardAsyncStorage('TokenStore.saveUsername', async () => {
+      await pref.put(KEY_USERNAME, username.trim());
+      await pref.flush();
+    });
+  }
+
+  async getUsername(): Promise<string | null> {
+    const pref = await this.getPref();
+    return await guardAsyncStorage('TokenStore.getUsername', async () =>
+      (await pref.get(KEY_USERNAME, null)) as (string | null),
+    );
+  }
+
   // ---------- BIT101 fake_cookie ----------
   async saveFakeCookie(v: string) {
     const pref = await this.getPref();
@@ -148,6 +164,7 @@ export class TokenStore {
     await guardAsyncStorage('TokenStore.clear', async () => {
       await pref.delete(KEY_TOKEN);
       await pref.delete(KEY_USER);
+      await pref.delete(KEY_USERNAME);
       await pref.delete(KEY_FAKE_COOKIE);
       await pref.delete(KEY_WEBVPN_COOKIE);
       await pref.flush();

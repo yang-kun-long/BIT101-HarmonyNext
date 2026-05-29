@@ -1,9 +1,19 @@
-import { router, promptAction } from '@kit.ArkUI';
 import photoAccessHelper from '@ohos.file.photoAccessHelper';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { TokenStore } from '../../services/storage/tokenStore';
 import { GalleryUser } from '../../services/gallery/GalleryModels';
+import { UserInfoResponse, UserRepository } from '../../services/user/userRepository';
 import { uiBack, uiClear, uiPushUrl, uiReplaceUrl, uiShowToast } from '../../utils/uiContextBridge';
+import { LoginHealthService, LoginHealthSummary } from '../../services/auth/LoginHealthService';
+import {
+  AccountDisplayModel,
+  AccountDisplayUserInfo,
+  AccountLoginActionItem,
+  buildAccountDisplayModel,
+  buildAccountDisplayModelFromCurrentUser,
+  buildAccountLoginActionItem,
+  hasAccountDisplayProfile,
+} from '../../services/auth/AccountDisplayModel';
 
 // ----------------------------------------------------------------------------
 // 1. 主页面结构
@@ -14,17 +24,18 @@ import { uiBack, uiClear, uiPushUrl, uiReplaceUrl, uiShowToast } from '../../uti
 struct AccountPage {
   // --- 状态管理 ---
   @State ifLogin: boolean = true;
+  @State loginStatusText: string = '未登录';
   @State checkingLogin: boolean = false;
   @State updatingUserInfo: boolean = false;
+  @StorageProp('current_username') currentUsername: string = '';
 
   // 用户数据
-  @State user: GalleryUser = {
-    id: "1120202222",
-    nickname: "BIT101_User",
-    avatar: "",
-  } as GalleryUser;
-  @State userMotto: string = "行胜于言";
-  @State sid: string = "1120202222";
+  @State user: GalleryUser | null = null;
+  @State userMotto: string = "";
+  @State sid: string = "";
+  private readonly loginHealthService: LoginHealthService = new LoginHealthService();
+  private readonly tokenStore: TokenStore = new TokenStore();
+  private readonly userRepository: UserRepository = new UserRepository();
 
   // --- 弹窗控制器 ---
   nicknameDialogController: CustomDialogController = new CustomDialogController({
@@ -150,27 +161,20 @@ struct AccountPage {
               // 1. 登录状态检查
               SettingItem({
                 title: "登录状态检查",
-                subTitle: "登录分为两步，首先进行学校统一身份认证，然后登录BIT101。\n点击检查二者登录状态，如果检查登录的结果为“未登录”，APP会根据之前自动加密保存的密码尝试重新登录。",
-                valueText: this.ifLogin ? "已登录" : "未登录",
+                subTitle: "检查 BIT101、乐学和教务应用登录态。\n如果显示部分异常，考试或空教室可能需要重新登录后再刷新。",
+                valueText: this.loginStatusText,
                 enable: !this.checkingLogin,
                 onItemClick: () => { this.handleCheckLogin() }
               })
 
               Divider().color($r('sys.color.ohos_id_color_list_separator')).margin({ left: 16 })
 
-              // 2. 退出登录 / 登录
-              if (this.ifLogin) {
-                SettingItem({
-                  title: "退出登录",
-                  subTitle: "清除所有登录状态和保存的账号密码",
-                  onItemClick: () => { this.handleLogout() }
-                })
-              } else {
-                SettingItem({
-                  title: "登录",
-                  onItemClick: () => { this.handleLogin() }
-                })
-              }
+              // 2. 退出登录 / 登录 / 重新登录
+              SettingItem({
+                title: this.loginActionItem().title,
+                subTitle: this.loginActionItem().subTitle,
+                onItemClick: () => { this.handleLoginAction() }
+              })
             }
           }
         }
@@ -184,6 +188,10 @@ struct AccountPage {
   }
 
   // --- ViewBuilders & Logic ---
+
+  aboutToAppear() {
+    this.loadLocalLoginSnapshot();
+  }
 
   @Builder
   AvatarView() {
@@ -200,25 +208,90 @@ struct AccountPage {
     }
   }
 
-  handleCheckLogin() {
+  private async loadLocalLoginSnapshot(): Promise<void> {
+    try {
+      const snapshot = await this.tokenStore.dumpSnapshot();
+      this.ifLogin = !!snapshot.bit101_fake_cookie || !!snapshot.webvpn_cookie;
+      this.loginStatusText = this.ifLogin ? '已登录' : '未登录';
+      const userInfo = await this.tokenStore.getUserInfo<AccountDisplayUserInfo>();
+      const persistedUsername: string = await this.tokenStore.getUsername() ?? '';
+      const displayModel: AccountDisplayModel = buildAccountDisplayModel(this.currentUsername, userInfo, persistedUsername);
+      this.sid = displayModel.sid;
+      this.user = displayModel.user;
+      this.userMotto = displayModel.motto;
+      if (this.ifLogin && !hasAccountDisplayProfile(displayModel)) {
+        await this.loadRemoteCurrentUser();
+      }
+    } catch (error) {
+      this.ifLogin = false;
+      this.loginStatusText = '未登录';
+      this.sid = '';
+      this.user = null;
+      this.userMotto = '';
+    }
+  }
+
+  private async loadRemoteCurrentUser(): Promise<void> {
+    try {
+      const response: UserInfoResponse = await this.userRepository.getUserInfo('0');
+      const displayModel: AccountDisplayModel = buildAccountDisplayModelFromCurrentUser(this.currentUsername, response);
+      this.user = displayModel.user;
+      this.userMotto = displayModel.motto;
+      if (displayModel.sid.length > 0) {
+        this.sid = displayModel.sid;
+      }
+      const storedUserInfo: AccountDisplayUserInfo = {
+        id: response.user.id,
+        nickname: response.user.nickname,
+        avatar: response.user.avatar,
+        motto: response.user.motto,
+        sid: this.sid,
+      };
+      await this.tokenStore.saveUserInfo(storedUserInfo);
+    } catch (_) {
+    }
+  }
+
+  private loginActionItem(): AccountLoginActionItem {
+    return buildAccountLoginActionItem(this.ifLogin, this.loginStatusText);
+  }
+
+  async handleCheckLogin() {
     this.checkingLogin = true;
     uiShowToast(this.getUIContext(), { message: "正在检查登录状态..." });
-    setTimeout(() => {
+    try {
+      const summary: LoginHealthSummary = await this.loginHealthService.checkLogin();
+      this.ifLogin = summary.bit101.ok || summary.school.ok;
+      this.loginStatusText = summary.statusText;
+      uiShowToast(this.getUIContext(), { message: summary.toastText });
+    } catch (error) {
+      this.ifLogin = false;
+      this.loginStatusText = '未登录';
+      uiShowToast(this.getUIContext(), { message: "登录状态检查失败" });
+    } finally {
       this.checkingLogin = false;
-      uiShowToast(this.getUIContext(), { message: "登录状态检查成功" });
-    }, 1500);
+    }
   }
 
   async handleLogout() {
-    const tokenStore = new TokenStore();
-    await tokenStore.clear();
+    await this.loginHealthService.clearLoginState();
     this.ifLogin = false;
+    this.loginStatusText = '未登录';
+    this.sid = '';
     uiClear(this.getUIContext());
     uiReplaceUrl(this.getUIContext(), { url: 'pages/LoginPage' });
   }
 
-  handleLogin() {
-    uiPushUrl(this.getUIContext(), { url: 'pages/LoginPage' });
+  handleLoginAction() {
+    const item: AccountLoginActionItem = this.loginActionItem();
+    if (item.kind === 'logout') {
+      this.handleLogout();
+      return;
+    }
+    uiPushUrl(this.getUIContext(), {
+      url: 'pages/LoginPage',
+      params: { redirect: 'pages/settings/AccountPage' },
+    });
   }
 
   async handlePickAvatar() {

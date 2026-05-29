@@ -16,6 +16,8 @@ import { CourseTermRepository } from '../../services/jw/courseTermRepository';
 import { ExamScheduleRepository } from '../../services/jw/examScheduleRepository';
 import { detectSchoolLoginMode } from '../../services/school/SchoolNetworkProbe';
 import type { SchoolLoginMode } from '../../services/school/SchoolAuthTypes';
+import { doOperationRequiresLogin, LoginHealthService } from '../../services/auth/LoginHealthService';
+import type { CourseScheduleItem, ExamScheduleItem } from '../../services/schoolSchedule/ScheduleModels';
 
 // ----------------------------------------------------------------------------
 // 1. 数据模型定义
@@ -50,6 +52,7 @@ class SettingData {
 @Component
 struct CalendarSettingPage {
   private settingsStore: CourseScheduleSettingsStore = new CourseScheduleSettingsStore();
+  private loginHealthService: LoginHealthService = new LoginHealthService();
 
   @State currentTerm: string = "";
   @State firstDay: string = "";
@@ -334,7 +337,7 @@ struct CalendarSettingPage {
     this.fetchFirstDayForTerm(this.currentTerm, false);
   }
 
-  handleGetCourses(): void {
+  async handleGetCourses(): Promise<void> {
     const filesDir = this.getFilesDir();
     if (filesDir.length === 0) {
       uiShowToast(this.getUIContext(), { message: "无法获取应用文件目录" });
@@ -355,18 +358,24 @@ struct CalendarSettingPage {
     const repo = new CourseScheduleRepository({
       localStore: new ScheduleLocalStore({ filesDir }),
     });
-    repo.refreshCourses(this.currentTerm, this.firstDay, periodTimes)
-      .then(() => {
-        this.isGettingCourses = false;
-        uiShowToast(this.getUIContext(), { message: "获取成功" });
-      })
-      .catch(() => {
-        this.isGettingCourses = false;
-        uiShowToast(this.getUIContext(), { message: "获取失败，请检查登录状态" });
-      });
+    try {
+      await doOperationRequiresLogin<CourseScheduleItem[]>(
+        async (): Promise<CourseScheduleItem[]> => await repo.refreshCourses(this.currentTerm, this.firstDay, periodTimes),
+        async () => await this.loginHealthService.checkLogin(),
+        'core',
+      );
+      uiShowToast(this.getUIContext(), { message: "获取成功" });
+    } catch (error) {
+      const message = error instanceof Error && error.message.includes('教务应用登录态不可用')
+        ? error.message
+        : "获取失败，请检查登录状态";
+      uiShowToast(this.getUIContext(), { message });
+    } finally {
+      this.isGettingCourses = false;
+    }
   }
 
-  handleGetExams(): void {
+  async handleGetExams(): Promise<void> {
     this.isGettingExams = true;
     const filesDir = this.getFilesDir();
     if (filesDir.length === 0) {
@@ -379,16 +388,22 @@ struct CalendarSettingPage {
       uiShowToast(this.getUIContext(), { message: "请先设置当前学期" });
       return;
     }
-    this.createExamRefreshRepository(filesDir)
-      .then((repo: CourseScheduleRepository) => repo.refreshExams(this.currentTerm))
-      .then((exams) => {
-        this.isGettingExams = false;
-        uiShowToast(this.getUIContext(), { message: `获取成功，共 ${exams.length} 条` });
-      })
-      .catch(() => {
-        this.isGettingExams = false;
-        uiShowToast(this.getUIContext(), { message: "获取失败，请检查登录状态" });
-      });
+    try {
+      const repo: CourseScheduleRepository = await this.createExamRefreshRepository(filesDir);
+      const exams: ExamScheduleItem[] = await doOperationRequiresLogin<ExamScheduleItem[]>(
+        async (): Promise<ExamScheduleItem[]> => await repo.refreshExams(this.currentTerm),
+        async () => await this.loginHealthService.checkLogin(),
+        'jxzx',
+      );
+      uiShowToast(this.getUIContext(), { message: `获取成功，共 ${exams.length} 条` });
+    } catch (error) {
+      const message = error instanceof Error && error.message.includes('教务应用登录态不可用')
+        ? error.message
+        : "获取失败，请检查登录状态";
+      uiShowToast(this.getUIContext(), { message });
+    } finally {
+      this.isGettingExams = false;
+    }
   }
 
   private saveTimeTable(value: string): void {
@@ -447,16 +462,23 @@ struct CalendarSettingPage {
   private fetchDefaultCurrentTerm(): void {
     this.isGettingCurrentTerm = true;
     this.createTermRepository()
-      .then((repo: CourseTermRepository) => repo.getCurrentTerm())
+      .then((repo: CourseTermRepository) => doOperationRequiresLogin<string>(
+        async (): Promise<string> => await repo.getCurrentTerm(),
+        async () => await this.loginHealthService.checkLogin(),
+        'jxzx',
+      ))
       .then((term: string) => {
         this.isGettingCurrentTerm = false;
         if (term.length > 0) {
           this.saveCurrentTerm(term, true);
         }
       })
-      .catch(() => {
+      .catch((error: Error) => {
         this.isGettingCurrentTerm = false;
-        uiShowToast(this.getUIContext(), { message: "自动获取当前学期失败，请检查登录状态" });
+        const message = error.message.includes('教务应用登录态不可用')
+          ? error.message
+          : "自动获取当前学期失败，请检查登录状态";
+        uiShowToast(this.getUIContext(), { message });
       });
   }
 
@@ -474,7 +496,11 @@ struct CalendarSettingPage {
   private loadTermOptions(): void {
     this.isGettingTerms = true;
     this.createTermRepository()
-      .then((repo: CourseTermRepository) => repo.getTermList())
+      .then((repo: CourseTermRepository) => doOperationRequiresLogin<string[]>(
+        async (): Promise<string[]> => await repo.getTermList(),
+        async () => await this.loginHealthService.checkLogin(),
+        'jxzx',
+      ))
       .then((terms: string[]) => {
         this.isGettingTerms = false;
         this.termOptions = terms;
@@ -482,9 +508,12 @@ struct CalendarSettingPage {
           uiShowToast(this.getUIContext(), { message: "没有获取到可选学期" });
         }
       })
-      .catch(() => {
+      .catch((error: Error) => {
         this.isGettingTerms = false;
-        uiShowToast(this.getUIContext(), { message: "获取学期列表失败，请检查登录状态" });
+        const message = error.message.includes('教务应用登录态不可用')
+          ? error.message
+          : "获取学期列表失败，请检查登录状态";
+        uiShowToast(this.getUIContext(), { message });
       });
   }
 
@@ -496,7 +525,11 @@ struct CalendarSettingPage {
   private fetchFirstDayForTerm(term: string, silent: boolean): void {
     this.isGettingFirstDay = true;
     this.createTermRepository()
-      .then((repo: CourseTermRepository) => repo.getFirstDay(term))
+      .then((repo: CourseTermRepository) => doOperationRequiresLogin<string>(
+        async (): Promise<string> => await repo.getFirstDay(term),
+        async () => await this.loginHealthService.checkLogin(),
+        'jxzx',
+      ))
       .then((firstDay: string) => {
         this.isGettingFirstDay = false;
         this.settingsStore.load()
@@ -519,9 +552,12 @@ struct CalendarSettingPage {
             uiShowToast(this.getUIContext(), { message: "学期起始日期保存失败" });
           });
       })
-      .catch(() => {
+      .catch((error: Error) => {
         this.isGettingFirstDay = false;
-        uiShowToast(this.getUIContext(), { message: "获取学期起始日期失败" });
+        const message = error.message.includes('教务应用登录态不可用')
+          ? error.message
+          : "获取学期起始日期失败，请检查登录状态";
+        uiShowToast(this.getUIContext(), { message });
       });
   }
 

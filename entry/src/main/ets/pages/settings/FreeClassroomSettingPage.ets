@@ -2,6 +2,7 @@ import { uiBack, uiShowToast } from '../../utils/uiContextBridge';
 import { CampusInfo, FreeClassroomRepository } from '../../services/jw/freeClassroomRepository';
 import { detectSchoolLoginMode } from '../../services/school/SchoolNetworkProbe';
 import type { SchoolLoginMode } from '../../services/school/SchoolAuthTypes';
+import { doOperationRequiresLogin, LoginHealthService } from '../../services/auth/LoginHealthService';
 import {
   buildFreeClassroomCampusDialogModel,
   buildFreeClassroomSettingsMainItems,
@@ -30,6 +31,7 @@ import {
 struct FreeClassroomSettingPage {
   private store = new FreeClassroomSettingsStore();
   private repo = new FreeClassroomRepository({ debug: true, mode: 'inner' });
+  private loginHealthService: LoginHealthService = new LoginHealthService();
 
   @State currentCampusCode: string = DEFAULT_FREE_CLASSROOM_SETTINGS.currentCampusCode;
   @State currentCampusName: string = DEFAULT_FREE_CLASSROOM_SETTINGS.currentCampusName;
@@ -75,19 +77,30 @@ struct FreeClassroomSettingPage {
     this.loadingCampus = true;
     this.errorText = '';
     try {
-      try {
-        this.loginMode = await detectSchoolLoginMode({ debug: true });
-      } catch (_) {
-        this.loginMode = 'inner';
-      }
-      this.repo = new FreeClassroomRepository({ debug: true, mode: this.loginMode });
-      await this.repo.restoreWebvpnCookiesFromStorage();
-      this.campusList = await this.repo.getCampusInfos();
+      this.campusList = await doOperationRequiresLogin<CampusInfo[]>(
+        async (): Promise<CampusInfo[]> => await this.loadCampusListWithoutState(),
+        async () => await this.loginHealthService.checkLogin(),
+        'jxzx',
+      );
     } catch (e) {
       this.errorText = e instanceof Error ? e.message : String(e);
+      if (this.errorText.includes('教务应用登录态不可用')) {
+        uiShowToast(this.getUIContext(), { message: this.errorText });
+      }
     } finally {
       this.loadingCampus = false;
     }
+  }
+
+  private async loadCampusListWithoutState(): Promise<CampusInfo[]> {
+    try {
+      this.loginMode = await detectSchoolLoginMode({ debug: true });
+    } catch (_) {
+      this.loginMode = 'inner';
+    }
+    this.repo = new FreeClassroomRepository({ debug: true, mode: this.loginMode });
+    await this.repo.restoreWebvpnCookiesFromStorage();
+    return await this.repo.getCampusInfos();
   }
 
   private async selectCampus(campus: CampusInfo): Promise<void> {

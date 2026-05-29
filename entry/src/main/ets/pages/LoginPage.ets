@@ -105,6 +105,7 @@ struct LoginPage {
         }
 
         AppStorage.setOrCreate('current_username', this.sid)
+        await this.tokenStore.saveUsername(this.sid.trim());
 
         // 4. 页面跳转
         const p = uiGetParams(this.getUIContext()) as object
