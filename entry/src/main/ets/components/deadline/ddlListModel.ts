@@ -12,10 +12,34 @@ export interface DdlFabSpec {
   gapVp: number;
 }
 
+export interface DdlFetchLexueCtaModel {
+  showSpinner: boolean;
+  text: string;
+}
+
 export interface DdlCardTextLines {
   title: string;
   body: string;
   remain: string;
+}
+
+export type DdlCardCheckboxPlacement = 'trailing-inside-card';
+
+export interface DdlCardLayoutSpec {
+  checkboxPlacement: DdlCardCheckboxPlacement;
+  contentStartPaddingVp: number;
+  contentEndPaddingVp: number;
+  contentVerticalPaddingVp: number;
+}
+
+export interface DdlEmptyLayoutSpec {
+  fullWidth: boolean;
+  horizontalOuterPaddingVp: number;
+  verticalOuterPaddingVp: number;
+  horizontalInnerPaddingVp: number;
+  verticalInnerPaddingVp: number;
+  cornerRadiusVp: number;
+  hasContainerBackground: boolean;
 }
 
 export interface DdlDetailRow {
@@ -121,6 +145,19 @@ export function shouldAutoSyncDdlOnAppear(
   return hasSubscribeUrl && !loading && !isFetchingLexue;
 }
 
+export function getDdlFetchLexueCtaModel(isFetchingLexue: boolean): DdlFetchLexueCtaModel {
+  if (isFetchingLexue) {
+    return {
+      showSpinner: true,
+      text: '',
+    };
+  }
+  return {
+    showSpinner: false,
+    text: '获取乐学日程',
+  };
+}
+
 export function buildDdlSettingsDataItems(
   isUpdatingLexueCalendarUrl: boolean,
   isUpdatingLexueCalendar: boolean,
@@ -191,6 +228,27 @@ export function getDdlFabSpecs(): DdlFabSpec[] {
 
 export function getDdlEmptyText(): string {
   return DDL_EMPTY_TEXT;
+}
+
+export function getDdlEmptyLayoutSpec(): DdlEmptyLayoutSpec {
+  return {
+    fullWidth: true,
+    horizontalOuterPaddingVp: 10,
+    verticalOuterPaddingVp: 5,
+    horizontalInnerPaddingVp: 10,
+    verticalInnerPaddingVp: 5,
+    cornerRadiusVp: 8,
+    hasContainerBackground: true,
+  };
+}
+
+export function getDdlCardLayoutSpec(): DdlCardLayoutSpec {
+  return {
+    checkboxPlacement: 'trailing-inside-card',
+    contentStartPaddingVp: 15,
+    contentEndPaddingVp: 5,
+    contentVerticalPaddingVp: 15,
+  };
 }
 
 function normalizeDdlText(text: string): string {

@@ -6,6 +6,9 @@ import {
   buildDdlEditDialogModel,
   buildDdlDetailModel,
   buildDdlCardTextLines,
+  getDdlCardLayoutSpec,
+  getDdlEmptyLayoutSpec,
+  getDdlFetchLexueCtaModel,
   formatDdlDatePickerValue,
   formatDdlTimePickerValue,
   getDdlEmptyText,
@@ -16,6 +19,8 @@ import {
   validateDdlEditInput,
 } from '../main/ets/components/deadline/ddlListModel';
 import type {
+  DdlEmptyLayoutSpec,
+  DdlFetchLexueCtaModel,
   DdlCardTextLines,
   DdlDeleteConfirmModel,
   DdlDetailModel,
@@ -42,6 +47,16 @@ export default function ddlListModelTest() {
       expect(shouldAutoSyncDdlOnAppear(true, true, false)).assertFalse();
       expect(shouldAutoSyncDdlOnAppear(true, false, true)).assertFalse();
       expect(shouldAutoSyncDdlOnAppear(true, false, false)).assertTrue();
+    });
+
+    it('uses Android-style Lexue fetch CTA loading content', 0, () => {
+      const idle: DdlFetchLexueCtaModel = getDdlFetchLexueCtaModel(false);
+      const loading: DdlFetchLexueCtaModel = getDdlFetchLexueCtaModel(true);
+
+      expect(idle.showSpinner).assertFalse();
+      expect(idle.text).assertEqual('获取乐学日程');
+      expect(loading.showSpinner).assertTrue();
+      expect(loading.text).assertEqual('');
     });
 
     it('builds Android-style DDL settings data rows', 0, () => {
@@ -98,6 +113,18 @@ export default function ddlListModelTest() {
       expect(getDdlEmptyText()).assertEqual('怎么会有人没事儿了啊ヽ(`Д´)ﾉ\n快去卷😭');
     });
 
+    it('uses Android DDL empty-state card layout', 0, () => {
+      const spec: DdlEmptyLayoutSpec = getDdlEmptyLayoutSpec();
+
+      expect(spec.fullWidth).assertTrue();
+      expect(spec.horizontalOuterPaddingVp).assertEqual(10);
+      expect(spec.verticalOuterPaddingVp).assertEqual(5);
+      expect(spec.horizontalInnerPaddingVp).assertEqual(10);
+      expect(spec.verticalInnerPaddingVp).assertEqual(5);
+      expect(spec.cornerRadiusVp).assertEqual(8);
+      expect(spec.hasContainerBackground).assertTrue();
+    });
+
     it('builds Android-style DDL card text lines', 0, () => {
       const now: number = new Date(2026, 4, 26, 8, 0, 0).getTime();
       const item: DdlItem = {
@@ -118,6 +145,14 @@ export default function ddlListModelTest() {
       expect(lines.title).assertEqual('实验报告');
       expect(lines.body).assertEqual('数据结构\n\n提交 PDF');
       expect(lines.remain).assertEqual('剩余 1小时 0分钟');
+    });
+
+    it('places the DDL checkbox inside the card trailing edge like Android', 0, () => {
+      const spec = getDdlCardLayoutSpec();
+
+      expect(spec.checkboxPlacement).assertEqual('trailing-inside-card');
+      expect(spec.contentStartPaddingVp).assertEqual(15);
+      expect(spec.contentEndPaddingVp).assertEqual(5);
     });
 
     it('builds Android-style DDL detail sections and actions', 0, () => {

@@ -142,6 +142,32 @@ export default function ddlLocalTest() {
       expect(visible[1].uid).assertEqual('future');
     });
 
+    it('excludes DDL exactly on Android retention boundary', 0, () => {
+      const dayMs: number = 24 * 60 * 60 * 1000;
+      const now: number = 10 * dayMs;
+      const items: DdlItem[] = [
+        buildDdlItemFromManualInput({
+          title: 'Boundary expired',
+          courseName: '',
+          time: now - 3 * dayMs,
+          description: '',
+          location: '',
+        }, 'boundary', 1),
+        buildDdlItemFromManualInput({
+          title: 'Inside retention',
+          courseName: '',
+          time: now - 3 * dayMs + 1,
+          description: '',
+          location: '',
+        }, 'inside', 1),
+      ];
+
+      const visible: DdlItem[] = listVisibleDdlItems(items, now, 3);
+
+      expect(visible.length).assertEqual(1);
+      expect(visible[0].uid).assertEqual('inside');
+    });
+
     it('computes DDL remaining time ratio from warning days', 0, () => {
       const dayMs: number = 24 * 60 * 60 * 1000;
       const now: number = 10 * dayMs;

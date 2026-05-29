@@ -1,6 +1,6 @@
 # Android Parity Handoff: Schedule, DDL, Free Classroom
 
-Date: 2026-05-26
+Date: 2026-05-29
 
 ## Current Conclusion
 
@@ -18,6 +18,9 @@ Completed or mostly completed:
 - DDL local management plus Lexue sync settings.
 - DDL list/card empty state, remaining-time copy, card text layout, detail dialog sections, delete confirmation, edit labels, and picker-based date/time editing.
 - Free classroom page and settings page.
+- Login health check split into BIT101 backend, school/Lexue, and JXZX teaching-app domains so settings no longer reports a false full success when exam/free-classroom auth is broken.
+- Account page now restores nickname, avatar, UID, motto, and persisted username-backed student id instead of showing mock data.
+- Free classroom queries now use the course schedule's selected term first, matching Android's `scheduleSettings.term`, and only fall back to a date-guessed term when no schedule term is available.
 - Course schedule FAB visual/interaction parity with Android: four 42vp icon FABs, Android order, right-bottom anchor, and vertical drag clamp.
 
 Still not fully aligned:
@@ -26,6 +29,7 @@ Still not fully aligned:
 - DDL still needs a focused Android-by-Android audit for sorting, loading/error states, settings/default behavior, and remaining edge-case interactions.
 - Free classroom still needs a full Android-by-Android audit for defaults, sorting, loading/empty/error states, labels, and edge-case interactions.
 - Course schedule visual details still need a final side-by-side audit after the data/API work settles.
+- Secure credential storage / auto repair is still not implemented. HarmonyOS should not persist plaintext password just to copy Android's auto relogin behavior.
 - System calendar insertion remains deferred.
 
 ## Recent Commits
@@ -55,17 +59,57 @@ Still not fully aligned:
 - `build-profile.json5` contains local signing password changes. Do not commit those unless the user explicitly asks for signing config cleanup.
 - `DebugRunner.CURRENT_DEBUG_TARGET` must be restored to `DebugTarget.SCHOOL_NETWORK_PROBE` after temporary debug runs. It is currently expected to stay there for handoff.
 - Do not use unrelated MCP servers such as GitHub or CloudBase for this local HarmonyOS parity work. The user explicitly objected to that.
-- DevEco MCP was unavailable in the last active tool set. Device-side validation was still performed with local `hdc`, `uitest`, screenshots, UI tree dumps, and HiLog. If DevEco MCP is available in the next session, prefer it; if it is not available, use this hdc fallback and state that clearly.
+- DevEco MCP is available for `project_sync`, `start_app`, HiLog, screenshot, and UI tree in the latest session. `check_ets_files` still returned "未初始化，请先初始化或更新工程根路径" even after `project_sync`; use hvigor compile as the fallback for ArkTS checking when that specific tool fails.
 
 ## Current Uncommitted Work Summary
 
-As of the latest handoff update, the only tracked dirty file should be:
+As of the latest handoff update, the working tree is intentionally dirty. Do not assume only `build-profile.json5` is modified.
 
 - `build-profile.json5`
+  - Local signing password changes only. Do not commit or revert unless explicitly requested.
+- Handoff doc:
+  - `docs/plans/2026-05-25-android-parity-handoff.md`
+- Current DDL Android-parity audit batch:
+  - `entry/src/main/ets/components/deadline/DdlCard.ets`
+  - `entry/src/main/ets/components/deadline/DdlList.ets`
+  - `entry/src/main/ets/components/deadline/ddlListModel.ts`
+  - `entry/src/main/ets/services/deadline/DdlModels.ts`
+  - `entry/src/test/DdlListModel.test.ets`
+  - `entry/src/test/DdlLocal.test.ets`
 
-That file contains local signing password changes and must remain uncommitted unless the user explicitly asks for signing config cleanup.
+The login-health/account-profile and free-classroom term-source batches previously listed here have been committed in the current repository history. Confirm with `git status --short` before committing.
 
-The previously listed schedule/exam/FAB and DDL batches have been committed. Always confirm with `git status --short` before continuing.
+Always confirm with `git status --short` before continuing, and do not include `build-profile.json5`, `screenshot/`, `.mcp.json`, or `BIT101-Android/` in any commit unless the user explicitly asks.
+
+## Login Health / Account Status
+
+Implemented and committed in the current repository history:
+
+- `LoginHealthService` now checks three domains:
+  - BIT101 backend via `/user/check`.
+  - School/Lexue via restored `BitSsoSession`.
+  - JXZX teaching app via `FreeClassroomRepository.getCampusInfos()`.
+- Summary behavior:
+  - All three healthy: `已登录`, toast `登录状态检查成功`.
+  - BIT101 or school fail: `未登录`, toast `登录状态检查失败`, and clears stored login state.
+  - Only JXZX fail: `部分异常`, toast `部分登录态异常，请重新登录后再试考试/空教室`, and does not clear BIT101/Lexue state.
+- Operation requirements now distinguish:
+  - `core`: BIT101 + school/Lexue. Used by DDL/Lexue and course refresh.
+  - `jxzx`: BIT101 + school/Lexue + JXZX. Used by exam, term, and free-classroom operations.
+  - `all`: full health summary.
+- Account page no longer invents mock `1120202222`.
+  - It loads `sid`, `nickname`, `avatar`, `UID`, and `motto` from `TokenStore.user_info`.
+  - If local profile is incomplete, it falls back to BIT101 `/user/info/0` and stores the profile back.
+  - Login persists the submitted username through `TokenStore.saveUsername()`.
+  - Existing old sessions cannot recover a missing student id unless the username key exists or the backend profile contains `sid`; after the next real login the sid is persisted.
+- Account actions:
+  - `已登录`: `退出登录` and `清除所有登录状态`.
+  - `部分异常`: `重新登录` with subtext for rebuilding teaching-app state.
+  - `未登录`: `登录`.
+
+Important decision:
+
+- Do not store plaintext password for Android-style auto repair. A future auto-repair design should use a secure credential storage spike.
 
 ## Course Schedule Status
 
@@ -113,8 +157,11 @@ Implemented:
 - DDL settings store and settings page.
 - DDL list/detail display behavior updates.
 - Android-style empty-state copy.
+- Android-style empty-state container layout.
 - Android-style remaining-time copy.
 - Android-aligned card title/body layout.
+- Android-aligned retention boundary filtering (`time > now - afterDay`) and trailing checkbox placement inside the card.
+- Android-aligned first-run Lexue fetch CTA loading content: spinner only, no extra `获取中...` text.
 - Android-aligned detail dialog sections.
 - Manual DDL delete confirmation.
 - Edit/add dialog labels.
@@ -131,7 +178,7 @@ Implemented:
 
 Known gaps / audit items:
 
-- Compare Android sorting, retention, warning threshold, empty states, and filtering behavior one by one.
+- Compare Android sorting, warning threshold, and filtering behavior one by one. Retention boundary and empty-state container layout are now covered by tests.
 - Confirm whether Android has additional reminder/system-calendar behavior that HarmonyOS should mirror.
 - Confirm FAB/default setting styling against Android DDL after the course schedule FAB change.
 - Confirm loading/error states and Lexue sync failure UX against Android.
@@ -150,11 +197,15 @@ Implemented:
   - `FreeClassroom.test.ets`
 - DevEco MCP debug case:
   - `FREE_CLASSROOM`
+- Free classroom term source now follows Android:
+  - Android uses `scheduleSettings.term` when calling `getClassroomData`.
+  - HarmonyOS now uses `COURSE_SCHEDULE_APP_CURRENT_TERM` via `resolveFreeClassroomTermCode()`.
+  - It falls back to `guessCurrentSchoolTermCode()` only when the schedule term is empty.
 
 Known gaps / audit items:
 
 - Need side-by-side UI comparison against Android for defaults, labels, loading/empty/error states, and edge cases.
-- Confirm exact query defaults and period-selection behavior.
+- Confirm exact query defaults and period-selection behavior beyond term source.
 - Confirm FAB/default setting styling against Android free classroom after the course schedule FAB change.
 
 ## Verification Evidence From Latest Work
@@ -175,9 +226,22 @@ Latest results observed in this session:
 
 - `hvigorw.bat test --no-daemon`: `BUILD SUCCESSFUL`
 - debug `assembleHap`: `BUILD SUCCESSFUL`
-- Device install/start on `127.0.0.1:5555` via `hdc`: installed and started successfully
+- DevEco MCP `start_app` on `Mate 70 Pro`: installed and started successfully
 - HiLog `DebugIT_DebugRunner`:
-  - latest observed: `SUMMARY target=SCHOOL_NETWORK_PROBE total=1 passed=1 failed=0 duration=739ms`
+  - latest observed: `SUMMARY target=SCHOOL_NETWORK_PROBE total=1 passed=1 failed=0 duration=591ms`
+- Current DDL audit screenshots/UI tree:
+  - `screenshot/ddl-after-empty-layout-card-20260529.png`
+  - `screenshot/simple_dump_bit101harmonyos_20260529152134478.txt`
+  - UI tree confirmed DDL tab rendered, item `测试` visible, and card trailing `Toggle` is `checkable: 1`, `checked: 1`.
+- Earlier login-health debug run:
+  - `SUMMARY target=LOGIN_HEALTH total=1 passed=1 failed=0`
+  - case logs showed `bit101=true`, `school=true`, `jxzx=true` on the current device state.
+- Account profile screenshot after persisted profile repair:
+  - `screenshot/account-profile-fields-restored-after-persist-key-20260526.png`
+  - UI tree confirmed `账号设置`, nickname `BIT101-732f57d6`, `UID 13482`, `登录状态检查 已登录`, `退出登录`, and `清除所有登录状态`.
+- Free classroom term-source screenshot / UI tree after latest fix:
+  - `screenshot/free-classroom-term-source-verification-20260526.png`
+  - `screenshot/simple_dump_bit101harmonyos_20260526232050598.txt`
 - Device screenshot after FAB alignment:
   - `screenshot/schedule-fab-android-aligned-right.png`
 - Device screenshot after clicking next-week FAB:
@@ -198,6 +262,7 @@ Existing warnings:
 
 - hvigor dependency metadata warning.
 - `ImageViewer.ets` warning for `ohos.permission.WRITE_IMAGEVIDEO`.
+- DevEco MCP `check_ets_files` can fail with "未初始化"; use hvigor `CompileArkTS` / `assembleHap` as the practical compile check if that tool remains unavailable.
 
 ## Integration Debug Workflow
 
@@ -237,13 +302,19 @@ Useful MCP values:
    - Busy/free display and ordering.
    - Empty/loading/error states.
    - Settings labels and persistence.
+   - The selected-term source is already aligned; do not redo it unless regression evidence appears.
 
-3. Decide whether full Android-native school course API sync is required.
+3. Commit or checkpoint the current uncommitted DDL audit batch when the user asks for a commit.
+   - Exclude `build-profile.json5`.
+   - Include only source/test files relevant to this work.
+   - Keep `DebugRunner.CURRENT_DEBUG_TARGET = DebugTarget.SCHOOL_NETWORK_PROBE`.
+
+4. Decide whether full Android-native school course API sync is required.
    - Exams now use the Android-referenced school endpoint.
    - Courses still do not.
    - If required, start from Android `DefaultCoursesRepo` and school course API references, then use TDD and a DevEco debug case.
 
-4. Defer system calendar integration unless explicitly requested.
+5. Defer system calendar integration unless explicitly requested.
    - It needs a separate HarmonyOS permission/API spike and device verification.
 
 ## New Conversation Prompt
@@ -261,29 +332,37 @@ Copy this into a new chat:
 - docs/plans/2026-05-25-course-schedule-android-parity.md
 - docs/plans/2026-05-25-android-parity-handoff.md
 
-当前结论：`卷` 这个大 tab 的主要可用闭环已经完成不少，但仍未完全 Android 对齐。课表、考试刷新/显示、学期下拉、课程颜色、课表 FAB、DDL、空教室都已有主要实现；考试刷新已经接入 Android 参考的学校考试 API，并已在设备侧看到 `2025-2026-2` 返回 4 条考试。课程刷新仍是 BIT101/ICS 归一化，不是完整 Android 原生教务课程 API。DDL 和空教室还需要逐项对照 Android 的默认值、排序、空态、错误态和交互细节。
+当前结论：`卷` 这个大 tab 的主要可用闭环已经完成不少，但仍未完全 Android 对齐。课表、考试刷新/显示、学期下拉、课程颜色、课表 FAB、DDL、空教室都已有主要实现；考试刷新已经接入 Android 参考的学校考试 API，并已在设备侧看到 `2025-2026-2` 返回 4 条考试。课程刷新仍是 BIT101/ICS 归一化，不是完整 Android 原生教务课程 API。登录健康检查已拆成 BIT101、学校/Lexue、JXZX 教务应用三域，账号页不再显示 mock 学号；空教室查询学期来源已对齐 Android，优先使用课表设置当前学期。DDL 和空教室仍需逐项对照 Android 的默认值、排序、空态、错误态和交互细节。
 
 本地 BIT101-Android/ 是只读参考代码，不要提交它；screenshot/ 和 .mcp.json 是本地产物。不要提交 build-profile.json5 里的本机签名密码变化，除非我明确要求。DebugRunner.CURRENT_DEBUG_TARGET 跑完必须恢复为 DebugTarget.SCHOOL_NETWORK_PROBE。
 
 当前 git 状态预期：
-- 只剩 build-profile.json5 的本机签名脏改，不要提交。
-- 最近 DDL 对齐提交已经完成到 `01a2175 feat(ddl): add picker overlays for deadline editing`。
+- `build-profile.json5` 有本机签名脏改，不要提交。
+- 当前 DDL Android 细节审计批次未提交：`DdlModels.ts`、`ddlListModel.ts`、`DdlCard.ets`、`DdlList.ets`、`DdlLocal.test.ets`、`DdlListModel.test.ets`。
+- `docs/plans/2026-05-25-android-parity-handoff.md` 已更新到当前会话状态。
+- 登录健康/账号资料恢复和空教室学期来源批次在当前仓库历史中已经提交，不要按旧交接当成未提交批次。
 
 最新 DDL 状态：
 - 已完成 Android 风格空态、剩余时间文案、卡片布局、详情弹窗、手动删除确认、编辑弹窗标签。
 - 已完成 DDL 新增/编辑日期/时间 picker：日期 chip 打开 DatePicker，时间 chip 未选日期时禁用；确认日期后显示 `yyyy-MM-dd` 并默认 `00:00:00`；时间 picker 确认 `HH:mm:ss`。
+- 已完成 Android retention 边界 `time > now - afterDay`、卡片右侧 checkbox 内置，以及空态容器布局 model/ArkUI 对齐。
+- 已完成无订阅链接首次获取乐学日程按钮 loading 态对齐：只显示 spinner，不显示额外文字。
 - 上轮重要根因：ArkUI `@Builder` 参数不会可靠跟踪 `@State` 更新，date/time chip builder 必须直接读取 `this.dateText` / `this.timeText`，不要再改回传参模式。
 
 最近验证证据：
 - hvigorw.bat test --no-daemon：BUILD SUCCESSFUL
 - debug assembleHap：BUILD SUCCESSFUL
-- hdc install/start app on 127.0.0.1:5555：安装并启动成功
-- HiLog DebugIT_DebugRunner：SUMMARY target=SCHOOL_NETWORK_PROBE total=1 passed=1 failed=0 duration=739ms
+- DevEco MCP start_app on Mate 70 Pro：安装并启动成功
+- HiLog DebugIT_DebugRunner：SUMMARY target=SCHOOL_NETWORK_PROBE total=1 passed=1 failed=0 duration=591ms
+- 截图/UI tree：screenshot/ddl-after-empty-layout-card-20260529.png、screenshot/simple_dump_bit101harmonyos_20260529152134478.txt，确认 DDL 页渲染、测试项可见、卡片 trailing Toggle checkable/checked。
+- 早前 LOGIN_HEALTH debug case：SUMMARY target=LOGIN_HEALTH total=1 passed=1 failed=0；日志显示 bit101=true、school=true、jxzx=true
+- 截图/UI tree：screenshot/account-profile-fields-restored-after-persist-key-20260526.png，确认账号页昵称/UID/motto/登录状态恢复；旧会话缺失 sid 时不会再显示 mock 学号，重新登录后会持久化 username
+- 截图/UI tree：screenshot/free-classroom-term-source-verification-20260526.png、screenshot/simple_dump_bit101harmonyos_20260526232050598.txt，确认空教室批次已设备侧启动验证
 - 截图：screenshot/schedule-fab-android-aligned-right.png 和 screenshot/schedule-fab-next-week-click.png，确认课表 FAB 右下角 4 按钮且右箭头可切到下一周
 - 截图：screenshot/ddl-date-selected-final.png、screenshot/ddl-time-picker-final.png、screenshot/ddl-time-confirmed-final.png，确认 DDL 日期/时间 picker 可打开并写回
 - UI tree：screenshot/ddl-time-confirmed-final-layout.json，确认 `添加DDL`、`2026-05-26`、`00:00:00` 可见
 
-请从“继续 DDL 剩余 Android 细节审计，然后进入空教室 Android 细节对齐”开始：
+请从“提交/继续当前 DDL 审计批次，然后继续 DDL 和空教室 Android 细节审计”开始：
 1. 先读 Android 参考实现和当前 HarmonyOS diff。
 2. 保护 build-profile.json5 的本机签名脏改，不要提交。
 3. 对任何继续修改的行为先写/跑失败测试。
@@ -292,7 +371,8 @@ Copy this into a new chat:
 6. 最终至少跑 hvigor test 和 assembleHap；如果使用 debug case，HiLog DebugIT_DebugRunner 的 SUMMARY 必须 failed=0。
 
 下一步建议优先级：
-1. DDL：对照 Android 检查排序、loading/error、Lexue sync 失败、设置默认值/保留天数/提醒阈值、新增编辑成功后的 toast 和列表刷新。
-2. 空教室：对照 Android 检查默认校区/楼宇/日期/节次、空闲/占用排序、空态/错误态、设置标签和持久化。
-3. 课程：若用户要求，再实现完整 Android 原生教务课程 API；目前课程刷新仍是 BIT101/ICS 归一化。
+1. 若用户要求提交，先提交当前 DDL 审计批次，排除 build-profile.json5 和截图/.mcp.json。
+2. DDL：对照 Android 检查排序、loading/error、Lexue sync 失败、设置默认值/保留天数/提醒阈值、新增编辑成功后的 toast 和列表刷新。
+3. 空教室：继续对照 Android 检查默认校区/楼宇/日期/节次、空闲/占用排序、空态/错误态、设置标签和持久化；学期来源已对齐，不要重复做。
+4. 课程：若用户要求，再实现完整 Android 原生教务课程 API；目前课程刷新仍是 BIT101/ICS 归一化。
 ```

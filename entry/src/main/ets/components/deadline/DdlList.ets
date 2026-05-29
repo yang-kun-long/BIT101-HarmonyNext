@@ -19,10 +19,13 @@ import {
   DdlEditDialogModel,
   DdlEditValidationResult,
   DdlFabSpec,
+  DdlFetchLexueCtaModel,
   buildDdlEditDialogModel,
   formatDdlDatePickerValue,
   formatDdlTimePickerValue,
+  getDdlEmptyLayoutSpec,
   getDdlEmptyText,
+  getDdlFetchLexueCtaModel,
   getDdlFabSpecs,
   resolveDdlContentState,
   shouldAutoSyncDdlOnAppear,
@@ -362,19 +365,47 @@ export default struct DdlList {
   }
 
   @Builder
+  private EmptyState() {
+    Column() {
+      Text(getDdlEmptyText())
+        .fontSize(14)
+        .fontColor('#4B5563')
+        .textAlign(TextAlign.Center)
+        .width('100%')
+        .padding({
+          left: getDdlEmptyLayoutSpec().horizontalInnerPaddingVp,
+          right: getDdlEmptyLayoutSpec().horizontalInnerPaddingVp,
+          top: getDdlEmptyLayoutSpec().verticalInnerPaddingVp,
+          bottom: getDdlEmptyLayoutSpec().verticalInnerPaddingVp,
+        })
+        .backgroundColor('#E5E7EB')
+        .borderRadius(getDdlEmptyLayoutSpec().cornerRadiusVp)
+    }
+    .width('100%')
+    .padding({
+      left: getDdlEmptyLayoutSpec().horizontalOuterPaddingVp,
+      right: getDdlEmptyLayoutSpec().horizontalOuterPaddingVp,
+      top: getDdlEmptyLayoutSpec().verticalOuterPaddingVp,
+      bottom: getDdlEmptyLayoutSpec().verticalOuterPaddingVp,
+    })
+  }
+
+  @Builder
   private FetchLexueEntry() {
     Column() {
       Button() {
         Row({ space: 8 }) {
-          if (this.isFetchingLexue) {
+          if (this.fetchLexueCtaModel().showSpinner) {
             LoadingProgress()
               .width(20)
               .height(20)
               .color(Color.White)
           }
-          Text(this.isFetchingLexue ? '获取中...' : '获取乐学日程')
-            .fontSize(16)
-            .fontColor(Color.White)
+          if (this.fetchLexueCtaModel().text.length > 0) {
+            Text(this.fetchLexueCtaModel().text)
+              .fontSize(16)
+              .fontColor(Color.White)
+          }
         }
         .alignItems(VerticalAlign.Center)
       }
@@ -389,6 +420,10 @@ export default struct DdlList {
     .height('100%')
     .justifyContent(FlexAlign.Center)
     .alignItems(HorizontalAlign.Center)
+  }
+
+  private fetchLexueCtaModel(): DdlFetchLexueCtaModel {
+    return getDdlFetchLexueCtaModel(this.isFetchingLexue);
   }
 
   build() {
@@ -418,11 +453,7 @@ export default struct DdlList {
           this.FetchLexueEntry()
         } else if (this.contentState() === 'empty') {
           Column() {
-            Text(getDdlEmptyText())
-              .fontSize(14)
-              .fontColor('#9CA3AF')
-              .margin({ top: 24 })
-              .textAlign(TextAlign.Center)
+            this.EmptyState()
           }
           .width('100%')
           .layoutWeight(1)
@@ -433,24 +464,18 @@ export default struct DdlList {
                 this.ddlList,
                 (item: DdlItem) => {
                   ListItem() {
-                    Row({ space: 8 }) {
-                      Toggle({ type: ToggleType.Checkbox, isOn: item.done })
-                        .onChange((checked: boolean) => {
-                          this.setDone(item.uid, checked).catch((err: Error) => {
-                            this.logger.error('setDone failed', err);
-                          });
-                        })
-
-                      DdlCard({
-                        event: item,
-                        warningDays: this.warningDays,
-                        nowMs: this.nowMs,
-                        onTap: () => this.onItemClick(item)
-                      })
-                        .layoutWeight(1)
-                    }
-                    .width('100%')
-                    .alignItems(VerticalAlign.Center)
+                    DdlCard({
+                      event: item,
+                      warningDays: this.warningDays,
+                      nowMs: this.nowMs,
+                      onTap: () => this.onItemClick(item),
+                      onDoneChange: (checked: boolean) => {
+                        this.setDone(item.uid, checked).catch((err: Error) => {
+                          this.logger.error('setDone failed', err);
+                        });
+                      }
+                    })
+                      .width('100%')
                   }
                   .width('100%')
                   .margin({ top: 4, bottom: 4 })

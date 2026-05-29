@@ -1,7 +1,7 @@
 import type { DdlItem } from '../../services/deadline/DdlModels';
 import { computeDdlRemainRatio } from '../../services/deadline/DdlModels';
-import { buildDdlCardTextLines } from './ddlListModel';
-import type { DdlCardTextLines } from './ddlListModel';
+import { buildDdlCardTextLines, getDdlCardLayoutSpec } from './ddlListModel';
+import type { DdlCardLayoutSpec, DdlCardTextLines } from './ddlListModel';
 
 @Component
 export struct DdlCard {
@@ -10,6 +10,7 @@ export struct DdlCard {
   @Prop nowMs: number = 0;
 
   onTap: () => void = () => {};
+  onDoneChange: (checked: boolean) => void = () => {};
 
   private baseFont: number = 12;
 
@@ -50,39 +51,56 @@ export struct DdlCard {
     return buildDdlCardTextLines(this.event, now);
   }
 
-  build() {
-    Column() {
-      Text(this.lines().title)
-        .fontSize(16)
-        .fontWeight(FontWeight.Medium)
-        .maxLines(1)
-        .textOverflow({ overflow: TextOverflow.Ellipsis })
-        .width('100%')
-        .textAlign(TextAlign.Start)
+  private layoutSpec(): DdlCardLayoutSpec {
+    return getDdlCardLayoutSpec();
+  }
 
-      if (this.lines().body.length > 0) {
-        Text(this.lines().body)
+  build() {
+    Row() {
+      Column() {
+        Text(this.lines().title)
+          .fontSize(16)
+          .fontWeight(FontWeight.Medium)
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+          .width('100%')
+          .textAlign(TextAlign.Start)
+
+        if (this.lines().body.length > 0) {
+          Text(this.lines().body)
+            .fontSize(this.baseFont)
+            .fontColor('#6B7280')
+            .margin({ top: 2 })
+            .maxLines(1)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
+            .width('100%')
+            .textAlign(TextAlign.Start)
+        }
+
+        Text(this.lines().remain)
           .fontSize(this.baseFont)
-          .fontColor('#6B7280')
-          .margin({ top: 2 })
+          .fontColor('#9CA3AF')
+          .margin({ top: 5 })
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
           .width('100%')
           .textAlign(TextAlign.Start)
       }
+      .layoutWeight(1)
 
-      Text(this.lines().remain)
-        .fontSize(this.baseFont)
-        .fontColor('#9CA3AF')
-        .margin({ top: 5 })
-        .maxLines(1)
-        .textOverflow({ overflow: TextOverflow.Ellipsis })
-        .width('100%')
-        .textAlign(TextAlign.Start)
+      Toggle({ type: ToggleType.Checkbox, isOn: this.event.done })
+        .onChange((checked: boolean) => {
+          this.onDoneChange(checked);
+        })
     }
     .width('100%')
-    .alignItems(HorizontalAlign.Start)
-    .padding({ top: 15, bottom: 15, left: 15, right: 5 })
+    .alignItems(VerticalAlign.Center)
+    .padding({
+      top: this.layoutSpec().contentVerticalPaddingVp,
+      bottom: this.layoutSpec().contentVerticalPaddingVp,
+      left: this.layoutSpec().contentStartPaddingVp,
+      right: this.layoutSpec().contentEndPaddingVp,
+    })
     .backgroundColor(this.cardColor())
     .borderRadius(8)
     .onClick(() => this.onTap())
