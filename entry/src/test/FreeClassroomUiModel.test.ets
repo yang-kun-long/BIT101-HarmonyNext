@@ -22,6 +22,8 @@ import {
   shouldShowFreeClassroomCampusLoadingText,
   shouldShowFreeClassroomSettingFailureToast,
   shouldShowFreeClassroomSettingSuccessToast,
+  buildFreeClassroomSettingSuccessToastText,
+  shouldDismissFreeClassroomThresholdDialogFromParent,
 } from '../main/ets/components/freeClassroom/freeClassroomUiModel';
 import type {
   FreeClassroomCampusDialogModel,
@@ -114,6 +116,15 @@ export default function freeClassroomUiModelTest() {
       expect(shouldShowFreeClassroomSettingSuccessToast('campus')).assertTrue();
       expect(shouldShowFreeClassroomSettingSuccessToast('threshold')).assertTrue();
       expect(shouldShowFreeClassroomSettingSuccessToast('hideBusy')).assertFalse();
+    });
+
+    it('uses Android InputNumberDialog success toast text for threshold changes', 0, () => {
+      expect(buildFreeClassroomSettingSuccessToastText('campus')).assertEqual('设置成功');
+      expect(buildFreeClassroomSettingSuccessToastText('threshold')).assertEqual('设置成功OvO');
+    });
+
+    it('closes threshold dialog through the owning page to avoid missing controller injection', 0, () => {
+      expect(shouldDismissFreeClassroomThresholdDialogFromParent()).assertTrue();
     });
 
     it('syncs selected campus to page storage before persistence finishes', 0, () => {

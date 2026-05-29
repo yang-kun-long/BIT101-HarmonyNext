@@ -4,8 +4,10 @@ import { detectSchoolLoginMode } from '../../services/school/SchoolNetworkProbe'
 import type { SchoolLoginMode } from '../../services/school/SchoolAuthTypes';
 import { doOperationRequiresLogin, LoginHealthService } from '../../services/auth/LoginHealthService';
 import {
+  buildFreeClassroomSettingSuccessToastText,
   buildFreeClassroomCampusDialogModel,
   buildFreeClassroomSettingsMainItems,
+  shouldDismissFreeClassroomThresholdDialogFromParent,
   shouldRenderFreeClassroomSettingsInlineError,
   shouldShowFreeClassroomCampusLoadingText,
   shouldSyncFreeClassroomCampusSelectionBeforePersist,
@@ -119,7 +121,7 @@ struct FreeClassroomSettingPage {
         this.syncAppStorage();
       }
       if (shouldShowFreeClassroomSettingSuccessToast('campus')) {
-        uiShowToast(this.getUIContext(), { message: '设置成功' });
+        uiShowToast(this.getUIContext(), { message: buildFreeClassroomSettingSuccessToastText('campus') });
       }
     } catch (_) {
       this.currentCampusCode = previousCampusCode;
@@ -148,7 +150,7 @@ struct FreeClassroomSettingPage {
       await this.store.saveFreeMinutesThreshold(safe);
       this.syncAppStorage();
       if (shouldShowFreeClassroomSettingSuccessToast('threshold')) {
-        uiShowToast(this.getUIContext(), { message: '设置成功' });
+        uiShowToast(this.getUIContext(), { message: buildFreeClassroomSettingSuccessToastText('threshold') });
       }
     } catch (_) {
       this.freeMinutesThreshold = previousThreshold;
@@ -162,7 +164,14 @@ struct FreeClassroomSettingPage {
   private openThresholdDialog(): void {
     if (this.thresholdDialogController !== null) {
       this.thresholdDialogController.close();
+      this.thresholdDialogController = null;
     }
+    const dismissThresholdDialog = (): void => {
+      if (this.thresholdDialogController !== null) {
+        this.thresholdDialogController.close();
+        this.thresholdDialogController = null;
+      }
+    };
     const controller = new CustomDialogController({
       builder: FreeClassroomThresholdDialog({
         title: '空闲时段阈值',
@@ -170,6 +179,12 @@ struct FreeClassroomSettingPage {
         initValue: this.freeMinutesThreshold,
         onConfirm: (value: number) => {
           this.setThreshold(value);
+          if (shouldDismissFreeClassroomThresholdDialogFromParent()) {
+            dismissThresholdDialog();
+          }
+        },
+        onDismiss: () => {
+          dismissThresholdDialog();
         },
       }),
       alignment: DialogAlignment.Center,
@@ -490,6 +505,7 @@ struct FreeClassroomThresholdDialog {
   text: string = '';
   initValue: number = 0;
   onConfirm: (value: number) => void = () => {};
+  onDismiss: () => void = () => {};
 
   @State inputValue: string = '';
   @State errorMessage: string = '';
@@ -538,7 +554,7 @@ struct FreeClassroomThresholdDialog {
       Row() {
         Button('取消', { type: ButtonType.Normal })
           .onClick(() => {
-            this.controller.close();
+            this.onDismiss();
           })
           .backgroundColor(Color.Transparent)
           .fontColor($r('sys.color.ohos_id_color_text_primary'))
@@ -549,7 +565,6 @@ struct FreeClassroomThresholdDialog {
             const value = parseFreeClassroomThresholdInput(this.inputValue);
             if (value !== null) {
               this.onConfirm(value);
-              this.controller.close();
             } else {
               this.errorMessage = '格式校验失败Orz';
             }

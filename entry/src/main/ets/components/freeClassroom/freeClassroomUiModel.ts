@@ -134,6 +134,14 @@ export function shouldShowFreeClassroomSettingSuccessToast(kind: FreeClassroomSe
   return kind === 'campus' || kind === 'threshold';
 }
 
+export function buildFreeClassroomSettingSuccessToastText(kind: FreeClassroomSettingsItemKind): string {
+  return kind === 'threshold' ? '设置成功OvO' : '设置成功';
+}
+
+export function shouldDismissFreeClassroomThresholdDialogFromParent(): boolean {
+  return true;
+}
+
 export function shouldShowFreeClassroomSettingFailureToast(kind: FreeClassroomSettingsItemKind): boolean {
   return kind === 'campus' || kind === 'threshold';
 }

@@ -214,6 +214,9 @@ Implemented:
 - Free classroom campus selection now syncs the selected campus to app storage before persistence finishes:
   - This avoids returning quickly from settings to the main free-classroom page with the old campus still active.
   - Persistence failure still rolls the state and app storage back.
+- Free classroom threshold dialog now avoids relying on `@CustomDialog` controller injection:
+  - Device verification found `Cannot read property close of undefined` when confirming the threshold dialog.
+  - The dialog now asks the owning page to close it, and threshold success toast text follows Android `InputNumberDialog` copy: `设置成功OvO`.
 
 Known gaps / audit items:
 
@@ -267,6 +270,12 @@ Latest results observed in this session:
   - `screenshot/free-classroom-campus-sync-liangxiang-final-20260529.png`
   - `screenshot/simple_dump_bit101harmonyos_20260529163928284.txt`
   - UI tree confirmed returning to the free-classroom tab after selecting `良乡校区` renders building rows tagged `良乡校区`.
+- Current free classroom threshold-dialog verification:
+  - `screenshot/simple_dump_bit101harmonyos_20260529165738694.txt`
+  - UI tree confirmed the threshold dialog renders `空闲时段阈值`, `不大于此值的空闲时段将被忽略 (单位: 分钟)`, input value `5`, `取消`, and `确定`.
+  - `screenshot/free-classroom-threshold-confirmed-no-crash-20260529.png`
+  - `screenshot/simple_dump_bit101harmonyos_20260529165815778.txt`
+  - Screenshot/UI tree confirmed confirming the dialog returns to `空教室设置` with `空闲时段阈值` and `5 分钟` still visible instead of crashing back to launcher.
 - Recent DDL audit screenshots/UI tree:
   - `screenshot/ddl-after-empty-layout-card-20260529.png`
   - `screenshot/simple_dump_bit101harmonyos_20260529152134478.txt`
