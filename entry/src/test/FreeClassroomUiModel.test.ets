@@ -12,6 +12,7 @@ import {
   shouldResetFreeClassroomCampus,
   shouldRenderFreeClassroomSummaryHeader,
   shouldRenderFreeClassroomSettingsInlineError,
+  shouldShowFreeClassroomCampusLoadingText,
   shouldShowFreeClassroomSettingFailureToast,
   shouldShowFreeClassroomSettingSuccessToast,
 } from '../main/ets/components/freeClassroom/freeClassroomUiModel';
@@ -115,6 +116,10 @@ export default function freeClassroomUiModelTest() {
       expect(model.selectedCode).assertEqual('1');
       expect(model.campuses.length).assertEqual(2);
       expect(model.campuses[0].displayName).assertEqual('中关村校区');
+    });
+
+    it('does not show loading helper text in Android-style campus dialog', 0, () => {
+      expect(shouldShowFreeClassroomCampusLoadingText()).assertFalse();
     });
   });
 }

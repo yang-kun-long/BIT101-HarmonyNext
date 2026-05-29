@@ -201,10 +201,13 @@ Implemented:
   - Android uses `scheduleSettings.term` when calling `getClassroomData`.
   - HarmonyOS now uses `COURSE_SCHEDULE_APP_CURRENT_TERM` via `resolveFreeClassroomTermCode()`.
   - It falls back to `guessCurrentSchoolTermCode()` only when the schedule term is empty.
+- Free classroom campus selection dialog loading state now follows Android:
+  - Android shows only the spinner in the loading branch.
+  - HarmonyOS no longer renders the extra `正在拉取校区列表...` helper text.
 
 Known gaps / audit items:
 
-- Need side-by-side UI comparison against Android for defaults, labels, loading/empty/error states, and edge cases.
+- Need side-by-side UI comparison against Android for remaining defaults, labels, loading/empty/error states, and edge cases.
 - Confirm exact query defaults and period-selection behavior beyond term source.
 - Confirm FAB/default setting styling against Android free classroom after the course schedule FAB change.
 
@@ -228,8 +231,12 @@ Latest results observed in this session:
 - debug `assembleHap`: `BUILD SUCCESSFUL`
 - DevEco MCP `start_app` on `Mate 70 Pro`: installed and started successfully
 - HiLog `DebugIT_DebugRunner`:
-  - latest observed: `SUMMARY target=SCHOOL_NETWORK_PROBE total=1 passed=1 failed=0 duration=591ms`
-- Current DDL audit screenshots/UI tree:
+  - latest observed: `SUMMARY target=SCHOOL_NETWORK_PROBE total=1 passed=1 failed=0 duration=566ms`
+- Current free classroom settings audit screenshot/UI tree:
+  - `screenshot/free-classroom-campus-dialog-android-loading-text-removed-20260529.png`
+  - `screenshot/simple_dump_bit101harmonyos_20260529155337839.txt`
+  - UI tree confirmed settings page and `切换校区` dialog rendered, with no `正在拉取校区列表...` node present.
+- Recent DDL audit screenshots/UI tree:
   - `screenshot/ddl-after-empty-layout-card-20260529.png`
   - `screenshot/simple_dump_bit101harmonyos_20260529152134478.txt`
   - UI tree confirmed DDL tab rendered, item `测试` visible, and card trailing `Toggle` is `checkable: 1`, `checked: 1`.

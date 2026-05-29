@@ -116,6 +116,10 @@ export function shouldRenderFreeClassroomSettingsInlineError(_errorText: string)
   return false;
 }
 
+export function shouldShowFreeClassroomCampusLoadingText(): boolean {
+  return false;
+}
+
 export function shouldShowFreeClassroomSettingSuccessToast(kind: FreeClassroomSettingsItemKind): boolean {
   return kind === 'campus' || kind === 'threshold';
 }

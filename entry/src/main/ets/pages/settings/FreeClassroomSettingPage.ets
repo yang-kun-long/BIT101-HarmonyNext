@@ -7,6 +7,7 @@ import {
   buildFreeClassroomCampusDialogModel,
   buildFreeClassroomSettingsMainItems,
   shouldRenderFreeClassroomSettingsInlineError,
+  shouldShowFreeClassroomCampusLoadingText,
   shouldShowFreeClassroomSettingFailureToast,
   shouldShowFreeClassroomSettingSuccessToast,
 } from '../../components/freeClassroom/freeClassroomUiModel';
@@ -420,10 +421,12 @@ struct FreeClassroomCampusSelectOverlay {
             LoadingProgress()
               .width(28)
               .height(28)
-            Text('正在拉取校区列表...')
-              .fontSize(14)
-              .fontColor($r('sys.color.ohos_id_color_text_secondary'))
-              .margin({ top: 12 })
+            if (shouldShowFreeClassroomCampusLoadingText()) {
+              Text('正在拉取校区列表...')
+                .fontSize(14)
+                .fontColor($r('sys.color.ohos_id_color_text_secondary'))
+                .margin({ top: 12 })
+            }
           }
           .width('100%')
           .height(240)
