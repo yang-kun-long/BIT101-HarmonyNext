@@ -10,6 +10,7 @@ import {
   guessCurrentSchoolTermCode,
   resolveFreeClassroomTermCode,
   sortFreeClassroomRowsForAndroidDisplay,
+  visibleFreeClassroomBuildingsForSelectedCampus,
 } from '../services/jw/freeClassroomRepository';
 import { getPeriodTimesInMemory, PeriodTime } from '../services/jw/periodTimes';
 import { detectSchoolLoginMode } from '../services/school/SchoolNetworkProbe';
@@ -218,16 +219,7 @@ export default struct FreeClassroomPage {
   }
 
   private visibleBuildingList(): BuildingInfo[] {
-    if (this.currentCampusCode.length === 0) {
-      return this.buildingList;
-    }
-    const out: BuildingInfo[] = [];
-    for (let i = 0; i < this.buildingList.length; i++) {
-      if (this.buildingList[i].campusCode === this.currentCampusCode) {
-        out.push(this.buildingList[i]);
-      }
-    }
-    return out;
+    return visibleFreeClassroomBuildingsForSelectedCampus(this.buildingList, this.currentCampusCode);
   }
 
   private findBuildingState(buildingId: string): BuildingClassroomState {

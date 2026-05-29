@@ -249,6 +249,13 @@ export function resolveFreeClassroomTermCode(scheduleCurrentTerm: string, now: D
   return trimmed.length > 0 ? trimmed : guessCurrentSchoolTermCode(now);
 }
 
+export function visibleFreeClassroomBuildingsForSelectedCampus(
+  buildings: BuildingInfo[],
+  _selectedCampusCode: string,
+): BuildingInfo[] {
+  return buildings;
+}
+
 export function buildClassroomQueryParams(query: FreeClassroomQuery): ClassroomQueryParams {
   const parts = query.termCode.split('-');
   if (parts.length < 3) {

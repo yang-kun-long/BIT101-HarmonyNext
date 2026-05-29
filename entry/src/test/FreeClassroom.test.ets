@@ -8,6 +8,7 @@ import {
   parseBusyPeriods,
   resolveFreeClassroomTermCode,
   sortFreeClassroomRowsForAndroidDisplay,
+  visibleFreeClassroomBuildingsForSelectedCampus,
 } from '../main/ets/services/jw/freeClassroomRepository';
 import {
   normalizeFreeClassroomThreshold,
@@ -16,6 +17,7 @@ import {
 import type {
   ClassroomInfo,
   ClassroomBusyStatus,
+  BuildingInfo,
   FreeClassroomQuery,
   PeriodRange,
   FreeClassroomRow,
@@ -44,6 +46,22 @@ export default function freeClassroomTest() {
     it('uses course schedule term for Android-style free classroom queries', 0, () => {
       expect(resolveFreeClassroomTermCode('2024-2025-1', new Date('2026-05-26T12:00:00'))).assertEqual('2024-2025-1');
       expect(resolveFreeClassroomTermCode('', new Date('2026-05-26T12:00:00'))).assertEqual('2025-2026-2');
+    });
+
+    it('keeps buildings returned by the selected-campus API like Android', 0, () => {
+      const buildings: BuildingInfo[] = [
+        {
+          buildingName: '1号教学楼',
+          buildingIndex: '1102',
+          campusName: '中关村校区',
+          campusCode: '',
+        },
+      ];
+
+      const visible: BuildingInfo[] = visibleFreeClassroomBuildingsForSelectedCampus(buildings, '1');
+
+      expect(visible.length).assertEqual(1);
+      expect(visible[0].buildingName).assertEqual('1号教学楼');
     });
 
     it('parses nullable busy period strings', 0, () => {

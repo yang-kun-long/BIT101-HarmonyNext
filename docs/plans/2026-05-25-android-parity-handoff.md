@@ -207,6 +207,10 @@ Implemented:
 - Free classroom list item spacing now follows Android constants:
   - Building and classroom rows use 10vp horizontal / 5vp vertical outer padding.
   - Building and classroom content uses 15vp / 15vp / 5vp / 15vp inner padding.
+- Free classroom building display no longer double-filters the building API result by `campusCode`:
+  - Android requests buildings for the selected campus and displays the returned list directly.
+  - HarmonyOS previously requested by campus, then filtered the returned rows again by `building.campusCode`, which could incorrectly produce an empty page even when the API returned buildings.
+  - Device debug evidence showed `campus count = 7`, `building count = 20` for `中关村校区`, and a sample classroom `1号楼127`.
 
 Known gaps / audit items:
 
@@ -243,6 +247,16 @@ Latest results observed in this session:
   - `screenshot/free-classroom-item-padding-android-aligned-20260529.png`
   - `screenshot/simple_dump_bit101harmonyos_20260529160246219.txt`
   - UI tree confirmed the `空教室` tab rendered without layout breakage; current device state showed the Android-style empty-building tip for `中关村校区`.
+- Current free classroom real-list / expanded-building verification:
+  - `FREE_CLASSROOM` debug case during root-cause investigation:
+    - `SUMMARY target=FREE_CLASSROOM total=1 passed=1 failed=0 duration=1844ms`
+    - case logs showed `campus count = 7`, `building count = 20 campus = 中关村校区`, and sample `1号楼127`.
+  - `screenshot/free-classroom-building-list-after-filter-fix-20260529.png`
+  - `screenshot/simple_dump_bit101harmonyos_20260529162453268.txt`
+  - UI tree confirmed `1号教学楼`, `3号教学楼`, `6号教学楼`, and `8号教学楼` rendered for `中关村校区`.
+  - `screenshot/free-classroom-expanded-building-after-filter-fix-20260529.png`
+  - `screenshot/simple_dump_bit101harmonyos_20260529162522364.txt`
+  - UI tree confirmed expanded `1号教学楼` shows `1号楼127`, `空闲时段: 1~13`, and `空闲到明天`.
 - Recent DDL audit screenshots/UI tree:
   - `screenshot/ddl-after-empty-layout-card-20260529.png`
   - `screenshot/simple_dump_bit101harmonyos_20260529152134478.txt`
