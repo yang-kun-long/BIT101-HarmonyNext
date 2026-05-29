@@ -130,6 +130,10 @@ export function shouldSyncFreeClassroomCampusSelectionBeforePersist(): boolean {
   return true;
 }
 
+export function shouldSyncFreeClassroomHideBusyBeforePersist(): boolean {
+  return true;
+}
+
 export function shouldShowFreeClassroomSettingSuccessToast(kind: FreeClassroomSettingsItemKind): boolean {
   return kind === 'campus' || kind === 'threshold';
 }

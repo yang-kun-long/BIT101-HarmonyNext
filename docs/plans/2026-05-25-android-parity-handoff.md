@@ -69,15 +69,13 @@ As of the latest handoff update, the working tree is intentionally dirty. Do not
   - Local signing password changes only. Do not commit or revert unless explicitly requested.
 - Handoff doc:
   - `docs/plans/2026-05-25-android-parity-handoff.md`
-- Current DDL Android-parity audit batch:
-  - `entry/src/main/ets/components/deadline/DdlCard.ets`
-  - `entry/src/main/ets/components/deadline/DdlList.ets`
-  - `entry/src/main/ets/components/deadline/ddlListModel.ts`
-  - `entry/src/main/ets/services/deadline/DdlModels.ts`
-  - `entry/src/test/DdlListModel.test.ets`
-  - `entry/src/test/DdlLocal.test.ets`
+- Current free-classroom hide-busy Android-parity audit batch:
+  - `entry/src/main/ets/components/freeClassroom/freeClassroomUiModel.ts`
+  - `entry/src/main/ets/pages/settings/FreeClassroomSettingPage.ets`
+  - `entry/src/test/FreeClassroom.test.ets`
+  - Behavior: `隐藏当前不空闲的教室` now syncs `AppStorage` before persistence, matching Android Flow-style immediate settings propagation. Persistence failure rolls state and `AppStorage` back.
 
-The login-health/account-profile and free-classroom term-source batches previously listed here have been committed in the current repository history. Confirm with `git status --short` before committing.
+The previous DDL audit batch, login-health/account-profile batch, and free-classroom term-source/campus/threshold batches have been committed in the current repository history. Confirm with `git status --short` before committing.
 
 Always confirm with `git status --short` before continuing, and do not include `build-profile.json5`, `screenshot/`, `.mcp.json`, or `BIT101-Android/` in any commit unless the user explicitly asks.
 
@@ -217,11 +215,16 @@ Implemented:
 - Free classroom threshold dialog now avoids relying on `@CustomDialog` controller injection:
   - Device verification found `Cannot read property close of undefined` when confirming the threshold dialog.
   - The dialog now asks the owning page to close it, and threshold success toast text follows Android `InputNumberDialog` copy: `设置成功OvO`.
+- Free classroom hide-busy setting now syncs to app storage before persistence finishes:
+  - Android collects `hideBusyClassroomFlow` directly in the free-classroom page and filters expanded classrooms live.
+  - HarmonyOS now updates `AppStorage` immediately when `隐藏当前不空闲的教室` changes, so the main free-classroom page can observe the new value before the preferences write completes.
+  - Persistence failure rolls back the page state and `AppStorage`.
 
 Known gaps / audit items:
 
 - Need side-by-side UI comparison against Android for remaining defaults, labels, loading/empty/error states, and edge cases.
 - Confirm exact query defaults and period-selection behavior beyond term source.
+- Continue device-side hide-busy verification with a campus/building that has both currently free and currently busy classrooms; current code path is covered by tests and app-storage propagation, but the last device state was on `良乡校区` with no building rows.
 - Confirm FAB/default setting styling against Android free classroom after the course schedule FAB change.
 
 ## Verification Evidence From Latest Work
@@ -244,7 +247,14 @@ Latest results observed in this session:
 - debug `assembleHap`: `BUILD SUCCESSFUL`
 - DevEco MCP `start_app` on `Mate 70 Pro`: installed and started successfully
 - HiLog `DebugIT_DebugRunner`:
-  - latest observed: `SUMMARY target=SCHOOL_NETWORK_PROBE total=1 passed=1 failed=0 duration=566ms`
+  - latest observed: `SUMMARY target=SCHOOL_NETWORK_PROBE total=1 passed=1 failed=0 duration=480ms`
+- Current free classroom hide-busy sync audit:
+  - TDD RED: `hvigorw.bat test --no-daemon` failed because `shouldSyncFreeClassroomHideBusyBeforePersist` did not exist.
+  - GREEN: `FreeClassroom.test.ets` passes after adding the helper and immediate `AppStorage` sync/rollback behavior.
+  - `mcp__deveco__.check_ets_files` returned stale/incorrect missing-export diagnostics for already compiled free-classroom helpers; `CompileArkTS` in debug `assembleHap` passed, so hvigor compile is the practical source of truth for this check.
+  - `screenshot/free-classroom-hide-busy-sync-after-build-20260529.png`
+  - `screenshot/full_dump_bit101harmonyos_20260529173922687.json`
+  - UI tree confirmed the `空教室` tab rendered and current device state showed `没有获取到良乡校区的教学楼QwQ\n(请尝试在设置中切换校区)`.
 - Current free classroom settings audit screenshot/UI tree:
   - `screenshot/free-classroom-campus-dialog-android-loading-text-removed-20260529.png`
   - `screenshot/simple_dump_bit101harmonyos_20260529155337839.txt`
@@ -356,9 +366,10 @@ Useful MCP values:
    - Busy/free display and ordering.
    - Empty/loading/error states.
    - Settings labels and persistence.
+   - Re-run hide-busy interaction on `中关村校区` or another campus with real building/classroom rows, then capture before/after screenshot and UI tree.
    - The selected-term source is already aligned; do not redo it unless regression evidence appears.
 
-3. Commit or checkpoint the current uncommitted DDL audit batch when the user asks for a commit.
+3. Commit or checkpoint the current free-classroom hide-busy audit batch when the user asks for a commit.
    - Exclude `build-profile.json5`.
    - Include only source/test files relevant to this work.
    - Keep `DebugRunner.CURRENT_DEBUG_TARGET = DebugTarget.SCHOOL_NETWORK_PROBE`.
@@ -392,9 +403,9 @@ Copy this into a new chat:
 
 当前 git 状态预期：
 - `build-profile.json5` 有本机签名脏改，不要提交。
-- 当前 DDL Android 细节审计批次未提交：`DdlModels.ts`、`ddlListModel.ts`、`DdlCard.ets`、`DdlList.ets`、`DdlLocal.test.ets`、`DdlListModel.test.ets`。
+- 当前空教室 hide-busy Android 细节审计批次未提交：`freeClassroomUiModel.ts`、`FreeClassroomSettingPage.ets`、`FreeClassroom.test.ets`。
 - `docs/plans/2026-05-25-android-parity-handoff.md` 已更新到当前会话状态。
-- 登录健康/账号资料恢复和空教室学期来源批次在当前仓库历史中已经提交，不要按旧交接当成未提交批次。
+- 之前的 DDL 审计批次、登录健康/账号资料恢复、空教室学期来源、校区同步、阈值弹窗和 DDL 设置弹窗批次在当前仓库历史中已经提交，不要按旧交接当成未提交批次。
 
 最新 DDL 状态：
 - 已完成 Android 风格空态、剩余时间文案、卡片布局、详情弹窗、手动删除确认、编辑弹窗标签。
@@ -403,11 +414,20 @@ Copy this into a new chat:
 - 已完成无订阅链接首次获取乐学日程按钮 loading 态对齐：只显示 spinner，不显示额外文字。
 - 上轮重要根因：ArkUI `@Builder` 参数不会可靠跟踪 `@State` 更新，date/time chip builder 必须直接读取 `this.dateText` / `this.timeText`，不要再改回传参模式。
 
+最新空教室状态：
+- 已完成学期来源对齐、校区列表 loading 文案、列表 padding、建筑 API 二次过滤移除、校区选择即时同步、阈值弹窗稳定性。
+- 刚完成但未提交：`隐藏当前不空闲的教室` 开关现在先同步 `AppStorage` 再持久化，失败时回滚状态和 `AppStorage`，用于对齐 Android `hideBusyClassroomFlow` 的即时传播。
+- 当前设备状态停在 `良乡校区`，UI tree 显示 `没有获取到良乡校区的教学楼QwQ\n(请尝试在设置中切换校区)`；下一轮若继续 hide-busy 设备交互验证，建议先切回 `中关村校区` 或其他有真实楼宇/教室的校区。
+
 最近验证证据：
 - hvigorw.bat test --no-daemon：BUILD SUCCESSFUL
 - debug assembleHap：BUILD SUCCESSFUL
 - DevEco MCP start_app on Mate 70 Pro：安装并启动成功
-- HiLog DebugIT_DebugRunner：SUMMARY target=SCHOOL_NETWORK_PROBE total=1 passed=1 failed=0 duration=591ms
+- HiLog DebugIT_DebugRunner：SUMMARY target=SCHOOL_NETWORK_PROBE total=1 passed=1 failed=0 duration=480ms
+- TDD RED：新增 `shouldSyncFreeClassroomHideBusyBeforePersist` 测试后，`hvigorw.bat test --no-daemon` 因缺少导出失败。
+- TDD GREEN：加入 helper 和 hide-busy 立即同步/失败回滚后，`hvigorw.bat test --no-daemon` 成功。
+- 当前 hide-busy 设备侧截图/UI tree：`screenshot/free-classroom-hide-busy-sync-after-build-20260529.png`、`screenshot/full_dump_bit101harmonyos_20260529173922687.json`。
+- DevEco MCP `check_ets_files` 对已存在导出返回过陈旧/错误诊断；以本轮 `CompileArkTS`/`assembleHap` 成功作为 ArkTS 编译依据。
 - 截图/UI tree：screenshot/ddl-after-empty-layout-card-20260529.png、screenshot/simple_dump_bit101harmonyos_20260529152134478.txt，确认 DDL 页渲染、测试项可见、卡片 trailing Toggle checkable/checked。
 - 早前 LOGIN_HEALTH debug case：SUMMARY target=LOGIN_HEALTH total=1 passed=1 failed=0；日志显示 bit101=true、school=true、jxzx=true
 - 截图/UI tree：screenshot/account-profile-fields-restored-after-persist-key-20260526.png，确认账号页昵称/UID/motto/登录状态恢复；旧会话缺失 sid 时不会再显示 mock 学号，重新登录后会持久化 username
@@ -416,7 +436,7 @@ Copy this into a new chat:
 - 截图：screenshot/ddl-date-selected-final.png、screenshot/ddl-time-picker-final.png、screenshot/ddl-time-confirmed-final.png，确认 DDL 日期/时间 picker 可打开并写回
 - UI tree：screenshot/ddl-time-confirmed-final-layout.json，确认 `添加DDL`、`2026-05-26`、`00:00:00` 可见
 
-请从“提交/继续当前 DDL 审计批次，然后继续 DDL 和空教室 Android 细节审计”开始：
+请从“提交/继续当前空教室 hide-busy 审计批次，然后继续 DDL 和空教室 Android 细节审计”开始：
 1. 先读 Android 参考实现和当前 HarmonyOS diff。
 2. 保护 build-profile.json5 的本机签名脏改，不要提交。
 3. 对任何继续修改的行为先写/跑失败测试。
@@ -425,8 +445,8 @@ Copy this into a new chat:
 6. 最终至少跑 hvigor test 和 assembleHap；如果使用 debug case，HiLog DebugIT_DebugRunner 的 SUMMARY 必须 failed=0。
 
 下一步建议优先级：
-1. 若用户要求提交，先提交当前 DDL 审计批次，排除 build-profile.json5 和截图/.mcp.json。
+1. 若用户要求提交，先提交当前空教室 hide-busy 审计批次，排除 build-profile.json5 和截图/.mcp.json。
 2. DDL：对照 Android 检查排序、loading/error、Lexue sync 失败、设置默认值/保留天数/提醒阈值、新增编辑成功后的 toast 和列表刷新。
-3. 空教室：继续对照 Android 检查默认校区/楼宇/日期/节次、空闲/占用排序、空态/错误态、设置标签和持久化；学期来源已对齐，不要重复做。
+3. 空教室：先补 hide-busy 在真实楼宇/教室列表上的设备侧 before/after 截图/UI tree；再继续对照 Android 检查默认校区/楼宇/日期/节次、空闲/占用排序、空态/错误态、设置标签和持久化；学期来源已对齐，不要重复做。
 4. 课程：若用户要求，再实现完整 Android 原生教务课程 API；目前课程刷新仍是 BIT101/ICS 归一化。
 ```

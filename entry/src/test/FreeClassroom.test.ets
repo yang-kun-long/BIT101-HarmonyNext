@@ -23,6 +23,9 @@ import type {
   FreeClassroomRow,
 } from '../main/ets/services/jw/freeClassroomRepository';
 import type { PeriodTime } from '../main/ets/services/jw/periodTimes';
+import {
+  shouldSyncFreeClassroomHideBusyBeforePersist,
+} from '../main/ets/components/freeClassroom/freeClassroomUiModel';
 
 export default function freeClassroomTest() {
   describe('Free classroom helpers', () => {
@@ -245,6 +248,10 @@ export default function freeClassroomTest() {
       expect(parseFreeClassroomThresholdInput('')).assertEqual(null);
       expect(parseFreeClassroomThresholdInput('-1')).assertEqual(null);
       expect(parseFreeClassroomThresholdInput('7.8')).assertEqual(null);
+    });
+
+    it('syncs hide-busy selection before persistence like Android Flow state', 0, () => {
+      expect(shouldSyncFreeClassroomHideBusyBeforePersist()).assertTrue();
     });
   });
 }

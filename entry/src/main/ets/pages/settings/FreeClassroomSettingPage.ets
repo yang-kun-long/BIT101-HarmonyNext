@@ -134,11 +134,20 @@ struct FreeClassroomSettingPage {
   }
 
   private async setHideBusy(value: boolean): Promise<void> {
+    const previousHideBusy = this.hideBusyClassroom;
     this.hideBusyClassroom = value;
-    await this.store.saveHideBusyClassroom(value);
     this.syncAppStorage();
-    if (shouldShowFreeClassroomSettingSuccessToast('hideBusy')) {
-      uiShowToast(this.getUIContext(), { message: '设置成功' });
+    try {
+      await this.store.saveHideBusyClassroom(value);
+      if (shouldShowFreeClassroomSettingSuccessToast('hideBusy')) {
+        uiShowToast(this.getUIContext(), { message: '设置成功' });
+      }
+    } catch (_) {
+      this.hideBusyClassroom = previousHideBusy;
+      this.syncAppStorage();
+      if (shouldShowFreeClassroomSettingFailureToast('hideBusy')) {
+        uiShowToast(this.getUIContext(), { message: '设置失败' });
+      }
     }
   }
 
