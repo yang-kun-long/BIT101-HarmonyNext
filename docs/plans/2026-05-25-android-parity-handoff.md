@@ -224,12 +224,19 @@ Implemented:
   - Android collects `hideBusyClassroomFlow` directly in the free-classroom page and filters expanded classrooms live.
   - HarmonyOS now updates `AppStorage` immediately when `隐藏当前不空闲的教室` changes, so the main free-classroom page can observe the new value before the preferences write completes.
   - Persistence failure rolls back the page state and `AppStorage`.
+- Free classroom campus dialog no longer renders as a blank panel when the campus list is empty or failed:
+  - Dialog state is now explicit: loading / empty / error / list.
+  - Empty state shows `未获取到校区列表 :(`.
+  - Error state shows the error text instead of an empty list area.
+- Free classroom main page now watches campus AppStorage changes while alive:
+  - If settings changes the selected campus while the free-classroom page remains mounted behind the route, the page reloads building data when returning.
+  - This fixes the device-observed case where settings showed `中关村校区` but the main list still displayed `良乡校区` buildings after return.
 
 Known gaps / audit items:
 
 - Need side-by-side UI comparison against Android for remaining defaults, labels, loading/empty/error states, and edge cases.
 - Confirm exact query defaults and period-selection behavior beyond term source.
-- Continue device-side hide-busy verification with a campus/building that has both currently free and currently busy classrooms; current code path is covered by tests and app-storage propagation, but the last device state was on `良乡校区` with no building rows.
+- Continue device-side hide-busy verification with a campus/building that has both currently free and currently busy classrooms; current code path is covered by tests and app-storage propagation, and latest device checks reached a real `中关村校区` expanded building, but the sampled `1号教学楼` list only contained `1号楼127` as free all day.
 - Confirm FAB/default setting styling against Android free classroom after the course schedule FAB change.
 
 ## Verification Evidence From Latest Work
@@ -252,7 +259,38 @@ Latest results observed in this session:
 - debug `assembleHap`: `BUILD SUCCESSFUL`
 - DevEco MCP `start_app` on `Mate 70 Pro`: installed and started successfully
 - HiLog `DebugIT_DebugRunner`:
-  - latest observed: `SUMMARY target=SCHOOL_NETWORK_PROBE total=1 passed=1 failed=0 duration=581ms`
+  - latest observed: `SUMMARY target=SCHOOL_NETWORK_PROBE total=1 passed=1 failed=0 duration=692ms`
+- Current free classroom campus dialog / propagation audit:
+  - Root-cause evidence:
+    - DevEco MCP UI tree showed `切换校区` dialog with an empty `List childSize:0` while the API debug case could fetch `campus count = 7`.
+    - After selecting `中关村校区`, settings showed the new campus but the main free-classroom page could still show `良乡校区` building rows until the page was reloaded.
+  - TDD RED:
+    - `resolveFreeClassroomCampusDialogState()` expectation failed because no campus dialog state model existed.
+    - `shouldReloadFreeClassroomBuildingsAfterCampusStorageChange()` expectation failed because no alive-page campus reload model existed.
+  - GREEN:
+    - Added explicit campus dialog states and empty/error UI branches.
+    - Added campus AppStorage watchers on `FreeClassroomPage` to reload buildings when selected campus changes behind the route.
+  - `FREE_CLASSROOM` debug case:
+    - `SUMMARY target=FREE_CLASSROOM total=1 passed=1 failed=0 duration=2287ms`
+    - case logs showed `campus count = 7`, `building count = 20 campus = 中关村校区`, and sample `1号楼127`.
+  - Final verification:
+    - `hvigorw.bat test --no-daemon`: `BUILD SUCCESSFUL`
+    - debug `assembleHap`: `BUILD SUCCESSFUL`
+    - DevEco MCP `start_app` on `Mate 70 Pro`: installed and started successfully
+    - HiLog `DebugIT_DebugRunner`: `SUMMARY target=SCHOOL_NETWORK_PROBE total=1 passed=1 failed=0 duration=692ms`
+  - Screenshot/UI tree:
+    - `screenshot/free-classroom-campus-dialog-empty-list-20260529.png`
+    - `screenshot/simple_dump_bit101harmonyos_20260529180131959.txt`
+    - `screenshot/free-classroom-campus-dialog-empty-state-visible-20260529.png`
+    - `screenshot/simple_dump_bit101harmonyos_20260529180736709.txt`
+    - `screenshot/free-classroom-campus-watch-buildings-20260529.png`
+    - `screenshot/simple_dump_bit101harmonyos_20260529181458404.txt`
+    - `screenshot/free-classroom-hide-busy-before-toggle-expanded-20260529.png`
+    - `screenshot/simple_dump_bit101harmonyos_20260529181521631.txt`
+  - UI tree confirmed:
+    - campus dialog renders 7 radio rows including `中关村校区` and `良乡校区`;
+    - after switching to `中关村校区`, the main free-classroom tab renders `1号教学楼`, `3号教学楼`, `6号教学楼`, `8号教学楼`, and `中关村校区`;
+    - expanded `1号教学楼` renders `1号楼127`, `空闲时段: 1~13`, and `空闲到明天`.
 - Current DDL main Lexue fetch CTA toast audit:
   - Android reference: `DDLSchedule.kt` first-run CTA only toggles button spinner/text while `DDLScheduleViewModel.updateLexueCalendarUrl()` / `updateLexueCalendar()` return booleans silently; settings page owns `获取成功` / `拉取成功` snackbars.
   - TDD RED: adding `getDdlFetchLexueToastPolicy()` expectation made `hvigorw.bat test --no-daemon` fail because the model/type did not exist.

@@ -1,6 +1,7 @@
 export type FreeClassroomFabAction = 'backToTop' | 'settings';
 export type ExpandedClassroomState = 'loading' | 'empty' | 'list';
 export type FreeClassroomBuildingListState = 'loading' | 'empty' | 'list';
+export type FreeClassroomCampusDialogState = 'loading' | 'empty' | 'error' | 'list';
 
 export interface FreeClassroomFabSpec {
   action: FreeClassroomFabAction;
@@ -110,6 +111,20 @@ export function shouldResetFreeClassroomCampus(
   return loadedCampusCode !== currentCampusCode || loadedCampusName !== currentCampusName;
 }
 
+export function shouldReloadFreeClassroomBuildingsAfterCampusStorageChange(
+  loadedCampusCode: string,
+  loadedCampusName: string,
+  currentCampusCode: string,
+  currentCampusName: string,
+): boolean {
+  return shouldResetFreeClassroomCampus(
+    loadedCampusCode,
+    loadedCampusName,
+    currentCampusCode,
+    currentCampusName,
+  );
+}
+
 export function shouldShowFreeClassroomBackToTop(firstVisibleItemIndex: number): boolean {
   return firstVisibleItemIndex > 0;
 }
@@ -124,6 +139,23 @@ export function shouldRenderFreeClassroomSettingsInlineError(_errorText: string)
 
 export function shouldShowFreeClassroomCampusLoadingText(): boolean {
   return false;
+}
+
+export function resolveFreeClassroomCampusDialogState(
+  loading: boolean,
+  campusCount: number,
+  errorText: string,
+): FreeClassroomCampusDialogState {
+  if (loading) {
+    return 'loading';
+  }
+  if (errorText.length > 0) {
+    return 'error';
+  }
+  if (campusCount > 0) {
+    return 'list';
+  }
+  return 'empty';
 }
 
 export function shouldSyncFreeClassroomCampusSelectionBeforePersist(): boolean {

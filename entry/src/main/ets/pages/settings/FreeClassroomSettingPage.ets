@@ -8,6 +8,7 @@ import {
   buildFreeClassroomCampusDialogModel,
   buildFreeClassroomSettingsMainItems,
   shouldDismissFreeClassroomThresholdDialogFromParent,
+  resolveFreeClassroomCampusDialogState,
   shouldRenderFreeClassroomSettingsInlineError,
   shouldShowFreeClassroomCampusLoadingText,
   shouldSyncFreeClassroomCampusSelectionBeforePersist,
@@ -401,6 +402,7 @@ struct FreeClassroomSettingPage {
           campusList: this.campusList,
           currentCampusCode: this.currentCampusCode,
           loading: this.loadingCampus,
+          errorText: this.errorText,
           onDismiss: () => {
             this.showCampusDialog = false;
           },
@@ -421,6 +423,7 @@ struct FreeClassroomCampusSelectOverlay {
   @Prop campusList: CampusInfo[] = [];
   @Prop currentCampusCode: string = '';
   @Prop loading: boolean = false;
+  @Prop errorText: string = '';
   onDismiss: () => void = () => {};
   onSelect: (campus: CampusInfo) => void = () => {};
 
@@ -446,7 +449,7 @@ struct FreeClassroomCampusSelectOverlay {
           .width('100%')
           .padding({ left: 24, right: 24, top: 22, bottom: 12 })
 
-        if (this.loading) {
+        if (resolveFreeClassroomCampusDialogState(this.loading, this.campusList.length, this.errorText) === 'loading') {
           Column() {
             LoadingProgress()
               .width(28)
@@ -462,6 +465,24 @@ struct FreeClassroomCampusSelectOverlay {
           .height(240)
           .justifyContent(FlexAlign.Center)
           .alignItems(HorizontalAlign.Center)
+        } else if (resolveFreeClassroomCampusDialogState(this.loading, this.campusList.length, this.errorText) === 'empty') {
+          Text('未获取到校区列表 :(')
+            .fontSize(14)
+            .fontColor($r('sys.color.ohos_id_color_text_secondary'))
+            .textAlign(TextAlign.Center)
+            .width('100%')
+            .height(240)
+            .padding({ left: 24, right: 24 })
+        } else if (resolveFreeClassroomCampusDialogState(this.loading, this.campusList.length, this.errorText) === 'error') {
+          Text(this.errorText)
+            .fontSize(14)
+            .fontColor('#B91C1C')
+            .textAlign(TextAlign.Center)
+            .width('100%')
+            .height(240)
+            .padding({ left: 24, right: 24 })
+            .maxLines(4)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
         } else {
           List() {
             ForEach(this.campusList, (campus: CampusInfo) => {

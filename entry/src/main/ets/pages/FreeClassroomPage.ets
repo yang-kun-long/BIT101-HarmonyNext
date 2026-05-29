@@ -40,6 +40,7 @@ import {
   resolveFreeClassroomBuildingListState,
   resolveExpandedClassroomState,
   shouldRenderFreeClassroomSummaryHeader,
+  shouldReloadFreeClassroomBuildingsAfterCampusStorageChange,
   shouldShowFreeClassroomBackToTop,
   shouldResetFreeClassroomCampus,
 } from '../components/freeClassroom/freeClassroomUiModel';
@@ -93,8 +94,8 @@ export default struct FreeClassroomPage {
   @State loadedCampusCode: string = DEFAULT_FREE_CLASSROOM_SETTINGS.currentCampusCode;
   @State loadedCampusName: string = DEFAULT_FREE_CLASSROOM_SETTINGS.currentCampusName;
   @StorageLink(COURSE_SCHEDULE_APP_CURRENT_TERM) courseScheduleCurrentTerm: string = '';
-  @StorageLink(FREE_CLASSROOM_APP_CAMPUS_CODE) currentCampusCode: string = DEFAULT_FREE_CLASSROOM_SETTINGS.currentCampusCode;
-  @StorageLink(FREE_CLASSROOM_APP_CAMPUS_NAME) currentCampusName: string = DEFAULT_FREE_CLASSROOM_SETTINGS.currentCampusName;
+  @StorageLink(FREE_CLASSROOM_APP_CAMPUS_CODE) @Watch('onCampusStorageChanged') currentCampusCode: string = DEFAULT_FREE_CLASSROOM_SETTINGS.currentCampusCode;
+  @StorageLink(FREE_CLASSROOM_APP_CAMPUS_NAME) @Watch('onCampusStorageChanged') currentCampusName: string = DEFAULT_FREE_CLASSROOM_SETTINGS.currentCampusName;
   @StorageLink(FREE_CLASSROOM_APP_HIDE_BUSY) hideBusyClassroom: boolean = DEFAULT_FREE_CLASSROOM_SETTINGS.hideBusyClassroom;
   @StorageLink(FREE_CLASSROOM_APP_FREE_THRESHOLD) freeMinutesThreshold: number = DEFAULT_FREE_CLASSROOM_SETTINGS.freeMinutesThreshold;
 
@@ -118,6 +119,20 @@ export default struct FreeClassroomPage {
 
   private showToast(message: string): void {
     uiShowToast(this.getUIContext(), { message });
+  }
+
+  private onCampusStorageChanged(): void {
+    if (!shouldReloadFreeClassroomBuildingsAfterCampusStorageChange(
+      this.loadedCampusCode,
+      this.loadedCampusName,
+      this.currentCampusCode,
+      this.currentCampusName,
+    )) {
+      return;
+    }
+    this.bootstrap().catch((err: Error) => {
+      this.logger.error('reload buildings after campus storage changed failed:', err);
+    });
   }
 
   private friendlyError(message: string): string {

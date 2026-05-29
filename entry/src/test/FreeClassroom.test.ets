@@ -24,6 +24,8 @@ import type {
 } from '../main/ets/services/jw/freeClassroomRepository';
 import type { PeriodTime } from '../main/ets/services/jw/periodTimes';
 import {
+  resolveFreeClassroomCampusDialogState,
+  shouldReloadFreeClassroomBuildingsAfterCampusStorageChange,
   shouldSyncFreeClassroomHideBusyBeforePersist,
 } from '../main/ets/components/freeClassroom/freeClassroomUiModel';
 
@@ -252,6 +254,18 @@ export default function freeClassroomTest() {
 
     it('syncs hide-busy selection before persistence like Android Flow state', 0, () => {
       expect(shouldSyncFreeClassroomHideBusyBeforePersist()).assertTrue();
+    });
+
+    it('shows a non-blank campus dialog state when campus list is empty', 0, () => {
+      expect(resolveFreeClassroomCampusDialogState(true, 0, '')).assertEqual('loading');
+      expect(resolveFreeClassroomCampusDialogState(false, 0, '')).assertEqual('empty');
+      expect(resolveFreeClassroomCampusDialogState(false, 0, 'failed')).assertEqual('error');
+      expect(resolveFreeClassroomCampusDialogState(false, 2, '')).assertEqual('list');
+    });
+
+    it('reloads buildings when campus storage changes while free-classroom page is alive', 0, () => {
+      expect(shouldReloadFreeClassroomBuildingsAfterCampusStorageChange('2', '良乡校区', '1', '中关村校区')).assertTrue();
+      expect(shouldReloadFreeClassroomBuildingsAfterCampusStorageChange('1', '中关村校区', '1', '中关村校区')).assertFalse();
     });
   });
 }
