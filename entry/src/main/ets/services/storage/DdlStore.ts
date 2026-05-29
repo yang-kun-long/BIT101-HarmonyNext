@@ -2,6 +2,7 @@ import preferences from '@ohos.data.preferences';
 import type { LexueCalendarEvent } from '../lexue/LexueCalendarParser';
 import {
   buildDdlItemFromManualInput,
+  createManualDdlUid,
   deleteDdlItem,
   listVisibleDdlItems,
   mergeLexueEventsWithDdlItems,
@@ -67,7 +68,7 @@ export class DdlStore {
 
   async addManual(input: ManualDdlInput, updatedAt: number = Date.now()): Promise<DdlItem> {
     const items = await this.getItems();
-    const uid = `manual-${updatedAt}`;
+    const uid = createManualDdlUid(updatedAt, items.length + 1);
     const item = buildDdlItemFromManualInput(input, uid, updatedAt);
     const updated = upsertManualDdlItem(items, input, uid, updatedAt);
     await this.saveItems(updated);

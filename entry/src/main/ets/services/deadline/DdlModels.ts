@@ -88,6 +88,12 @@ export function buildDdlItemFromManualInput(
   };
 }
 
+export function createManualDdlUid(updatedAt: number, sequence: number = 0): string {
+  const safeUpdatedAt = Number.isFinite(updatedAt) ? Math.floor(updatedAt) : Date.now();
+  const safeSequence = Number.isFinite(sequence) ? Math.max(0, Math.floor(sequence)) : 0;
+  return `manual-${safeUpdatedAt}-${safeSequence}`;
+}
+
 export function mergeLexueEventsWithDdlItems(
   existingItems: DdlItem[],
   incomingEvents: LexueCalendarEvent[],

@@ -2,6 +2,7 @@ import { describe, it, expect } from '@ohos/hypium';
 import type { LexueCalendarEvent } from '../main/ets/services/lexue/LexueCalendarParser';
 import {
   buildDdlItemFromManualInput,
+  createManualDdlUid,
   computeDdlRemainRatio,
   deleteDdlItem,
   formatDdlRemainText,
@@ -247,6 +248,14 @@ export default function ddlLocalTest() {
       expect(updated[0].title).assertEqual('Edited');
       expect(updated[0].done).assertTrue();
       expect(updated[0].updatedAt).assertEqual(2);
+    });
+
+    it('creates distinct manual DDL uid values when two items are added in the same millisecond', 0, () => {
+      const firstUid: string = createManualDdlUid(1234, 1);
+      const secondUid: string = createManualDdlUid(1234, 2);
+
+      expect(firstUid).assertEqual('manual-1234-1');
+      expect(secondUid).assertEqual('manual-1234-2');
     });
 
     it('parses persisted DDL JSON defensively', 0, () => {
