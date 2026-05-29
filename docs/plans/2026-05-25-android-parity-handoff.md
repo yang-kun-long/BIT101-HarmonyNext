@@ -169,6 +169,11 @@ Implemented:
   - Confirming the date writes `yyyy-MM-dd` and defaults time to `00:00:00`.
   - Time chip opens a `TimePicker` overlay and confirms `HH:mm:ss`.
   - Important root cause from the last session: ArkUI `@Builder` parameters did not re-render when `@State` changed, so the date/time chips must read `this.dateText` / `this.timeText` directly inside their builders.
+- Main DDL first-run Lexue fetch CTA now matches Android's quiet button behavior:
+  - Loading is shown inside the button.
+  - No extra start toast is shown.
+  - No extra success toast is shown.
+  - Failure toast remains so users still see actionable errors.
 - Unit tests:
   - `DdlLocal.test.ets`
   - `DdlSync.test.ets`
@@ -247,7 +252,17 @@ Latest results observed in this session:
 - debug `assembleHap`: `BUILD SUCCESSFUL`
 - DevEco MCP `start_app` on `Mate 70 Pro`: installed and started successfully
 - HiLog `DebugIT_DebugRunner`:
-  - latest observed: `SUMMARY target=SCHOOL_NETWORK_PROBE total=1 passed=1 failed=0 duration=480ms`
+  - latest observed: `SUMMARY target=SCHOOL_NETWORK_PROBE total=1 passed=1 failed=0 duration=581ms`
+- Current DDL main Lexue fetch CTA toast audit:
+  - Android reference: `DDLSchedule.kt` first-run CTA only toggles button spinner/text while `DDLScheduleViewModel.updateLexueCalendarUrl()` / `updateLexueCalendar()` return booleans silently; settings page owns `获取成功` / `拉取成功` snackbars.
+  - TDD RED: adding `getDdlFetchLexueToastPolicy()` expectation made `hvigorw.bat test --no-daemon` fail because the model/type did not exist.
+  - GREEN: `hvigorw.bat test --no-daemon` passed after adding the policy and removing main CTA start/success toasts.
+  - debug `assembleHap`: `BUILD SUCCESSFUL`
+  - DevEco MCP `start_app` on `Mate 70 Pro`: installed and started successfully
+  - Screenshot/UI tree:
+    - `screenshot/ddl-fetch-toast-policy-ddl-tab-20260529.png`
+    - `screenshot/simple_dump_bit101harmonyos_20260529175250939.txt`
+  - UI tree confirmed the `DDL` tab renders with an existing item, trailing `Toggle`, and the right-side FABs after the change.
 - Current free classroom hide-busy sync audit:
   - TDD RED: `hvigorw.bat test --no-daemon` failed because `shouldSyncFreeClassroomHideBusyBeforePersist` did not exist.
   - GREEN: `FreeClassroom.test.ets` passes after adding the helper and immediate `AppStorage` sync/rollback behavior.

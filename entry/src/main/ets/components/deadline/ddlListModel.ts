@@ -17,6 +17,12 @@ export interface DdlFetchLexueCtaModel {
   text: string;
 }
 
+export interface DdlFetchLexueToastPolicy {
+  showStartToast: boolean;
+  showSuccessToast: boolean;
+  showFailureToast: boolean;
+}
+
 export interface DdlCardTextLines {
   title: string;
   body: string;
@@ -155,6 +161,14 @@ export function getDdlFetchLexueCtaModel(isFetchingLexue: boolean): DdlFetchLexu
   return {
     showSpinner: false,
     text: '获取乐学日程',
+  };
+}
+
+export function getDdlFetchLexueToastPolicy(): DdlFetchLexueToastPolicy {
+  return {
+    showStartToast: false,
+    showSuccessToast: false,
+    showFailureToast: true,
   };
 }
 

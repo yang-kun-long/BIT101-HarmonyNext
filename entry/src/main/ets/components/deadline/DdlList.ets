@@ -26,6 +26,7 @@ import {
   getDdlEmptyLayoutSpec,
   getDdlEmptyText,
   getDdlFetchLexueCtaModel,
+  getDdlFetchLexueToastPolicy,
   getDdlFabSpecs,
   resolveDdlContentState,
   shouldAutoSyncDdlOnAppear,
@@ -282,18 +283,26 @@ export default struct DdlList {
       return;
     }
     this.isFetchingLexue = true;
-    uiShowToast(this.getUIContext(), { message: '正在获取乐学日程...' });
+    const toastPolicy = getDdlFetchLexueToastPolicy();
+    if (toastPolicy.showStartToast) {
+      uiShowToast(this.getUIContext(), { message: '正在获取乐学日程...' });
+    }
     refreshDdlSubscribeUrl(this.currentUsername)
       .then(() => {
         this.hasSubscribeUrl = true;
         return syncDdlFromLexue(this.currentUsername);
       })
       .then((count: number) => {
-        uiShowToast(this.getUIContext(), { message: `同步成功，更新了 ${count} 条 DDL` });
+        if (toastPolicy.showSuccessToast) {
+          uiShowToast(this.getUIContext(), { message: `同步成功，更新了 ${count} 条 DDL` });
+        }
         return this.loadDdl();
       })
       .catch((err: Error) => {
         this.logger.error('fetch Lexue DDL failed', err);
+        if (!toastPolicy.showFailureToast) {
+          return;
+        }
         let message: string = '获取失败';
         if (err.message.includes('redirects hit maximum')) {
           message = '获取失败：登录状态失效，请重新登录';

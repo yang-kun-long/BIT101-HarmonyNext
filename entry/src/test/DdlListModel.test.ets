@@ -9,6 +9,7 @@ import {
   getDdlCardLayoutSpec,
   getDdlEmptyLayoutSpec,
   getDdlFetchLexueCtaModel,
+  getDdlFetchLexueToastPolicy,
   formatDdlDatePickerValue,
   formatDdlTimePickerValue,
   getDdlEmptyText,
@@ -22,6 +23,7 @@ import {
 import type {
   DdlEmptyLayoutSpec,
   DdlFetchLexueCtaModel,
+  DdlFetchLexueToastPolicy,
   DdlCardTextLines,
   DdlDeleteConfirmModel,
   DdlDetailModel,
@@ -58,6 +60,14 @@ export default function ddlListModelTest() {
       expect(idle.text).assertEqual('获取乐学日程');
       expect(loading.showSpinner).assertTrue();
       expect(loading.text).assertEqual('');
+    });
+
+    it('keeps Android main DDL fetch CTA silent except failures', 0, () => {
+      const policy: DdlFetchLexueToastPolicy = getDdlFetchLexueToastPolicy();
+
+      expect(policy.showStartToast).assertFalse();
+      expect(policy.showSuccessToast).assertFalse();
+      expect(policy.showFailureToast).assertTrue();
     });
 
     it('builds Android-style DDL settings data rows', 0, () => {
