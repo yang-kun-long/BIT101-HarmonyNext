@@ -9,6 +9,7 @@ import {
 import {
   buildDdlSettingsDataItems,
   buildDdlSettingsResultToast,
+  shouldDismissDdlSettingsNumberDialogFromParent,
   validateDdlSettingsNumberInput,
 } from '../../components/deadline/ddlListModel';
 import type {
@@ -48,6 +49,12 @@ struct DDLSettingPage {
       initValue: this.beforeDay,
       onConfirm: (val: number) => {
         this.saveBeforeDay(val);
+        if (shouldDismissDdlSettingsNumberDialogFromParent()) {
+          this.beforeDayDialogController.close();
+        }
+      },
+      onDismiss: () => {
+        this.beforeDayDialogController.close();
       }
     }),
     alignment: DialogAlignment.Center,
@@ -63,6 +70,12 @@ struct DDLSettingPage {
       initValue: this.afterDay,
       onConfirm: (val: number) => {
         this.saveAfterDay(val);
+        if (shouldDismissDdlSettingsNumberDialogFromParent()) {
+          this.afterDayDialogController.close();
+        }
+      },
+      onDismiss: () => {
+        this.afterDayDialogController.close();
       }
     }),
     alignment: DialogAlignment.Center,
@@ -262,6 +275,7 @@ struct InputNumberDialog {
   text: string = '';
   initValue: number = 0;
   onConfirm: (val: number) => void = () => {};
+  onDismiss: () => void = () => {};
 
   @State inputValue: string = '';
   @State errorMessage: string = '';
@@ -315,7 +329,7 @@ struct InputNumberDialog {
       // Buttons
       Row() {
         Button("取消", { type: ButtonType.Normal })
-          .onClick(() => { this.controller.close() })
+          .onClick(() => { this.onDismiss() })
           .backgroundColor(Color.Transparent)
           .fontColor($r('sys.color.ohos_id_color_text_primary'))
           .layoutWeight(1)
@@ -325,7 +339,6 @@ struct InputNumberDialog {
             const validation: DdlSettingsNumberValidationResult = validateDdlSettingsNumberInput(this.inputValue);
             if (validation.isValid) {
               this.onConfirm(validation.value);
-              this.controller.close();
             } else {
               this.errorMessage = validation.errorText;
             }

@@ -209,6 +209,10 @@ export function validateDdlSettingsNumberInput(input: string): DdlSettingsNumber
   };
 }
 
+export function shouldDismissDdlSettingsNumberDialogFromParent(): boolean {
+  return true;
+}
+
 export function getDdlFabSpecs(): DdlFabSpec[] {
   return [
     {

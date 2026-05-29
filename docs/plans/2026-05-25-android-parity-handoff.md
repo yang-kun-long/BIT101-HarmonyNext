@@ -276,6 +276,13 @@ Latest results observed in this session:
   - `screenshot/free-classroom-threshold-confirmed-no-crash-20260529.png`
   - `screenshot/simple_dump_bit101harmonyos_20260529165815778.txt`
   - Screenshot/UI tree confirmed confirming the dialog returns to `空教室设置` with `空闲时段阈值` and `5 分钟` still visible instead of crashing back to launcher.
+- Current DDL settings number-dialog verification:
+  - `screenshot/ddl-settings-number-dialog-open-20260529.png`
+  - `screenshot/simple_dump_bit101harmonyos_20260529171445910.txt`
+  - UI tree confirmed the dialog renders `变色天数`, `临近日程会改变颜色`, value `7`, `取消`, and `确定`.
+  - `screenshot/ddl-settings-number-dialog-confirmed-no-crash-20260529.png`
+  - `screenshot/simple_dump_bit101harmonyos_20260529171536881.txt`
+  - Screenshot/UI tree confirmed confirming the dialog returns to `DDL设置` with `变色天数` and value `7` still visible instead of crashing back to launcher.
 - Recent DDL audit screenshots/UI tree:
   - `screenshot/ddl-after-empty-layout-card-20260529.png`
   - `screenshot/simple_dump_bit101harmonyos_20260529152134478.txt`

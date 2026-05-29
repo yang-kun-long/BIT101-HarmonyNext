@@ -14,6 +14,7 @@ import {
   getDdlEmptyText,
   getDdlFabSpecs,
   resolveDdlContentState,
+  shouldDismissDdlSettingsNumberDialogFromParent,
   shouldAutoSyncDdlOnAppear,
   validateDdlSettingsNumberInput,
   validateDdlEditInput,
@@ -95,6 +96,10 @@ export default function ddlListModelTest() {
       expect(mixed.errorText).assertEqual('格式校验失败Orz');
       expect(negative.isValid).assertFalse();
       expect(negative.errorText).assertEqual('格式校验失败Orz');
+    });
+
+    it('closes DDL settings number dialog through the owning page to avoid missing controller injection', 0, () => {
+      expect(shouldDismissDdlSettingsNumberDialogFromParent()).assertTrue();
     });
 
     it('uses Android DDL floating action button dimensions and order', 0, () => {
