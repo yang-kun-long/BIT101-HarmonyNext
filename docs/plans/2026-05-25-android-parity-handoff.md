@@ -211,6 +211,9 @@ Implemented:
   - Android requests buildings for the selected campus and displays the returned list directly.
   - HarmonyOS previously requested by campus, then filtered the returned rows again by `building.campusCode`, which could incorrectly produce an empty page even when the API returned buildings.
   - Device debug evidence showed `campus count = 7`, `building count = 20` for `中关村校区`, and a sample classroom `1号楼127`.
+- Free classroom campus selection now syncs the selected campus to app storage before persistence finishes:
+  - This avoids returning quickly from settings to the main free-classroom page with the old campus still active.
+  - Persistence failure still rolls the state and app storage back.
 
 Known gaps / audit items:
 
@@ -257,6 +260,13 @@ Latest results observed in this session:
   - `screenshot/free-classroom-expanded-building-after-filter-fix-20260529.png`
   - `screenshot/simple_dump_bit101harmonyos_20260529162522364.txt`
   - UI tree confirmed expanded `1号教学楼` shows `1号楼127`, `空闲时段: 1~13`, and `空闲到明天`.
+- Current free classroom campus-switch verification:
+  - `screenshot/free-classroom-campus-dialog-repro-20260529.png`
+  - `screenshot/simple_dump_bit101harmonyos_20260529163116873.txt`
+  - UI tree confirmed the campus dialog renders 7 selectable campus radio rows.
+  - `screenshot/free-classroom-campus-sync-liangxiang-final-20260529.png`
+  - `screenshot/simple_dump_bit101harmonyos_20260529163928284.txt`
+  - UI tree confirmed returning to the free-classroom tab after selecting `良乡校区` renders building rows tagged `良乡校区`.
 - Recent DDL audit screenshots/UI tree:
   - `screenshot/ddl-after-empty-layout-card-20260529.png`
   - `screenshot/simple_dump_bit101harmonyos_20260529152134478.txt`

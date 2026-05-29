@@ -126,6 +126,10 @@ export function shouldShowFreeClassroomCampusLoadingText(): boolean {
   return false;
 }
 
+export function shouldSyncFreeClassroomCampusSelectionBeforePersist(): boolean {
+  return true;
+}
+
 export function shouldShowFreeClassroomSettingSuccessToast(kind: FreeClassroomSettingsItemKind): boolean {
   return kind === 'campus' || kind === 'threshold';
 }

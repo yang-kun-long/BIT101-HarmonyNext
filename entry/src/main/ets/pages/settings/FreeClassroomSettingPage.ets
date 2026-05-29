@@ -8,6 +8,7 @@ import {
   buildFreeClassroomSettingsMainItems,
   shouldRenderFreeClassroomSettingsInlineError,
   shouldShowFreeClassroomCampusLoadingText,
+  shouldSyncFreeClassroomCampusSelectionBeforePersist,
   shouldShowFreeClassroomSettingFailureToast,
   shouldShowFreeClassroomSettingSuccessToast,
 } from '../../components/freeClassroom/freeClassroomUiModel';
@@ -109,9 +110,14 @@ struct FreeClassroomSettingPage {
     const previousCampusName = this.currentCampusName;
     this.currentCampusCode = campus.code;
     this.currentCampusName = campus.displayName;
+    if (shouldSyncFreeClassroomCampusSelectionBeforePersist()) {
+      this.syncAppStorage();
+    }
     try {
       await this.store.saveCampus(campus.code, campus.displayName);
-      this.syncAppStorage();
+      if (!shouldSyncFreeClassroomCampusSelectionBeforePersist()) {
+        this.syncAppStorage();
+      }
       if (shouldShowFreeClassroomSettingSuccessToast('campus')) {
         uiShowToast(this.getUIContext(), { message: '设置成功' });
       }

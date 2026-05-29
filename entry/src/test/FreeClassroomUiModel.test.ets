@@ -18,6 +18,7 @@ import {
   shouldResetFreeClassroomCampus,
   shouldRenderFreeClassroomSummaryHeader,
   shouldRenderFreeClassroomSettingsInlineError,
+  shouldSyncFreeClassroomCampusSelectionBeforePersist,
   shouldShowFreeClassroomCampusLoadingText,
   shouldShowFreeClassroomSettingFailureToast,
   shouldShowFreeClassroomSettingSuccessToast,
@@ -113,6 +114,10 @@ export default function freeClassroomUiModelTest() {
       expect(shouldShowFreeClassroomSettingSuccessToast('campus')).assertTrue();
       expect(shouldShowFreeClassroomSettingSuccessToast('threshold')).assertTrue();
       expect(shouldShowFreeClassroomSettingSuccessToast('hideBusy')).assertFalse();
+    });
+
+    it('syncs selected campus to page storage before persistence finishes', 0, () => {
+      expect(shouldSyncFreeClassroomCampusSelectionBeforePersist()).assertTrue();
     });
 
     it('matches Android free classroom settings failure toast triggers', 0, () => {
