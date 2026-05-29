@@ -204,6 +204,9 @@ Implemented:
 - Free classroom campus selection dialog loading state now follows Android:
   - Android shows only the spinner in the loading branch.
   - HarmonyOS no longer renders the extra `正在拉取校区列表...` helper text.
+- Free classroom list item spacing now follows Android constants:
+  - Building and classroom rows use 10vp horizontal / 5vp vertical outer padding.
+  - Building and classroom content uses 15vp / 15vp / 5vp / 15vp inner padding.
 
 Known gaps / audit items:
 
@@ -236,6 +239,10 @@ Latest results observed in this session:
   - `screenshot/free-classroom-campus-dialog-android-loading-text-removed-20260529.png`
   - `screenshot/simple_dump_bit101harmonyos_20260529155337839.txt`
   - UI tree confirmed settings page and `切换校区` dialog rendered, with no `正在拉取校区列表...` node present.
+- Current free classroom list spacing audit screenshot/UI tree:
+  - `screenshot/free-classroom-item-padding-android-aligned-20260529.png`
+  - `screenshot/simple_dump_bit101harmonyos_20260529160246219.txt`
+  - UI tree confirmed the `空教室` tab rendered without layout breakage; current device state showed the Android-style empty-building tip for `中关村校区`.
 - Recent DDL audit screenshots/UI tree:
   - `screenshot/ddl-after-empty-layout-card-20260529.png`
   - `screenshot/simple_dump_bit101harmonyos_20260529152134478.txt`

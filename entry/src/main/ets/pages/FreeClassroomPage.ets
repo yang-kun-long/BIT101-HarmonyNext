@@ -29,6 +29,12 @@ import {
   FREE_CLASSROOM_FAB_ICON_VP,
   FREE_CLASSROOM_FAB_RIGHT_PADDING_VP,
   FREE_CLASSROOM_FAB_SIZE_VP,
+  FREE_CLASSROOM_ITEM_INNER_BOTTOM_PADDING_VP,
+  FREE_CLASSROOM_ITEM_INNER_LEFT_PADDING_VP,
+  FREE_CLASSROOM_ITEM_INNER_RIGHT_PADDING_VP,
+  FREE_CLASSROOM_ITEM_INNER_TOP_PADDING_VP,
+  FREE_CLASSROOM_ITEM_OUTER_HORIZONTAL_PADDING_VP,
+  FREE_CLASSROOM_ITEM_OUTER_VERTICAL_PADDING_VP,
   formatNoBuildingTip,
   resolveFreeClassroomBuildingListState,
   resolveExpandedClassroomState,
@@ -422,7 +428,12 @@ export default struct FreeClassroomPage {
         .rotate({ angle: this.isExpanded(building.buildingIndex) ? 90 : 0 })
     }
     .width('100%')
-    .padding({ left: 15, right: 8, top: 14, bottom: 14 })
+    .padding({
+      left: FREE_CLASSROOM_ITEM_INNER_LEFT_PADDING_VP,
+      right: FREE_CLASSROOM_ITEM_INNER_RIGHT_PADDING_VP,
+      top: FREE_CLASSROOM_ITEM_INNER_TOP_PADDING_VP,
+      bottom: FREE_CLASSROOM_ITEM_INNER_BOTTOM_PADDING_VP,
+    })
     .backgroundColor(this.isExpanded(building.buildingIndex) ? '#EAF1FF' : '#FFFFFF')
     .borderRadius(8)
     .onClick(() => {
@@ -470,7 +481,12 @@ export default struct FreeClassroomPage {
       .constraintSize({ maxWidth: 142 })
     }
     .width('100%')
-    .padding({ left: 15, right: 8, top: 14, bottom: 14 })
+    .padding({
+      left: FREE_CLASSROOM_ITEM_INNER_LEFT_PADDING_VP,
+      right: FREE_CLASSROOM_ITEM_INNER_RIGHT_PADDING_VP,
+      top: FREE_CLASSROOM_ITEM_INNER_TOP_PADDING_VP,
+      bottom: FREE_CLASSROOM_ITEM_INNER_BOTTOM_PADDING_VP,
+    })
     .backgroundColor(this.classroomStatus(row).isFreeNow ? '#DFF3EA' : '#F7E3E7')
     .borderRadius(8)
   }
@@ -509,7 +525,12 @@ export default struct FreeClassroomPage {
       }
     }
     .width('100%')
-    .padding({ left: 10, right: 10, top: 5, bottom: 5 })
+    .padding({
+      left: FREE_CLASSROOM_ITEM_OUTER_HORIZONTAL_PADDING_VP,
+      right: FREE_CLASSROOM_ITEM_OUTER_HORIZONTAL_PADDING_VP,
+      top: FREE_CLASSROOM_ITEM_OUTER_VERTICAL_PADDING_VP,
+      bottom: FREE_CLASSROOM_ITEM_OUTER_VERTICAL_PADDING_VP,
+    })
   }
 
   @Builder

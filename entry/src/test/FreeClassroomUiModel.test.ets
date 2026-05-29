@@ -2,6 +2,12 @@ import { describe, it, expect } from '@ohos/hypium';
 import {
   FREE_CLASSROOM_FAB_BOTTOM_PADDING_VP,
   FREE_CLASSROOM_FAB_RIGHT_PADDING_VP,
+  FREE_CLASSROOM_ITEM_INNER_BOTTOM_PADDING_VP,
+  FREE_CLASSROOM_ITEM_INNER_LEFT_PADDING_VP,
+  FREE_CLASSROOM_ITEM_INNER_RIGHT_PADDING_VP,
+  FREE_CLASSROOM_ITEM_INNER_TOP_PADDING_VP,
+  FREE_CLASSROOM_ITEM_OUTER_HORIZONTAL_PADDING_VP,
+  FREE_CLASSROOM_ITEM_OUTER_VERTICAL_PADDING_VP,
   buildFreeClassroomCampusDialogModel,
   buildFreeClassroomSettingsMainItems,
   formatNoBuildingTip,
@@ -35,6 +41,15 @@ export default function freeClassroomUiModelTest() {
       expect(specs[1].sizeVp).assertEqual(42);
       expect(FREE_CLASSROOM_FAB_RIGHT_PADDING_VP).assertEqual(10);
       expect(FREE_CLASSROOM_FAB_BOTTOM_PADDING_VP).assertEqual(20);
+    });
+
+    it('uses Android free classroom list item padding', 0, () => {
+      expect(FREE_CLASSROOM_ITEM_OUTER_HORIZONTAL_PADDING_VP).assertEqual(10);
+      expect(FREE_CLASSROOM_ITEM_OUTER_VERTICAL_PADDING_VP).assertEqual(5);
+      expect(FREE_CLASSROOM_ITEM_INNER_LEFT_PADDING_VP).assertEqual(15);
+      expect(FREE_CLASSROOM_ITEM_INNER_TOP_PADDING_VP).assertEqual(15);
+      expect(FREE_CLASSROOM_ITEM_INNER_RIGHT_PADDING_VP).assertEqual(5);
+      expect(FREE_CLASSROOM_ITEM_INNER_BOTTOM_PADDING_VP).assertEqual(15);
     });
 
     it('formats Android empty-building tip for selected campus', 0, () => {
