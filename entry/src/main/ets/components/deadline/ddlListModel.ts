@@ -299,7 +299,7 @@ export function buildDdlCardTextLines(item: DdlItem, nowMs: number): DdlCardText
   } else if (courseName.length > 0) {
     body = courseName;
   }
-  const deadline: number = item.endTime > 0 ? item.endTime : item.startTime;
+  const deadline: number = item.startTime;
   return {
     title,
     body,
@@ -362,7 +362,7 @@ function formatDdlEditTime(timestamp: number): string {
 }
 
 export function buildDdlDetailModel(item: DdlItem): DdlDetailModel {
-  const deadline: number = item.endTime > 0 ? item.endTime : item.startTime;
+  const deadline: number = item.startTime;
   const courseName: string = normalizeDdlText(item.courseName ?? '');
   const description: string = normalizeDdlText(item.description ?? '');
   let detail: string = description;
@@ -394,7 +394,7 @@ export function buildDdlDeleteConfirmModel(item: DdlItem): DdlDeleteConfirmModel
 }
 
 export function buildDdlEditDialogModel(item: DdlItem | null): DdlEditDialogModel {
-  const deadline: number = item ? (item.endTime > 0 ? item.endTime : item.startTime) : 0;
+  const deadline: number = item ? item.startTime : 0;
   return {
     title: item === null ? '添加DDL' : '编辑DDL',
     titlePlaceholder: '标题',

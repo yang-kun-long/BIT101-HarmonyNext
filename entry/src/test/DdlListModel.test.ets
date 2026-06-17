@@ -171,6 +171,33 @@ export default function ddlListModelTest() {
       expect(lines.remain).assertEqual('剩余 1小时 0分钟');
     });
 
+    it('uses Android single deadline time for DDL card detail and edit display', 0, () => {
+      const now: number = new Date(2026, 4, 26, 8, 0, 0).getTime();
+      const deadline: number = new Date(2026, 4, 26, 9, 0, 0).getTime();
+      const laterCalendarEnd: number = new Date(2026, 4, 26, 18, 0, 0).getTime();
+      const item: DdlItem = {
+        uid: 'ddl-window',
+        source: 'lexue',
+        title: '窗口型作业',
+        courseName: '数据结构',
+        startTime: deadline,
+        endTime: laterCalendarEnd,
+        description: '提交 PDF',
+        location: '',
+        done: false,
+        updatedAt: now,
+      };
+
+      const lines: DdlCardTextLines = buildDdlCardTextLines(item, now);
+      const detail: DdlDetailModel = buildDdlDetailModel(item);
+      const edit: DdlEditDialogModel = buildDdlEditDialogModel(item);
+
+      expect(lines.remain).assertEqual('剩余 1小时 0分钟');
+      expect(detail.rows[0].content).assertEqual('2026-05-26 09:00:00');
+      expect(edit.initialDateText).assertEqual('2026-05-26');
+      expect(edit.initialTimeText).assertEqual('09:00:00');
+    });
+
     it('places the DDL checkbox inside the card trailing edge like Android', 0, () => {
       const spec = getDdlCardLayoutSpec();
 
