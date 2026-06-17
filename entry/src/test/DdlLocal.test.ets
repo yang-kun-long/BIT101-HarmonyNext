@@ -126,6 +126,38 @@ export default function ddlLocalTest() {
       expect(visible[2].uid).assertEqual('b');
     });
 
+    it('sorts DDL by Android deadline time instead of event end time', 0, () => {
+      const items: DdlItem[] = [{
+        uid: 'long-event',
+        source: 'lexue',
+        title: 'Long 作业窗口',
+        courseName: '',
+        startTime: 1000,
+        endTime: 9000,
+        description: '',
+        location: '',
+        done: false,
+        updatedAt: 1,
+      }, {
+        uid: 'short-event',
+        source: 'manual',
+        title: 'Short DDL',
+        courseName: '',
+        startTime: 2000,
+        endTime: 2000,
+        description: '',
+        location: '',
+        done: false,
+        updatedAt: 1,
+      }];
+
+      const visible: DdlItem[] = listVisibleDdlItems(items, 0);
+
+      expect(visible.length).assertEqual(2);
+      expect(visible[0].uid).assertEqual('long-event');
+      expect(visible[1].uid).assertEqual('short-event');
+    });
+
     it('keeps unfinished expired items within retention days', 0, () => {
       const dayMs: number = 24 * 60 * 60 * 1000;
       const now: number = 10 * dayMs;

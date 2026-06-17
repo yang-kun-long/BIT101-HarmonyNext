@@ -23,6 +23,11 @@ export interface DdlFetchLexueToastPolicy {
   showFailureToast: boolean;
 }
 
+export interface DdlSettingsDataActionToastPolicy {
+  showStartToast: boolean;
+  showResultToast: boolean;
+}
+
 export interface DdlCardTextLines {
   title: string;
   body: string;
@@ -197,6 +202,13 @@ export function buildDdlSettingsResultToast(action: DdlSettingsResultAction, suc
     return success ? '获取成功' : '获取失败';
   }
   return success ? '拉取成功' : '拉取失败';
+}
+
+export function getDdlSettingsDataActionToastPolicy(): DdlSettingsDataActionToastPolicy {
+  return {
+    showStartToast: false,
+    showResultToast: true,
+  };
 }
 
 export function validateDdlSettingsNumberInput(input: string): DdlSettingsNumberValidationResult {

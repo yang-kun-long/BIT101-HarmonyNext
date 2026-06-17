@@ -10,6 +10,7 @@ import {
   getDdlEmptyLayoutSpec,
   getDdlFetchLexueCtaModel,
   getDdlFetchLexueToastPolicy,
+  getDdlSettingsDataActionToastPolicy,
   formatDdlDatePickerValue,
   formatDdlTimePickerValue,
   getDdlEmptyText,
@@ -24,6 +25,7 @@ import type {
   DdlEmptyLayoutSpec,
   DdlFetchLexueCtaModel,
   DdlFetchLexueToastPolicy,
+  DdlSettingsDataActionToastPolicy,
   DdlCardTextLines,
   DdlDeleteConfirmModel,
   DdlDetailModel,
@@ -90,6 +92,13 @@ export default function ddlListModelTest() {
       expect(buildDdlSettingsResultToast(urlAction, false)).assertEqual('获取失败');
       expect(buildDdlSettingsResultToast(calendarAction, true)).assertEqual('拉取成功');
       expect(buildDdlSettingsResultToast(calendarAction, false)).assertEqual('拉取失败');
+    });
+
+    it('keeps Android DDL settings data actions quiet until result', 0, () => {
+      const policy: DdlSettingsDataActionToastPolicy = getDdlSettingsDataActionToastPolicy();
+
+      expect(policy.showStartToast).assertFalse();
+      expect(policy.showResultToast).assertTrue();
     });
 
     it('validates DDL settings number input like Android InputNumberDialog', 0, () => {

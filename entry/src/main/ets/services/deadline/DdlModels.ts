@@ -129,8 +129,8 @@ export function sortDdlItemsByTime(items: DdlItem[]): DdlItem[] {
     out.push(items[i]);
   }
   out.sort((a: DdlItem, b: DdlItem): number => {
-    const at = a.endTime > 0 ? a.endTime : a.startTime;
-    const bt = b.endTime > 0 ? b.endTime : b.startTime;
+    const at = a.startTime;
+    const bt = b.startTime;
     if (at !== bt) return at - bt;
     return a.uid.localeCompare(b.uid);
   });
@@ -144,7 +144,7 @@ export function listVisibleDdlItems(items: DdlItem[], nowMs: number, retentionDa
   const earliestVisibleDeadline: number = nowMs - retentionMs;
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
-    const deadline = item.endTime > 0 ? item.endTime : item.startTime;
+    const deadline = item.startTime;
     if (deadline > earliestVisibleDeadline) {
       visible.push(item);
     }

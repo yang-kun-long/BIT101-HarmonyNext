@@ -17,6 +17,7 @@ Completed or mostly completed:
 - Custom schedule add/edit/delete overlay.
 - DDL local management plus Lexue sync settings.
 - DDL list/card empty state, remaining-time copy, card text layout, detail dialog sections, delete confirmation, edit labels, and picker-based date/time editing.
+- DDL list sorting and retention now follow Android's single deadline-time semantics (`time ASC`, `time > now - afterDay`) instead of using calendar event end time.
 - Free classroom page and settings page.
 - Login health check split into BIT101 backend, school/Lexue, and JXZX teaching-app domains so settings no longer reports a false full success when exam/free-classroom auth is broken.
 - Account page now restores nickname, avatar, UID, motto, and persisted username-backed student id instead of showing mock data.
@@ -26,7 +27,7 @@ Completed or mostly completed:
 Still not fully aligned:
 
 - Course sync is still BIT101/ICS based, not a complete Android-native school course API implementation.
-- DDL still needs a focused Android-by-Android audit for sorting, loading/error states, settings/default behavior, and remaining edge-case interactions.
+- DDL still needs a focused Android-by-Android audit for loading/error states, settings/default behavior, and remaining edge-case interactions.
 - Free classroom still needs a full Android-by-Android audit for defaults, sorting, loading/empty/error states, labels, and edge-case interactions.
 - Course schedule visual details still need a final side-by-side audit after the data/API work settles.
 - Secure credential storage / auto repair is still not implemented. HarmonyOS should not persist plaintext password just to copy Android's auto relogin behavior.
@@ -158,7 +159,7 @@ Implemented:
 - Android-style empty-state container layout.
 - Android-style remaining-time copy.
 - Android-aligned card title/body layout.
-- Android-aligned retention boundary filtering (`time > now - afterDay`) and trailing checkbox placement inside the card.
+- Android-aligned sort and retention boundary filtering (`time ASC`, `time > now - afterDay`) and trailing checkbox placement inside the card.
 - Android-aligned first-run Lexue fetch CTA loading content: spinner only, no extra `获取中...` text.
 - Android-aligned detail dialog sections.
 - Manual DDL delete confirmation.
@@ -174,6 +175,10 @@ Implemented:
   - No extra start toast is shown.
   - No extra success toast is shown.
   - Failure toast remains so users still see actionable errors.
+- DDL settings data actions now match Android's quiet loading behavior:
+  - `重新获取订阅链接` and `重新拉取乐学日程` no longer show extra start toasts.
+  - The rows still use their loading/disabled state while running.
+  - Result toasts remain Android-aligned: `获取成功` / `获取失败` and `拉取成功` / `拉取失败`.
 - Unit tests:
   - `DdlLocal.test.ets`
   - `DdlSync.test.ets`
@@ -181,7 +186,7 @@ Implemented:
 
 Known gaps / audit items:
 
-- Compare Android sorting, warning threshold, and filtering behavior one by one. Retention boundary and empty-state container layout are now covered by tests.
+- Compare Android warning threshold and remaining filtering behavior one by one. Sort order, retention boundary, and empty-state container layout are now covered by tests.
 - Confirm whether Android has additional reminder/system-calendar behavior that HarmonyOS should mirror.
 - Confirm FAB/default setting styling against Android DDL after the course schedule FAB change.
 - Confirm loading/error states and Lexue sync failure UX against Android.
@@ -231,12 +236,17 @@ Implemented:
 - Free classroom main page now watches campus AppStorage changes while alive:
   - If settings changes the selected campus while the free-classroom page remains mounted behind the route, the page reloads building data when returning.
   - This fixes the device-observed case where settings showed `中关村校区` but the main list still displayed `良乡校区` buildings after return.
+- Free classroom hide-busy was verified against real school API data on device:
+  - `FREE_CLASSROOM` debug case selected `inner` mode and fetched real campus/building/classroom data.
+  - At the actual evening clock, no mixed free/busy sample was found, so the case reused the same real occupancy rows with class-time clocks.
+  - Simulated class time `08:30` found `中关村校区 / 3号教学楼` with `all = 38`, `freeOnly = 34`.
+  - The hidden busy rows were logged explicitly: `3号楼310`, `3号楼318`, `3号楼330`, and `3号楼430`.
 
 Known gaps / audit items:
 
 - Need side-by-side UI comparison against Android for remaining defaults, labels, loading/empty/error states, and edge cases.
 - Confirm exact query defaults and period-selection behavior beyond term source.
-- Continue device-side hide-busy verification with a campus/building that has both currently free and currently busy classrooms; current code path is covered by tests and app-storage propagation, and latest device checks reached a real `中关村校区` expanded building, but the sampled `1号教学楼` list only contained `1号楼127` as free all day.
+- Capture before/after screenshot and UI tree for hide-busy if UI-level visual evidence is needed; the data/filtering path has device-side HiLog evidence.
 - Confirm FAB/default setting styling against Android free classroom after the course schedule FAB change.
 
 ## Verification Evidence From Latest Work
@@ -255,8 +265,26 @@ $env:OHOS_SDK_HOME='D:\Software\Huawei\DevEco Studio\sdk\default\openharmony'
 
 Latest results observed in this session:
 
+- Free classroom real-data hide-busy verification:
+  - `devecocli run --module entry --device 127.0.0.1:5557 --build-mode debug`: build/install/start succeeded.
+  - HiLog `DebugIT_DebugRunner`: `SUMMARY target=FREE_CLASSROOM total=1 passed=1 failed=0 duration=33141ms`.
+  - HiLog `DebugIT_DebugCase`: `selected mode = inner`, `campus count = 8`, `building count = 20`, sample `1号楼127`.
+  - Actual clock `18:15`: no mixed free/busy sample.
+  - Simulated class-time clock with real occupancy rows: `hide-busy class-time mixed sample found clock = 08:30 campus = 中关村校区 building = 3号教学楼 all = 38 freeOnly = 34`.
+  - Hidden rows logged: `3号楼310`, `3号楼318`, `3号楼330`, `3号楼430`.
+  - After restoring `DebugRunner.CURRENT_DEBUG_TARGET`, HiLog showed `SUMMARY target=SCHOOL_NETWORK_PROBE total=1 passed=1 failed=0 duration=438ms`.
+- DDL Android deadline-time sort audit:
+  - Android reference: `DDLScheduleDao.getAll()` and `getFuture()` use `ORDER BY time ASC`; `getFuture()` filters `WHERE time > :time`.
+  - TDD RED: added `sorts DDL by Android deadline time instead of event end time`; `hvigorw.js test --no-daemon` failed with `expect short-event equals long-event`.
+  - GREEN: `DdlModels.sortDdlItemsByTime()` and `listVisibleDdlItems()` now use `startTime` as the Android-equivalent deadline time; `hvigorw.js test --no-daemon` passed with `BUILD SUCCESSFUL`.
 - `hvigorw.bat test --no-daemon`: `BUILD SUCCESSFUL`
 - debug `assembleHap`: `BUILD SUCCESSFUL`
+- Current DDL settings action toast audit:
+  - Android reference: `DDLSettingPage.kt` observes `SimpleState.Loading` to disable rows and only snackbars on success/fail; it does not emit separate start snackbars.
+  - TDD RED: adding `getDdlSettingsDataActionToastPolicy()` expectation made `hvigorw.bat test --no-daemon` fail because the model/type did not exist.
+  - GREEN: `hvigorw.bat test --no-daemon` passed after adding the policy and guarding the two start toasts in `DDLSettingPage.ets`.
+  - debug `assembleHap`: `BUILD SUCCESSFUL`.
+  - Device-side attempt was blocked by environment on 2026-05-29 18:45-18:50: DevEco MCP `start_app` for `Mate 70 Pro` and `Huawei_Phone` both timed out waiting for the emulator to start; `hdc list targets` returned `[Empty]`; DevEco MCP HiLog reported all configured devices as not running. Do not claim device UI verification for this specific batch until a simulator/device is running.
 - DevEco MCP `start_app` on `Mate 70 Pro`: installed and started successfully
 - HiLog `DebugIT_DebugRunner`:
   - latest observed: `SUMMARY target=SCHOOL_NETWORK_PROBE total=1 passed=1 failed=0 duration=692ms`
