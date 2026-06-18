@@ -82,7 +82,7 @@ HarmonyOS files compared:
 | Detail dialog | Android shows DDL time, group, details; manual items show delete/edit actions. | HarmonyOS builds the same sections and action availability. | Complete | `DDLScheduleDetailDialog.kt`; `buildDdlDetailModel()` tests. | Closed. |
 | Delete confirmation | Android asks `确认删除吗？`, message `<title> 删除后不可恢复`, success `删除成功OvO`. | Same model and toast. | Complete | `buildDdlDeleteConfirmModel()` test. | Closed. |
 | Edit dialog labels and validation | Android labels: `添加DDL/编辑DDL`, `标题`, `请选择日期`, `请选择时间`, `详情`; errors for empty title/time. | Same labels and validation. | Complete | `DDLScheduleEditDialog.kt`; `buildDdlEditDialogModel()` and validation tests. | Closed. |
-| Date/time picker behavior | Android date first; time disabled until date exists; date preserves or defaults time; time writes seconds 0. | HarmonyOS date picker writes date and defaults time to `00:00:00`; time picker writes `HH:mm:ss`. | Verify Once | Tests and screenshots exist; ArkUI builder state bug fixed. | One final device pass for date/time add/edit before closing DDL UI. |
+| Date/time picker behavior | Android date first; time disabled until date exists; date preserves or defaults time; time writes seconds 0. | HarmonyOS date picker writes date and defaults time to `00:00:00`; time picker writes `HH:mm:ss`. | Complete | Tests plus 2026-06-18 Huawei_Phone `uitest` visual smoke: add dialog date/time picker wrote `2026-06-18 00:00:00`, item rendered in the list, edit saved, and delete confirmation removed it. | Closed. |
 | Settings data rows | Android has `重新获取订阅链接` and `重新拉取乐学日程`, disabled while loading. | Same rows and enabled policy. | Complete | `buildDdlSettingsDataItems()` test. | Closed. |
 | Settings result toasts | Android only snackbars success/failure: `获取成功/获取失败`, `拉取成功/拉取失败`. | HarmonyOS now suppresses start toasts and keeps result toasts. | Complete, device blocked | `getDdlSettingsDataActionToastPolicy()` test; current uncommitted batch. DevEco/hdc unavailable on 2026-05-29. | Close after next device smoke run; no more code unless failure appears. |
 | Settings numeric defaults | Android defaults: beforeDay `7`, afterDay `3`. | HarmonyOS defaults: warningDays `7`, retentionDays `3`. | Complete | `SettingDataStore.kt`; `DdlSettingsStore.ts`; tests. | Closed. |
@@ -90,7 +90,7 @@ HarmonyOS files compared:
 | Reminder/system calendar behavior | Not present in fixed DDL files as a DDL feature. | Not implemented. | Out of Scope | No relevant fixed-scope Android implementation. | Do not pursue under DDL parity. |
 | Pixel-level visual differences | Compose Material and ArkUI differ. | Some visual differences remain. | Won't Chase | Would require open-ended side-by-side visual polish. | Only fix if text overlaps, tap targets fail, or user requests. |
 
-DDL closure judgment: functionally complete for local CRUD and source-level parity. Remaining DDL work is one `Verify Once` visual device pass for date/time picker interaction and settings sync result, not more source-level parity hunting.
+DDL closure judgment: functionally complete for local CRUD, date/time picker interaction, and source-level parity. Settings sync result was exercised as far as the current login/network state allowed; no more source-level parity hunting remains in this module.
 
 ## Free Classroom Matrix
 
@@ -137,12 +137,14 @@ Free classroom closure judgment: functionally complete and device-verified on Hu
 
 Only these items remain from this audit:
 
-1. `Verify Once`: DDL visual device smoke pass.
+1. Closed on 2026-06-18: DDL visual device smoke pass.
    - Open DDL list.
-   - Add a manual DDL using date/time picker and confirm it is visible in the list.
-   - Edit it through the detail dialog.
-   - Delete it through the confirmation dialog.
-   - Open DDL settings and trigger both data actions far enough to observe loading/result behavior if login/network state allows.
+   - Added manual DDL `DDLVisualSmoke` using the date/time pickers; the form showed `2026-06-18` and `00:00:00`.
+   - Confirmed the item rendered in the list without a Lexue subscription URL.
+   - Opened the detail dialog, verified title/detail/date/group sections and delete/edit/close actions.
+   - Edited the title through the detail dialog and confirmed the list refreshed.
+   - Deleted it through the confirmation dialog and confirmed the list returned to the no-local-item CTA state.
+   - DDL settings action behavior remains limited by login/network state as documented below; no code change is indicated.
 
 2. Closed on 2026-06-18: free classroom hide-busy live pass.
    - `FREE_CLASSROOM` on Huawei_Phone selected `inner` mode and passed.
@@ -185,6 +187,13 @@ Later retry on 2026-05-29 23:18-23:31:
   - It verified `resolveDdlContentState(false, false, 1) -> list`, so local manual DDL rows are no longer hidden behind the no-subscription CTA.
   - It edited the title to `Debug manual DDL edited`, deleted the item, and restored previous DDL data.
   - Summary: `SUMMARY target=DDL_MANUAL_CRUD total=1 passed=1 failed=0 duration=710ms`.
+- DDL visual `uitest` smoke:
+  - 2026-06-18 on Huawei_Phone, the DDL tab was driven through `hdc shell uitest`.
+  - Add dialog accepted title `DDLVisualSmoke`, detail `VisualFlowDetail`, date `2026-06-18`, and time `00:00:00`.
+  - After confirmation, the DDL list rendered the local row instead of only the `获取乐学日程` CTA.
+  - Detail dialog showed the DDL time, group `自定义`, details, and `删除/编辑/关闭` actions.
+  - Edit saved an updated title and refreshed the list.
+  - Delete confirmation removed the row and returned the page to the no-local-item CTA state.
 - DDL settings smoke:
   - `DDL设置` rendered `重新获取订阅链接`, `重新拉取乐学日程`, `变色天数 = 7`, and `滞留天数 = 3`.
   - `重新获取订阅链接` was tapped; the row returned to enabled state and the failure path was reached.
@@ -197,4 +206,4 @@ Later retry on 2026-05-29 23:18-23:31:
   - Hidden busy samples included `3号楼311`, `3号楼312`, `3号楼318`, and `3号楼330`.
   - Summary: `SUMMARY target=FREE_CLASSROOM total=1 passed=1 failed=0 duration=37362ms`.
 
-Do not claim a full successful DDL add/edit/delete visual pass until a device state with cached Lexue subscription URL (or adjusted product behavior) allows local manual rows to render.
+DDL add/edit/delete visual pass is now successful on Huawei_Phone. The remaining DDL settings sync-result limitation is environmental: the current login/network state cannot obtain a Lexue subscribe URL, so `重新拉取乐学日程` stays correctly gated by `请先获取订阅链接哦`.
