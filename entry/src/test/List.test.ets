@@ -18,6 +18,8 @@ import weekNavigatorModelTest from './WeekNavigatorModel.test';
 import ddlListModelTest from './DdlListModel.test';
 import freeClassroomUiModelTest from './FreeClassroomUiModel.test';
 import loginHealthTest from './LoginHealth.test';
+import loginCoordinatorTest from './LoginCoordinator.test';
+import lexueBootstrapTest from './LexueBootstrap.test';
 
 export default function testsuite() {
   localUnitTest();
@@ -40,4 +42,6 @@ export default function testsuite() {
   ddlListModelTest();
   freeClassroomUiModelTest();
   loginHealthTest();
+  loginCoordinatorTest();
+  lexueBootstrapTest();
 }

@@ -90,6 +90,8 @@ export class Logger {
     WebvpnJumpBuilder: 'WebvpnJumpBuilder',
     SchoolServiceResolver: 'SchoolServiceResolver',
     SchoolAuthService: 'SchoolAuthService',
+    LoginCoordinator: 'LoginCoordinator',
+    LexueBootstrap: 'LexueBootstrap',
 
     // [Services - 业务服务]
     CalendarService: 'CalendarService',

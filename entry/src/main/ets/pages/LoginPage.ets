@@ -1,22 +1,13 @@
 // entry/src/main/ets/pages/LoginPage.ets
-import { AuthRepository } from '../services/auth/authRepository'
 import router from '@ohos.router'
-import { createBitSsoSessionAuto } from '../services/lexue/BitSsoAuto';
-import { syncUserCalendar } from '../services/lexue/CalendarService';
 import { BusinessError } from '@kit.BasicServicesKit'; // 引入系统错误类型
 import { Logger } from '../utils/Logger';
-import { TokenStore } from '../services/storage/tokenStore';
 import { uiGetParams, uiReplaceUrl } from '../utils/uiContextBridge';
-import { loginBit101AndVerifyWebvpn } from '../services/auth/bit101LoginFlow';
-import { prepareFreeClassroomSession } from '../services/jw/freeClassroomSession';
+import { LoginCoordinator } from '../services/auth/LoginCoordinator';
 
 interface RedirectParams {
   redirect?: string
 }
-
-const WEBVPN_LEXUE_BASE =
-  'https://webvpn.bit.edu.cn/https/77726476706e69737468656265737421fcf25989227e6a596a468ca88d1b203b';
-const WEBVPN_PORTAL_URL = 'https://webvpn.bit.edu.cn/';
 
 @Entry
 @Component
@@ -29,8 +20,7 @@ struct LoginPage {
   @State msg: string = ''        // 成功/失败提示
   @State showRaw: boolean = false // 开发开关：是否打印原始返回
 
-  private auth = new AuthRepository()
-  private tokenStore = new TokenStore()
+  private loginCoordinator = new LoginCoordinator()
 
   private async onLogin() {
     if (this.busy) return
@@ -38,76 +28,30 @@ struct LoginPage {
     this.msg = ''
 
     try {
-      // 1. BIT101 后端登录 + WebVPN verify。课程表后端依赖 verify 写入的 webvpn_cookie。
-      const bit101Login = await loginBit101AndVerifyWebvpn(this.auth, {
+      const result = await this.loginCoordinator.login({
         sid: this.sid.trim(),
         password: this.password,
         captcha: this.captcha,
-      })
-      const bit101FakeCookie = bit101Login.fakeCookie
-
-      if (this.showRaw) {
-        this.logger.debug('bit101FakeCookie saved:', !!bit101FakeCookie, 'webvpnVerify:', bit101Login.webvpn.ok);
-      }
-
-      const okBit101 = bit101Login.ok
-
-      // 2. 学校登录流程（inner / webvpn 自动选择）
-      const GeneratedDestructObj_1 = await createBitSsoSessionAuto({
-        debug: true,
-        webvpnLexueBase: WEBVPN_LEXUE_BASE,
       });
 
-      const mode = GeneratedDestructObj_1.mode;
-      const sso = GeneratedDestructObj_1.sso;
-
-      // 执行登录
-      await sso.loginToLexue(this.sid.trim(), this.password);
-      const okSchool = sso.isFullyLoggedIn();
-
-      if (mode === 'webvpn') {
-        const webvpnCookie = sso.getCookieHeaderFor(WEBVPN_PORTAL_URL) ?? '';
-        if (webvpnCookie) {
-          await this.tokenStore.saveWebvpnCookie(webvpnCookie);
-          this.logger.info('已写入 WebVPN cookie 到 TokenStore');
-        } else {
-          this.logger.warn('WebVPN 模式下未取到 cookie header');
-        }
+      if (this.showRaw) {
+        this.logger.debug(
+          'login result:',
+          'bit101=',
+          result.bit101Ok,
+          'school=',
+          result.schoolOk,
+          'mode=',
+          result.mode,
+          'calendar=',
+          result.syncedCalendarCount,
+        );
       }
 
-      try {
-        await prepareFreeClassroomSession(this.sid.trim(), this.password, mode, true);
-        this.logger.info('空教室教务 session 已准备 mode=', mode);
-      } catch (freeRoomErr) {
-        this.logger.warn('空教室教务 session 准备失败，不阻断登录:', freeRoomErr);
-      }
-
-      // 3. 判定登录结果并同步数据
-      if (okBit101 && okSchool) {
-        this.msg = '登录成功，正在同步课表...';
-
-        try {
-          // === 核心业务整合：同步日历 ===
-          const currentBaseUrl = mode === 'inner'
-            ? 'https://lexue.bit.edu.cn'
-            : WEBVPN_LEXUE_BASE;
-
-          const count = await syncUserCalendar({
-            sso: sso,
-            username: this.sid.trim(),
-            webvpnLexueBase: currentBaseUrl
-          });
-
-          this.logger.info('日历同步完成，共', count, '条数据');
-        } catch (syncErr) {
-          // 日历同步失败不应阻止跳转，但要打印详细日志
-          this.logger.error('日历同步失败详情:', syncErr);
-        }
-
+      if (result.ok) {
+        this.msg = '登录成功';
         AppStorage.setOrCreate('current_username', this.sid)
-        await this.tokenStore.saveUsername(this.sid.trim());
 
-        // 4. 页面跳转
         const p = uiGetParams(this.getUIContext()) as object
         let target = 'pages/Index'
         if (p && typeof p === 'object') {
@@ -121,9 +65,8 @@ struct LoginPage {
         return
       }
 
-      // 失败处理
-      const bit101Text = okBit101 ? 'OK' : 'FAIL'
-      const schoolText = okSchool ? 'OK' : 'FAIL'
+      const bit101Text = result.bit101Ok ? 'OK' : 'FAIL'
+      const schoolText = result.schoolOk ? 'OK' : 'FAIL'
       this.msg = `登录失败：BIT101=${bit101Text}，School=${schoolText}`
 
     } catch (e) {

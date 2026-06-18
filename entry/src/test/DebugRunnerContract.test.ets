@@ -16,6 +16,10 @@ export default function debugRunnerContractTest() {
       expect(DebugTarget.FREE_CLASSROOM).assertEqual('FREE_CLASSROOM');
     });
 
+    it('exposes Lexue bootstrap target for WebVPN target bootstrap verification', 0, () => {
+      expect(DebugTarget.LEXUE_BOOTSTRAP).assertEqual('LEXUE_BOOTSTRAP');
+    });
+
     it('formats summary lines with passed and failed counts', 0, () => {
       const results: DebugCaseRunResult[] = [
         {
