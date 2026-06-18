@@ -20,6 +20,7 @@ import freeClassroomUiModelTest from './FreeClassroomUiModel.test';
 import loginHealthTest from './LoginHealth.test';
 import loginCoordinatorTest from './LoginCoordinator.test';
 import lexueBootstrapTest from './LexueBootstrap.test';
+import systemCalendarModelsTest from './SystemCalendarModels.test';
 
 export default function testsuite() {
   localUnitTest();
@@ -44,4 +45,5 @@ export default function testsuite() {
   loginHealthTest();
   loginCoordinatorTest();
   lexueBootstrapTest();
+  systemCalendarModelsTest();
 }

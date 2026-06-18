@@ -42,7 +42,8 @@ export class Logger {
     'SchoolAuthService',
     'DDLSettingPage',
     'CourseExamRepository',
-    'CourseTermRepository'
+    'CourseTermRepository',
+    'SystemCalendarService'
     // --- 可以在这里填入下方 ALL_MODULES 里的名字 ---
     // 'ScheduleGrid',
     // 'SchedulePage',
@@ -103,6 +104,7 @@ export class Logger {
     Timetable: 'Timetable',
     CourseExamRepository: 'CourseExamRepository',
     CourseTermRepository: 'CourseTermRepository',
+    SystemCalendarService: 'SystemCalendarService',
 
     // [Storage - 本地存储]
     SemesterStore: 'SemesterStore',

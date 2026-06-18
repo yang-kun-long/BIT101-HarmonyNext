@@ -19,6 +19,16 @@ import { detectSchoolLoginMode } from '../../services/school/SchoolNetworkProbe'
 import type { SchoolLoginMode } from '../../services/school/SchoolAuthTypes';
 import { doOperationRequiresLogin, LoginHealthService } from '../../services/auth/LoginHealthService';
 import type { CourseScheduleItem, ExamScheduleItem } from '../../services/schoolSchedule/ScheduleModels';
+import {
+  buildScheduleCalendarEventDrafts,
+  formatSystemCalendarSyncMessage,
+  SystemCalendarEventDraft,
+  SystemCalendarSyncResult,
+} from '../../services/systemCalendar/SystemCalendarModels';
+import {
+  syncSystemCalendarEventDrafts,
+  SystemCalendarService,
+} from '../../services/systemCalendar/SystemCalendarService';
 
 // ----------------------------------------------------------------------------
 // 1. 数据模型定义
@@ -64,6 +74,7 @@ struct CalendarSettingPage {
   @State isGettingExams: boolean = false;
   @State isGettingTerms: boolean = false;
   @State isGettingCurrentTerm: boolean = false;
+  @State isSyncingSystemCalendar: boolean = false;
   @State showTermOptions: boolean = false;
   @State termOptions: string[] = [];
 
@@ -152,6 +163,14 @@ struct CalendarSettingPage {
                 subTitle: "点击重新获取当前学期的考试安排",
                 enable: !this.isGettingExams,
                 onItemClick: () => { this.handleGetExams() }
+              })
+              Divider().color($r('sys.color.ohos_id_color_list_separator')).margin({ left: 16 })
+
+              SettingItem({
+                title: "系统日历",
+                subTitle: "将本地考试和自定义日程写入系统日历",
+                enable: !this.isSyncingSystemCalendar,
+                onItemClick: () => { this.handleSyncSystemCalendar() }
               })
               Divider().color($r('sys.color.ohos_id_color_list_separator')).margin({ left: 16 })
 
@@ -402,6 +421,45 @@ struct CalendarSettingPage {
       uiShowToast(this.getUIContext(), { message });
     } finally {
       this.isGettingExams = false;
+    }
+  }
+
+  async handleSyncSystemCalendar(): Promise<void> {
+    const filesDir = this.getFilesDir();
+    if (filesDir.length === 0) {
+      uiShowToast(this.getUIContext(), { message: "无法获取应用文件目录" });
+      return;
+    }
+
+    this.isSyncingSystemCalendar = true;
+    try {
+      const store = new ScheduleLocalStore({ filesDir });
+      const drafts: SystemCalendarEventDraft[] = buildScheduleCalendarEventDrafts({
+        exams: store.loadExams(),
+        customSchedules: store.loadCustomSchedules(),
+      });
+      if (drafts.length === 0) {
+        uiShowToast(this.getUIContext(), { message: formatSystemCalendarSyncMessage({
+          total: 0,
+          created: 0,
+          skipped: 0,
+          failed: 0,
+        }) });
+        return;
+      }
+
+      const result: SystemCalendarSyncResult = await syncSystemCalendarEventDrafts(
+        new SystemCalendarService(),
+        drafts,
+      );
+      uiShowToast(this.getUIContext(), { message: formatSystemCalendarSyncMessage(result) });
+    } catch (error) {
+      const message = error instanceof Error && error.message.length > 0
+        ? error.message
+        : "写入系统日历失败";
+      uiShowToast(this.getUIContext(), { message });
+    } finally {
+      this.isSyncingSystemCalendar = false;
     }
   }
 

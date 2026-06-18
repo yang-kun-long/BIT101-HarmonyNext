@@ -30,6 +30,7 @@ import {
   initCourseScheduleSettingsStore,
 } from '../services/storage/CourseScheduleSettingsStore';
 import { DEFAULT_SCHEDULE_DISPLAY_SETTINGS } from '../services/schoolSchedule/ScheduleSettingsModels';
+import { initSystemCalendarService } from '../services/systemCalendar/SystemCalendarService';
 // 确保路径正确，如果在 pages 下就是 '../pages/PageEnum'
 import { PageShowOnNav } from '../pages/PageEnum';
 
@@ -51,6 +52,7 @@ export default class EntryAbility extends UIAbility {
     initDdlSettingsStore(this.context);
     initFreeClassroomSettingsStore(this.context);
     initCourseScheduleSettingsStore(this.context);
+    initSystemCalendarService(this.context);
     this.bootstrapDdlSettings();
     this.bootstrapCourseScheduleSettings();
 

@@ -35,6 +35,10 @@
     {
       "name": "internet_permission_reason",
       "value": "Used to access the network to obtain map data."
+    },
+    {
+      "name": "calendar_permission_reason",
+      "value": "用于将课程表中的考试和自定义日程写入系统日历。"
     }
   ]
 }
