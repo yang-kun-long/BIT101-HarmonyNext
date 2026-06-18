@@ -9,10 +9,34 @@ import {
 } from '../main/ets/services/systemCalendar/SystemCalendarService';
 import type { SystemCalendarEventDraft } from '../main/ets/services/systemCalendar/SystemCalendarModels';
 import type {
+  CourseScheduleItem,
   CustomScheduleItem,
   ExamScheduleItem,
 } from '../main/ets/services/schoolSchedule/ScheduleModels';
 import type { SystemCalendarSyncResult } from '../main/ets/services/systemCalendar/SystemCalendarModels';
+import type { PeriodTime } from '../main/ets/services/jw/periodTimes';
+
+function course(id: string, weeks: string, weekday: number, startSection: number, endSection: number): CourseScheduleItem {
+  return {
+    id,
+    term: '2025-2026-2',
+    name: '生命分析化学',
+    teacher: '李老师',
+    classroom: '理教楼309',
+    description: '4周 星期三 3-4节 理教楼309',
+    weeks,
+    weekday,
+    startSection,
+    endSection,
+    campus: '中关村校区',
+    number: 'CHEM101',
+    credit: 2,
+    hour: 32,
+    type: '必修',
+    category: '专业课',
+    department: '化学学院',
+  };
+}
 
 function exam(id: string, dateISO: string, beginTime: string, endTime: string): ExamScheduleItem {
   return {
@@ -45,6 +69,51 @@ function custom(id: string, dateISO: string, beginTime: string, endTime: string)
 
 export default function systemCalendarModelsTest() {
   describe('System calendar event models', () => {
+    const periodTimes: PeriodTime[] = [
+      { start: '08:00', end: '08:45' },
+      { start: '08:50', end: '09:35' },
+      { start: '09:55', end: '10:40' },
+      { start: '10:45', end: '11:30' },
+    ];
+
+    it('expands course weeks into per-class event drafts', 0, () => {
+      const drafts = buildScheduleCalendarEventDrafts({
+        courses: [course('c1', '[1][3]', 3, 2, 4)],
+        exams: [],
+        customSchedules: [],
+        firstDayISO: '2026-02-23',
+        periodTimes,
+      });
+
+      expect(drafts.length).assertEqual(2);
+      expect(drafts[0].identifier).assertEqual('bit101:course:2025-2026-2:c1:w1:d3:s2-4');
+      expect(drafts[0].title).assertEqual('生命分析化学');
+      expect(drafts[0].location).assertEqual('理教楼309');
+      expect(drafts[0].startTime).assertEqual(new Date(2026, 1, 25, 8, 50, 0).getTime());
+      expect(drafts[0].endTime).assertEqual(new Date(2026, 1, 25, 11, 30, 0).getTime());
+      expect(drafts[0].description.indexOf('周次：第 1 周') >= 0).assertTrue();
+      expect(drafts[1].identifier).assertEqual('bit101:course:2025-2026-2:c1:w3:d3:s2-4');
+      expect(drafts[1].startTime).assertEqual(new Date(2026, 2, 11, 8, 50, 0).getTime());
+    });
+
+    it('skips invalid course calendar inputs', 0, () => {
+      const drafts = buildScheduleCalendarEventDrafts({
+        courses: [
+          course('valid', '[1]', 1, 1, 1),
+          course('no-weeks', '', 1, 1, 1),
+          course('bad-weekday', '[1]', 8, 1, 1),
+          course('bad-section', '[1]', 1, 5, 6),
+        ],
+        exams: [],
+        customSchedules: [],
+        firstDayISO: '2026-02-23',
+        periodTimes,
+      });
+
+      expect(drafts.length).assertEqual(1);
+      expect(drafts[0].identifier).assertEqual('bit101:course:2025-2026-2:valid:w1:d1:s1-1');
+    });
+
     it('builds stable exam and custom event drafts', 0, () => {
       const drafts = buildScheduleCalendarEventDrafts({
         exams: [exam('e1', '2026-06-20', '09:00', '11:00')],

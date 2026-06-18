@@ -168,7 +168,7 @@ struct CalendarSettingPage {
 
               SettingItem({
                 title: "系统日历",
-                subTitle: "将本地考试和自定义日程写入系统日历",
+                subTitle: "将本地课程、考试和自定义日程写入系统日历",
                 enable: !this.isSyncingSystemCalendar,
                 onItemClick: () => { this.handleSyncSystemCalendar() }
               })
@@ -434,9 +434,13 @@ struct CalendarSettingPage {
     this.isSyncingSystemCalendar = true;
     try {
       const store = new ScheduleLocalStore({ filesDir });
+      const periodTimes: PeriodTime[] = parsePeriodTimesText(this.timeTableString);
       const drafts: SystemCalendarEventDraft[] = buildScheduleCalendarEventDrafts({
+        courses: store.loadCourses(),
         exams: store.loadExams(),
         customSchedules: store.loadCustomSchedules(),
+        firstDayISO: this.firstDay,
+        periodTimes,
       });
       if (drafts.length === 0) {
         uiShowToast(this.getUIContext(), { message: formatSystemCalendarSyncMessage({
