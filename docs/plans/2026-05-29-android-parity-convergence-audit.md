@@ -111,7 +111,7 @@ DDL closure judgment: functionally complete. Remaining DDL work is one `Verify O
 | Free-period text | Android merges free periods as `1~3, 6`. | HarmonyOS uses same formatting. | Complete | `formatFreePeriods()` test. | Closed. |
 | Live free/busy status | Android computes current free, next busy, next free, and `空闲到明天/还会空闲/后空闲/使用中`. | HarmonyOS computes equivalent status from period times and busy periods. | Complete | `computeClassroomBusyStatus()` tests. | Closed. |
 | Busy/free ordering | Android sorts free rooms ahead, longer available first, busy rooms by recovery, then name. | HarmonyOS mirrors sort keys and name fallback. | Complete | `sortFreeClassroomRowsForAndroidDisplay()` tests. | Closed. |
-| Hide busy setting | Android `hideBusyClassroomFlow` filters currently not-free classrooms live. | HarmonyOS AppStorage link filters display and setting syncs before persistence. | Verify Once | Helper tests and code path exist; latest real device sample lacked mixed busy/free rows. | One final device pass with mixed data if available; if not, record data limitation and close. |
+| Hide busy setting | Android `hideBusyClassroomFlow` filters currently not-free classrooms live. | HarmonyOS AppStorage link filters display and setting syncs before persistence. | Complete | `FREE_CLASSROOM` on Huawei_Phone found mixed rows in 3号教学楼: all=38, freeOnly=34; hidden busy samples included 3号楼311/312/318/330. | Closed. |
 | Free threshold setting | Android default `5`, input dialog text includes unit, refreshes classroom info on change. | HarmonyOS default `5`, same text, validates integer, syncs AppStorage; threshold dialog crash fixed. | Complete | `FreeClassroomSettingsStore.ts`; threshold tests; device evidence. | Closed. |
 | Building/classroom loading | Android shows `正在拉取教学楼列表...` and `正在获取教室列表...` with progress. | HarmonyOS shows equivalent loading tips. | Complete | `FreeClassroomPage.ets`; screenshots. | Closed. |
 | Building/classroom errors | Android shows snackbar on failed building/classroom fetch; no inline classroom error card. | HarmonyOS shows toast on failed building/classroom fetch; no inline classroom error card. | Complete | `FreeClassroomPage.ets`; Android `LaunchedEffect` snackbar. | Toast vs snackbar is not a task. |
@@ -121,7 +121,7 @@ DDL closure judgment: functionally complete. Remaining DDL work is one `Verify O
 | Settings FAB | Android has settings FAB; 42dp size. | HarmonyOS has settings FAB; 42vp size. | Complete | UI model constants. | Closed. |
 | Item spacing and colors | Android uses Material surfaces and specific padding/color mixes. | HarmonyOS uses close ArkUI styling and aligned padding constants. | Won't Chase | Padding/color micro-differences do not affect flow. | No more padding/color-only tasks. |
 
-Free classroom closure judgment: functionally complete. Remaining work is one `Verify Once` hide-busy device pass with mixed free/busy rows if the live data allows it.
+Free classroom closure judgment: functionally complete and device-verified on Huawei_Phone.
 
 ## Cross-Cutting Items
 
@@ -144,10 +144,10 @@ Only these items remain from this audit:
    - Delete it.
    - Open DDL settings and trigger both data actions far enough to observe loading/result behavior if login/network state allows.
 
-2. `Verify Once`: free classroom hide-busy live pass.
-   - Use a campus/building with mixed currently-free and currently-busy rooms.
-   - Capture before/after hide-busy toggle.
-   - If live data cannot provide mixed rows after reasonable sampling, record the data limitation and close.
+2. Closed on 2026-06-18: free classroom hide-busy live pass.
+   - `FREE_CLASSROOM` on Huawei_Phone selected `inner` mode and passed.
+   - Device evidence: `SUMMARY target=FREE_CLASSROOM total=1 passed=1 failed=0 duration=37362ms`.
+   - Mixed sample: `3号教学楼 all=38 freeOnly=34`; hidden busy samples included `3号楼311`, `3号楼312`, `3号楼318`, and `3号楼330`.
 
 3. Closed on 2026-06-18: full Android-native school course API sync.
    - Commit `faf8cf3` added `CourseScheduleApiRepository` for `/jwapp/sys/wdkbby/modules/xskcb/cxxszhxqkb.do`.
@@ -181,9 +181,10 @@ Later retry on 2026-05-29 23:18-23:31:
   - HiLog showed WebVPN DNS failure (`Couldn't resolve host name` for `https://webvpn.bit.edu.cn/login?cas_login=true`) and `refresh DDL subscribe URL failed Error: 学校登录态不可用，请重新登录后再试`.
   - `重新拉取乐学日程` remained gated by missing subscribe URL (`请先获取订阅链接哦`), so result behavior for that action could not be exercised in this environment.
 - Free classroom smoke:
-  - `空教室` tab opened on device.
-  - Building/classroom sampling could not proceed because the same WebVPN DNS/login-state failure blocked teaching-app access.
-  - HiLog showed `FreeClassroomPage: load buildings failed: 教务登录态不可用，请重新登录后再试`.
-  - No mixed currently-free/currently-busy classroom sample was reachable in this environment; close the hide-busy `Verify Once` as data/environment-limited for this pass, with no new parity task.
+  - 2026-06-18 `FREE_CLASSROOM` on Huawei_Phone selected `inner` mode.
+  - It fetched 8 campuses, 20 Zhongguancun buildings, and sample classroom `1号楼127`.
+  - Hide-busy mixed sample found at simulated class-time clock `08:30`: `3号教学楼 all=38 freeOnly=34`.
+  - Hidden busy samples included `3号楼311`, `3号楼312`, `3号楼318`, and `3号楼330`.
+  - Summary: `SUMMARY target=FREE_CLASSROOM total=1 passed=1 failed=0 duration=37362ms`.
 
 Do not claim a full successful DDL add/edit/delete visual pass until a device state with cached Lexue subscription URL (or adjusted product behavior) allows local manual rows to render.
