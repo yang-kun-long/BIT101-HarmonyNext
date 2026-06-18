@@ -4,6 +4,7 @@ import {
   calendarEventsToCourseScheduleItems,
   clockToSection,
   computeWeekNumber,
+  CourseScheduleSource,
   CourseExamSource,
   CourseScheduleLocalStoreLike,
   CourseScheduleRepository,
@@ -14,6 +15,10 @@ import {
   mapExamApiRows,
   parseExamTimeRange,
 } from '../main/ets/services/jw/examScheduleRepository';
+import {
+  getCourseBaseUrlForMode,
+  mapCourseScheduleApiRows,
+} from '../main/ets/services/jw/courseScheduleApiRepository';
 import type {
   CourseScheduleItem,
   CustomScheduleItem,
@@ -107,6 +112,16 @@ class FakeExamSource implements CourseExamSource {
   async getExams(term: string): Promise<ExamScheduleItem[]> {
     this.requestedTerm = term;
     return this.exams;
+  }
+}
+
+class FakeCourseSource implements CourseScheduleSource {
+  requestedTerm: string = '';
+  courses: CourseScheduleItem[] = [];
+
+  async getCourses(term: string): Promise<CourseScheduleItem[]> {
+    this.requestedTerm = term;
+    return this.courses;
   }
 }
 
@@ -299,6 +314,66 @@ export default function courseScheduleRepositoryTest() {
       expect(exams.length).assertEqual(1);
       expect(exams[0].term).assertEqual('2025-2026-2');
       expect(exams[0].id).assertEqual('2025-2026-2:100191034:2026-05-16:10:10:12:10');
+    });
+
+    it('maps Android native course API rows to local course items', 0, () => {
+      expect(getCourseBaseUrlForMode('inner')).assertEqual('https://jxzxehallapp.bit.edu.cn');
+      expect(getCourseBaseUrlForMode('webvpn').indexOf('https://webvpn.bit.edu.cn/https/')).assertEqual(0);
+
+      const courses: CourseScheduleItem[] = mapCourseScheduleApiRows([{
+        XNXQDM: '2025-2026-2',
+        KCM: '化学工程基础A (I)',
+        SKJS: '刘文芳',
+        JASMC: '理教楼407',
+        YPSJDD: '4周 星期三 8-10节 理教楼407',
+        SKZC: '00010000000000000000',
+        SKXQ: 3,
+        KSJC: 8,
+        JSJC: 10,
+        XXXQMC: '中关村校区',
+        KCH: '100101101',
+        XF: 3,
+        XS: 48,
+        KCXZDM_DISPLAY: '必修',
+        KCLBDM_DISPLAY: '专业课',
+        KKDWDM_DISPLAY: '化学与化工学院',
+      }], '2025-2026-2');
+
+      expect(courses.length).assertEqual(1);
+      expect(courses[0].term).assertEqual('2025-2026-2');
+      expect(courses[0].id).assertEqual('2025-2026-2:100101101:3:8:10:4');
+      expect(courses[0].name).assertEqual('化学工程基础A (I)');
+      expect(courses[0].teacher).assertEqual('刘文芳');
+      expect(courses[0].classroom).assertEqual('理教楼407');
+      expect(courses[0].description).assertEqual('4周 星期三 8-10节 理教楼407');
+      expect(courses[0].weeks).assertEqual('[4]');
+      expect(courses[0].weekday).assertEqual(3);
+      expect(courses[0].startSection).assertEqual(8);
+      expect(courses[0].endSection).assertEqual(10);
+      expect(courses[0].campus).assertEqual('中关村校区');
+      expect(courses[0].number).assertEqual('100101101');
+      expect(courses[0].credit).assertEqual(3);
+      expect(courses[0].hour).assertEqual(48);
+      expect(courses[0].type).assertEqual('必修');
+      expect(courses[0].category).assertEqual('专业课');
+      expect(courses[0].department).assertEqual('化学与化工学院');
+    });
+
+    it('refreshes courses from Android native source and persists local courses', 0, async () => {
+      const store = new MemoryScheduleStore();
+      const source = new FakeCourseSource();
+      source.courses = [course('native-c1', 1, 1, 2, '[1]')];
+      const repo = new CourseScheduleRepository({
+        localStore: store,
+        courseSource: source,
+      });
+
+      const refreshed: CourseScheduleItem[] = await repo.refreshCourses('2025-2026-2', '2026-02-23', periodTimes);
+
+      expect(source.requestedTerm).assertEqual('2025-2026-2');
+      expect(refreshed.length).assertEqual(1);
+      expect(store.courses.length).assertEqual(1);
+      expect(store.courses[0].id).assertEqual('native-c1');
     });
 
     it('refreshes exams from source and persists local exams', 0, async () => {

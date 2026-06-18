@@ -1,4 +1,5 @@
 import type { PeriodTime } from '../jw/periodTimes';
+import { CourseScheduleApiRepository } from '../jw/courseScheduleApiRepository';
 import { ExamScheduleRepository } from '../jw/examScheduleRepository';
 import { TimetableRepository } from '../jw/timetableRepository';
 import type { CalendarEvent } from '../jw/timetableRepository';
@@ -23,6 +24,7 @@ export interface BuildWeekScheduleDisplayOptions {
 
 export interface CourseScheduleRepositoryDeps {
   localStore: CourseScheduleLocalStoreLike;
+  courseSource?: CourseScheduleSource;
   timetableRepository?: TimetableRepository;
   examSource?: CourseExamSource;
 }
@@ -37,6 +39,10 @@ export interface CourseScheduleLocalStoreLike {
 
 export interface CourseExamSource {
   getExams(term: string): Promise<ExamScheduleItem[]>;
+}
+
+export interface CourseScheduleSource {
+  getCourses(term: string): Promise<CourseScheduleItem[]>;
 }
 
 function parseIcsDate(value?: string): Date | null {
@@ -439,12 +445,14 @@ export function buildWeekScheduleDisplayItems(options: BuildWeekScheduleDisplayO
 
 export class CourseScheduleRepository {
   private localStore: CourseScheduleLocalStoreLike;
-  private timetableRepository: TimetableRepository;
+  private courseSource: CourseScheduleSource | null;
+  private timetableRepository: TimetableRepository | null;
   private examSource: CourseExamSource;
 
   constructor(deps: CourseScheduleRepositoryDeps) {
     this.localStore = deps.localStore;
-    this.timetableRepository = deps.timetableRepository ?? new TimetableRepository();
+    this.courseSource = deps.courseSource ?? (deps.timetableRepository ? null : new CourseScheduleApiRepository());
+    this.timetableRepository = deps.timetableRepository ?? null;
     this.examSource = deps.examSource ?? new ExamScheduleRepository();
   }
 
@@ -461,6 +469,18 @@ export class CourseScheduleRepository {
   }
 
   async refreshCourses(term: string, firstDayISO: string, periodTimes: PeriodTime[]): Promise<CourseScheduleItem[]> {
+    if (this.courseSource) {
+      const trimmed = term.trim();
+      if (trimmed.length === 0) {
+        throw new Error('term is empty');
+      }
+      const courses = await this.courseSource.getCourses(trimmed);
+      this.localStore.saveCourses(courses);
+      return courses;
+    }
+    if (!this.timetableRepository) {
+      throw new Error('course source is not configured');
+    }
     const result = await this.timetableRepository.getScheduleEvents();
     const courses = calendarEventsToCourseScheduleItems(result.events, term, firstDayISO, periodTimes);
     this.localStore.saveCourses(courses);

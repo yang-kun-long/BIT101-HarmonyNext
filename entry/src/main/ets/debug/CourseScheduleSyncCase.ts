@@ -2,10 +2,10 @@ import { DebugCase } from './DebugCase';
 import { TEST_PASSWORD, TEST_USERNAME } from './local.secret';
 import { AuthRepository } from '../services/auth/authRepository';
 import { loginBit101AndVerifyWebvpn } from '../services/auth/bit101LoginFlow';
-import { TimetableRepository } from '../services/jw/timetableRepository';
 import { getDefaultPeriodTimes } from '../services/jw/periodTimes';
 import { ExamScheduleRepository } from '../services/jw/examScheduleRepository';
 import { CourseTermRepository } from '../services/jw/courseTermRepository';
+import { CourseScheduleApiRepository } from '../services/jw/courseScheduleApiRepository';
 import { prepareFreeClassroomSessionAuto } from '../services/jw/freeClassroomSession';
 import { CourseScheduleRepository } from '../services/schoolSchedule/CourseScheduleRepository';
 import { ScheduleLocalStore } from '../services/schoolSchedule/ScheduleLocalStore';
@@ -42,23 +42,6 @@ export class CourseScheduleSyncCase extends DebugCase {
         password: TEST_PASSWORD,
       });
 
-      const repo = new CourseScheduleRepository({
-        localStore,
-        timetableRepository: new TimetableRepository('https://bit101.flwfdd.xyz', true),
-      });
-      const courses: CourseScheduleItem[] = await repo.refreshCourses(
-        'debug-term',
-        '2026-02-23',
-        getDefaultPeriodTimes(),
-      );
-
-      this.logInfo('refreshed course count =', courses.length);
-      this.assertTrue(courses.length > 0, 'course sync should return at least one course');
-      const persistedCourses = localStore.loadCourses();
-      this.logInfo('persisted valid course count =', persistedCourses.length);
-      this.assertTrue(persistedCourses.length > 0, 'course sync should persist valid local courses');
-      this.logInfo('course sample =', courses[0].name, courses[0].classroom, courses[0].weeks);
-
       this.logInfo('prepare JXZX exam session auto, username =', TEST_USERNAME);
       const mode: SchoolLoginMode = await prepareFreeClassroomSessionAuto(TEST_USERNAME, TEST_PASSWORD, true);
       this.logInfo('selected school mode =', mode);
@@ -74,6 +57,26 @@ export class CourseScheduleSyncCase extends DebugCase {
       this.assertTrue(currentTerm.length > 0, 'current term should be fetched from JXZX');
       this.assertTrue(terms.indexOf(currentTerm) >= 0, 'term list should include current term');
       this.assertTrue(firstDay.length > 0, 'first day should be fetched from JXZX');
+
+      const repo = new CourseScheduleRepository({
+        localStore,
+        courseSource: new CourseScheduleApiRepository({
+          mode,
+          debug: true,
+        }),
+      });
+      const courses: CourseScheduleItem[] = await repo.refreshCourses(
+        currentTerm,
+        firstDay,
+        getDefaultPeriodTimes(),
+      );
+
+      this.logInfo('refreshed native course count =', courses.length);
+      this.assertTrue(courses.length > 0, 'native course sync should return at least one course');
+      const persistedCourses = localStore.loadCourses();
+      this.logInfo('persisted valid course count =', persistedCourses.length);
+      this.assertTrue(persistedCourses.length > 0, 'native course sync should persist valid local courses');
+      this.logInfo('course sample =', courses[0].name, courses[0].classroom, courses[0].weeks);
 
       const examRepo = new CourseScheduleRepository({
         localStore,

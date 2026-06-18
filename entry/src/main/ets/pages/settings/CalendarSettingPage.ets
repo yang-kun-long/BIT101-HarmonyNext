@@ -14,6 +14,7 @@ import { ScheduleLocalStore } from '../../services/schoolSchedule/ScheduleLocalS
 import type { PeriodTime } from '../../services/jw/periodTimes';
 import { CourseTermRepository } from '../../services/jw/courseTermRepository';
 import { ExamScheduleRepository } from '../../services/jw/examScheduleRepository';
+import { CourseScheduleApiRepository } from '../../services/jw/courseScheduleApiRepository';
 import { detectSchoolLoginMode } from '../../services/school/SchoolNetworkProbe';
 import type { SchoolLoginMode } from '../../services/school/SchoolAuthTypes';
 import { doOperationRequiresLogin, LoginHealthService } from '../../services/auth/LoginHealthService';
@@ -355,14 +356,12 @@ struct CalendarSettingPage {
 
     this.isGettingCourses = true;
     uiShowToast(this.getUIContext(), { message: "正在获取课表..." });
-    const repo = new CourseScheduleRepository({
-      localStore: new ScheduleLocalStore({ filesDir }),
-    });
     try {
+      const repo: CourseScheduleRepository = await this.createCourseRefreshRepository(filesDir);
       await doOperationRequiresLogin<CourseScheduleItem[]>(
         async (): Promise<CourseScheduleItem[]> => await repo.refreshCourses(this.currentTerm, this.firstDay, periodTimes),
         async () => await this.loginHealthService.checkLogin(),
-        'core',
+        'jxzx',
       );
       uiShowToast(this.getUIContext(), { message: "获取成功" });
     } catch (error) {
@@ -453,6 +452,17 @@ struct CalendarSettingPage {
     return new CourseScheduleRepository({
       localStore: new ScheduleLocalStore({ filesDir }),
       examSource: new ExamScheduleRepository({
+        mode,
+        debug: true,
+      }),
+    });
+  }
+
+  private async createCourseRefreshRepository(filesDir: string): Promise<CourseScheduleRepository> {
+    const mode = await this.detectSchoolModeForJxzx();
+    return new CourseScheduleRepository({
+      localStore: new ScheduleLocalStore({ filesDir }),
+      courseSource: new CourseScheduleApiRepository({
         mode,
         debug: true,
       }),
