@@ -68,13 +68,13 @@ HarmonyOS files compared:
 
 | Area | Android behavior | HarmonyOS current behavior | Status | Evidence | Decision |
 | --- | --- | --- | --- | --- | --- |
-| Entry without subscription URL | Shows centered `获取乐学日程`; during loading shows only spinner in button. | Same model and UI behavior. | Complete | `DDLSchedule.kt`; `DdlList.ets`; `getDdlFetchLexueCtaModel()` test. | Closed. |
+| Entry without subscription URL | Shows centered `获取乐学日程`; during loading shows only spinner in button. | Same when no local DDL exists; HarmonyOS now shows local manual DDL rows if they exist, because the add FAB is available without a Lexue URL. | Complete | `DDLSchedule.kt`; `DdlList.ets`; `getDdlFetchLexueCtaModel()` test; `DDL_MANUAL_CRUD` device evidence. | Closed. |
 | First fetch start/success toast | Android main DDL page does not snackbar start/success for first fetch. | Start/success toasts removed; failures still visible. | Complete | `getDdlFetchLexueToastPolicy()` test; commit `5cc3548`. | Closed. |
 | Auto sync on list open | Android ViewModel calls `updateLexueCalendar()` during init when URL exists, silently logs errors. | HarmonyOS calls `syncDdlFromLexue()` on appear when URL exists and logs errors. | Complete | `shouldAutoSyncDdlOnAppear()` test; commit `2b104d6`. | Closed. |
 | List filtering and sorting | DAO query `WHERE time > now - afterDay ORDER BY time ASC`. | `listVisibleDdlItems()` uses `deadline > now - retentionDays` and sorts ascending. | Complete | `DDLScheduleDao.kt`; `DdlLocal.test.ets` retention and ordering tests. | Closed. |
 | Done state | Android checkbox calls `setDone()` and finished future items remain visible. | Checkbox updates store and reloads list; done state is preserved. | Complete | `DDLScheduleViewModel.setDone`; `toggleDdlDone()` tests. | Closed. |
 | Lexue sync merge | Android upserts by UID and preserves existing `done`. | HarmonyOS upserts Lexue events by UID and preserves `done`. | Complete | `DDLScheduleViewModel.updateLexueCalendar`; `mergeLexueEventsWithDdlItems()` tests. | Closed. |
-| Manual add/edit/delete | Android supports local add, edit, delete. | HarmonyOS supports local add, edit, delete. | Verify Once | Code present in `DdlList.ets` and `DdlStore.ts`; picker screenshots exist. | One final device pass for add/edit/delete after simulator is available. |
+| Manual add/edit/delete | Android supports local add, edit, delete. | HarmonyOS supports local add, edit, delete. | Complete | `DdlList.ets`, `DdlStore.ts`; `DDL_MANUAL_CRUD` on Huawei_Phone created, edited, deleted, and restored local DDL data. | Closed. |
 | Manual UID uniqueness | Android uses UUID. | HarmonyOS uses timestamp plus sequence; duplicate same-ms bug fixed. | Complete | `createManualDdlUid()` test; commit `9ba98bc`. | Closed. |
 | Remaining time text and warning color | Android uses beforeDay ratio and remaining text `剩余/已过 ...`. | HarmonyOS mirrors text and warning ratio. | Complete | `formatDdlRemainText()` and `computeDdlRemainRatio()` tests. | Closed. |
 | Empty state copy and layout | Android copy is `怎么会有人没事儿了啊...`; card-like full-width item. | Same copy and layout model. | Complete | `getDdlEmptyText()` and layout tests. | Closed. |
@@ -90,7 +90,7 @@ HarmonyOS files compared:
 | Reminder/system calendar behavior | Not present in fixed DDL files as a DDL feature. | Not implemented. | Out of Scope | No relevant fixed-scope Android implementation. | Do not pursue under DDL parity. |
 | Pixel-level visual differences | Compose Material and ArkUI differ. | Some visual differences remain. | Won't Chase | Would require open-ended side-by-side visual polish. | Only fix if text overlaps, tap targets fail, or user requests. |
 
-DDL closure judgment: functionally complete. Remaining DDL work is one `Verify Once` device pass for add/edit/delete/date-time and settings sync result, not more source-level parity hunting.
+DDL closure judgment: functionally complete for local CRUD and source-level parity. Remaining DDL work is one `Verify Once` visual device pass for date/time picker interaction and settings sync result, not more source-level parity hunting.
 
 ## Free Classroom Matrix
 
@@ -137,11 +137,11 @@ Free classroom closure judgment: functionally complete and device-verified on Hu
 
 Only these items remain from this audit:
 
-1. `Verify Once`: DDL device smoke pass.
+1. `Verify Once`: DDL visual device smoke pass.
    - Open DDL list.
-   - Add a manual DDL using date/time picker.
-   - Edit it.
-   - Delete it.
+   - Add a manual DDL using date/time picker and confirm it is visible in the list.
+   - Edit it through the detail dialog.
+   - Delete it through the confirmation dialog.
    - Open DDL settings and trigger both data actions far enough to observe loading/result behavior if login/network state allows.
 
 2. Closed on 2026-06-18: free classroom hide-busy live pass.
@@ -152,6 +152,11 @@ Only these items remain from this audit:
 3. Closed on 2026-06-18: full Android-native school course API sync.
    - Commit `faf8cf3` added `CourseScheduleApiRepository` for `/jwapp/sys/wdkbby/modules/xskcb/cxxszhxqkb.do`.
    - Device evidence on Huawei_Phone: `SUMMARY target=COURSE_SCHEDULE_SYNC total=1 passed=1 failed=0 duration=5429ms`, with 18 native courses and 6 exams.
+
+4. Closed on 2026-06-18: DDL manual CRUD storage and local-list visibility.
+   - Fixed `resolveDdlContentState(false, false, visibleItemCount)` so local DDL rows show even without a cached Lexue subscription URL.
+   - Device evidence on Huawei_Phone: `SUMMARY target=DDL_MANUAL_CRUD total=1 passed=1 failed=0 duration=710ms`.
+   - The debug case created `manual-1000-1`, verified content state `list`, edited the title, deleted the item, and restored previous DDL data.
 
 ## Current Verification Blocker
 
@@ -174,7 +179,12 @@ Later retry on 2026-05-29 23:18-23:31:
   - `添加DDL` dialog opened from the add FAB.
   - Date picker opened and confirmed, writing `2026-05-29`.
   - Time picker opened and confirmed, writing `00:00:00`.
-  - The page then returned to the no-subscription CTA state. Code inspection confirms this is the current `resolveDdlContentState(false, false, visibleItemCount) -> fetch-lexue` rule, so local manual rows cannot be visually confirmed on this device while no Lexue subscription URL is cached.
+  - The page then returned to the no-subscription CTA state. This was the old `resolveDdlContentState(false, false, visibleItemCount) -> fetch-lexue` behavior and was superseded by the 2026-06-18 DDL manual CRUD fix below.
+- DDL manual CRUD smoke:
+  - 2026-06-18 `DDL_MANUAL_CRUD` on Huawei_Phone created `manual-1000-1`.
+  - It verified `resolveDdlContentState(false, false, 1) -> list`, so local manual DDL rows are no longer hidden behind the no-subscription CTA.
+  - It edited the title to `Debug manual DDL edited`, deleted the item, and restored previous DDL data.
+  - Summary: `SUMMARY target=DDL_MANUAL_CRUD total=1 passed=1 failed=0 duration=710ms`.
 - DDL settings smoke:
   - `DDL设置` rendered `重新获取订阅链接`, `重新拉取乐学日程`, `变色天数 = 7`, and `滞留天数 = 3`.
   - `重新获取订阅链接` was tapped; the row returned to enabled state and the failure path was reached.

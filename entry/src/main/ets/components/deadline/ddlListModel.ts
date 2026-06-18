@@ -139,11 +139,11 @@ export function resolveDdlContentState(
   if (loading) {
     return 'loading';
   }
-  if (!hasSubscribeUrl) {
-    return 'fetch-lexue';
-  }
   if (visibleItemCount > 0) {
     return 'list';
+  }
+  if (!hasSubscribeUrl) {
+    return 'fetch-lexue';
   }
   return 'empty';
 }

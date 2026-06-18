@@ -21,6 +21,7 @@ import { CourseScheduleSyncCase } from './CourseScheduleSyncCase';
 import { LoginHealthCase } from './LoginHealthCase';
 import { LexueBootstrapCase } from './LexueBootstrapCase';
 import { LoginCoordinatorCase } from './LoginCoordinatorCase';
+import { DdlManualCrudCase } from './DdlManualCrudCase';
 import { DebugLog } from './DebugLog';
 import {
   DebugCaseRunResult,
@@ -57,7 +58,8 @@ export enum DebugTarget {
   COURSE_SCHEDULE_SYNC = 'COURSE_SCHEDULE_SYNC',
   LEXUE_BOOTSTRAP = 'LEXUE_BOOTSTRAP',
   LOGIN_HEALTH = 'LOGIN_HEALTH',
-  LOGIN_COORDINATOR = 'LOGIN_COORDINATOR'
+  LOGIN_COORDINATOR = 'LOGIN_COORDINATOR',
+  DDL_MANUAL_CRUD = 'DDL_MANUAL_CRUD'
 }
 
 interface DebugCaseEntry {
@@ -87,6 +89,7 @@ const DEBUG_CASES: DebugCaseEntry[] = [
   { target: DebugTarget.LEXUE_BOOTSTRAP, create: () => new LexueBootstrapCase() },
   { target: DebugTarget.LOGIN_HEALTH, create: () => new LoginHealthCase() },
   { target: DebugTarget.LOGIN_COORDINATOR, create: () => new LoginCoordinatorCase() },
+  { target: DebugTarget.DDL_MANUAL_CRUD, create: () => new DdlManualCrudCase() },
 ];
 
 /**

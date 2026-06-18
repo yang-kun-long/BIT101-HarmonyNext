@@ -39,10 +39,10 @@ import type { DdlItem } from '../main/ets/services/deadline/DdlModels';
 
 export default function ddlListModelTest() {
   describe('DDL list Android parity model', () => {
-    it('shows Lexue fetch CTA before any subscription URL exists', 0, () => {
+    it('shows Lexue fetch CTA only when no subscription URL and no local items exist', 0, () => {
       expect(resolveDdlContentState(true, false, 0)).assertEqual('loading');
       expect(resolveDdlContentState(false, false, 0)).assertEqual('fetch-lexue');
-      expect(resolveDdlContentState(false, false, 2)).assertEqual('fetch-lexue');
+      expect(resolveDdlContentState(false, false, 2)).assertEqual('list');
       expect(resolveDdlContentState(false, true, 0)).assertEqual('empty');
       expect(resolveDdlContentState(false, true, 2)).assertEqual('list');
     });
