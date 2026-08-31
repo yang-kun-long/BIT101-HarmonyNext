@@ -30,16 +30,21 @@ Completed or largely completed:
   - WebVPN portal login
   - Lexue target login
   - business-level Lexue export verification
+- Task 5 SMS second-factor bridge:
+  - shared foreground coordinator and dialog
+  - inner/WebVPN browser-style CAS challenge handling
+  - encrypted phone lookup, SMS send/check, and second CAS form submission
 
 Partially completed:
 
-- Task 9: `LoginPage` has been updated to use the new school-login success path for WebVPN and is temporarily forced to `webvpn` mode
+- Task 9: `LoginPage` uses the coordinator and global SMS host; automatic mode detection and target-specific verification still need device evidence
 
 Still pending:
 
 - Task 6: formal target bootstrap abstraction is not fully extracted yet
 - Task 8: timetable / backend-dependent school flows still need targeted verification
 - Task 10: final verification and cleanup
+- Real-device acceptance for SMS-enabled inner or WebVPN accounts
 
 ### Task 1: Add school-auth core interfaces
 
@@ -313,7 +318,7 @@ Manually test the login page and confirm error messages map cleanly to the new s
 - WebVPN cookie is written back to `TokenStore`
 
 Temporary constraint:
-- `forceMode: 'webvpn'` is enabled in `LoginPage` because current `inner/webvpn` auto-detection is too weak for off-campus use
+- Real-device verification is still required for automatic `inner`/`webvpn` selection and SMS challenge completion
 
 ### Task 10: Final verification and documentation update
 

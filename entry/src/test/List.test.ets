@@ -21,6 +21,10 @@ import loginHealthTest from './LoginHealth.test';
 import loginCoordinatorTest from './LoginCoordinator.test';
 import lexueBootstrapTest from './LexueBootstrap.test';
 import systemCalendarModelsTest from './SystemCalendarModels.test';
+import userProfileTest from './UserProfile.test';
+import webSessionModelTest from './WebSessionModel.test';
+import smsChallengeCoordinatorTest from './SmsChallengeCoordinator.test';
+import schoolSmsProtocolTest from './SchoolSmsProtocol.test';
 
 export default function testsuite() {
   localUnitTest();
@@ -46,4 +50,8 @@ export default function testsuite() {
   loginCoordinatorTest();
   lexueBootstrapTest();
   systemCalendarModelsTest();
+  userProfileTest();
+  webSessionModelTest();
+  smsChallengeCoordinatorTest();
+  schoolSmsProtocolTest();
 }

@@ -38,3 +38,10 @@ export interface UserInfo {
   isFollower: boolean;
   isOwn: boolean;
 }
+
+/** PUT /user/info request body. Keep API field names in snake_case. */
+export interface UpdateUserInfoRequest {
+  nickname: string;
+  motto: string;
+  avatar_mid: string;
+}

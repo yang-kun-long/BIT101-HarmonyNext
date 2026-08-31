@@ -2,6 +2,7 @@
 import { Logger } from '../../utils/Logger';
 import BitSsoSession from './BitSsoSession';
 import { detectSchoolLoginMode } from '../school/SchoolNetworkProbe';
+import type { SmsCodeHandler } from '../auth/SmsChallengeCoordinator';
 const logger = new Logger('BitSsoAuto');
 
 export type BitSsoLoginMode = 'inner' | 'webvpn';
@@ -40,6 +41,8 @@ export interface BitSsoAutoCreateOptions {
    *  - 'webvpn' : 强制 WebVPN
    */
   forceMode?: BitSsoLoginMode;
+  persistCookies?: boolean;
+  smsCodeHandler?: SmsCodeHandler;
 }
 
 /**
@@ -70,6 +73,8 @@ export async function createBitSsoSessionAuto(
     debug,
     useWebvpn,
     webvpnLexueBase: useWebvpn ? opts.webvpnLexueBase : undefined,
+    persistCookies: opts.persistCookies,
+    smsCodeHandler: opts.smsCodeHandler,
   });
 
   if (debug) {

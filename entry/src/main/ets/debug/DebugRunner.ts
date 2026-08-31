@@ -101,8 +101,11 @@ const DEBUG_CASES: DebugCaseEntry[] = [
  * - 发布正式包：改成 DebugTarget.NONE（或在 EntryAbility 里关掉调试入口）
  * - 自动探活回归：优先跑 DebugTarget.SCHOOL_NETWORK_PROBE
  */
-const CURRENT_DEBUG_TARGET: DebugTarget = DebugTarget.SCHOOL_NETWORK_PROBE;
-// 你想测别的就改成 DebugTarget.BIT_SSO_SESSION / BIT_SSO_LEXUE 等
+export const CURRENT_DEBUG_TARGET: DebugTarget = DebugTarget.NONE;
+
+export function shouldRunDebugTarget(target: DebugTarget, isDebugBuild: boolean): boolean {
+  return isDebugBuild && target !== DebugTarget.NONE;
+}
 
 function resolveCases(target: DebugTarget): DebugCaseEntry[] {
   if (target === DebugTarget.ALL) {
@@ -186,6 +189,9 @@ export async function runDebugCases(target: DebugTarget): Promise<DebugCaseRunRe
   return results;
 }
 
-export async function runCurrentDebugCase(): Promise<void> {
+export async function runCurrentDebugCase(isDebugBuild: boolean): Promise<void> {
+  if (!shouldRunDebugTarget(CURRENT_DEBUG_TARGET, isDebugBuild)) {
+    return;
+  }
   await runDebugCases(CURRENT_DEBUG_TARGET);
 }

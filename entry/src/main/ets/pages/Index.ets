@@ -11,6 +11,7 @@ import MapPage2 from './MapPage2';
 import ForumPage from './ForumPage';
 import PostPage from './PostPage';
 import MePage from './MePage';
+import { SmsChallengeDialogHost } from '../components/auth/SmsVerificationDialog';
 
 // 1. 保持你原有的数字枚举，这是页面切换的核心
 enum TabKey {
@@ -165,6 +166,8 @@ struct Index {
 
   build() {
     Column() {
+      SmsChallengeDialogHost()
+
       // 内容区 (Stack + Visibility)
       Stack() {
         // 1. Schedule (卷) - 始终存在，只控制显隐

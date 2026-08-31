@@ -4,7 +4,11 @@ import {
   formatDebugRunnerSummary,
   formatDebugRunnerResult,
 } from '../main/ets/debug/DebugRunnerCore';
-import { DebugTarget } from '../main/ets/debug/DebugRunner';
+import {
+  CURRENT_DEBUG_TARGET,
+  DebugTarget,
+  shouldRunDebugTarget,
+} from '../main/ets/debug/DebugRunner';
 
 export default function debugRunnerContractTest() {
   describe('Debug runner integration contract', () => {
@@ -18,6 +22,22 @@ export default function debugRunnerContractTest() {
 
     it('exposes Lexue bootstrap target for WebVPN target bootstrap verification', 0, () => {
       expect(DebugTarget.LEXUE_BOOTSTRAP).assertEqual('LEXUE_BOOTSTRAP');
+    });
+
+    it('keeps the checked-in debug target disabled by default', 0, () => {
+      expect(CURRENT_DEBUG_TARGET).assertEqual(DebugTarget.NONE);
+    });
+
+    it('never runs a debug target in a release build', 0, () => {
+      expect(shouldRunDebugTarget(DebugTarget.SCHOOL_NETWORK_PROBE, false)).assertFalse();
+    });
+
+    it('does not run NONE even in a debug build', 0, () => {
+      expect(shouldRunDebugTarget(DebugTarget.NONE, true)).assertFalse();
+    });
+
+    it('allows an explicitly selected target in a debug build', 0, () => {
+      expect(shouldRunDebugTarget(DebugTarget.SCHOOL_NETWORK_PROBE, true)).assertTrue();
     });
 
     it('formats summary lines with passed and failed counts', 0, () => {

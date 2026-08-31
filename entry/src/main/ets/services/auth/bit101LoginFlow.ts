@@ -9,6 +9,8 @@ export interface Bit101LoginFlowParams {
 export interface Bit101LoginFlowAuth {
   loginBit101(params: Bit101LoginFlowParams): Promise<string>;
   loginViaWebVpnVerify(params: Bit101LoginFlowParams): Promise<VerifyResult>;
+  loginBit101Staged(params: Bit101LoginFlowParams): Promise<string>;
+  loginViaWebVpnVerifyStaged(params: Bit101LoginFlowParams): Promise<VerifyResult>;
 }
 
 export interface Bit101LoginFlowResult {
@@ -20,6 +22,7 @@ export interface Bit101LoginFlowResult {
 export async function loginBit101AndVerifyWebvpn(
   auth: Bit101LoginFlowAuth,
   params: Bit101LoginFlowParams,
+  persist: boolean = true,
 ): Promise<Bit101LoginFlowResult> {
   const normalized: Bit101LoginFlowParams = {
     sid: params.sid.trim(),
@@ -27,8 +30,12 @@ export async function loginBit101AndVerifyWebvpn(
     captcha: params.captcha,
   };
 
-  const fakeCookie = await auth.loginBit101(normalized);
-  const webvpn = await auth.loginViaWebVpnVerify(normalized);
+  const fakeCookie = persist
+    ? await auth.loginBit101(normalized)
+    : await auth.loginBit101Staged(normalized);
+  const webvpn = persist
+    ? await auth.loginViaWebVpnVerify(normalized)
+    : await auth.loginViaWebVpnVerifyStaged(normalized);
 
   return {
     fakeCookie,

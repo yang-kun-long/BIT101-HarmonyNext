@@ -5,7 +5,6 @@ import { Logger } from '../utils/Logger';
 import { initTokenStore } from '../services/storage/tokenStore'
 import { initLexueCookieStore } from '../services/storage/LexueCookieStore';
 import { initSchoolCookieStore } from '../services/storage/SchoolCookieStore';
-import { runCurrentDebugCase } from '../debug/DebugRunner';
 import { initLexueCalendarStore } from '../services/storage/LexueCalendarStore';
 import { initDdlStore } from '../services/storage/DdlStore';
 import {
@@ -38,6 +37,8 @@ export default class EntryAbility extends UIAbility {
   private logger = new Logger('EntryAbility');
 
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
+    const isDebugBuild = this.context.applicationInfo.debug;
+    Logger.configure(isDebugBuild);
     this.logger.info('Ability onCreate');
 
     AppStorage.setOrCreate('filesDir', this.context.filesDir);
@@ -56,12 +57,7 @@ export default class EntryAbility extends UIAbility {
     this.bootstrapDdlSettings();
     this.bootstrapCourseScheduleSettings();
 
-    if (this.isDebugMode()) {
-      this.logger.info('Debug mode detected, running debug cases...');
-      runCurrentDebugCase().catch((error: Error) => {
-        this.logger.error('Debug runner failed. Cause:', error);
-      });
-    }
+    this.startDebugRunner(isDebugBuild);
 
     try {
       this.context.getApplicationContext()
@@ -69,10 +65,6 @@ export default class EntryAbility extends UIAbility {
     } catch (err) {
       this.logger.error('Failed to set colorMode. Cause:', err);
     }
-  }
-
-  private isDebugMode(): boolean {
-    return true;
   }
 
   private bootstrapDdlSettings(): void {
@@ -86,6 +78,18 @@ export default class EntryAbility extends UIAbility {
       })
       .catch((error: Error) => {
         this.logger.error('Failed to load DDL settings. Cause:', error);
+      });
+  }
+
+  private startDebugRunner(isDebugBuild: boolean): void {
+    if (!isDebugBuild) {
+      return;
+    }
+
+    import('../debug/DebugRunner')
+      .then((runner): Promise<void> => runner.runCurrentDebugCase(isDebugBuild))
+      .catch((error: Error) => {
+        this.logger.error('Debug runner failed. Cause:', error);
       });
   }
 

@@ -18,6 +18,14 @@ const KEY_FAKE_COOKIE = 'bit101_fake_cookie';
 // 教务(WebVPN)使用的会话 cookie（只有 verify 成功后才写入）
 const KEY_WEBVPN_COOKIE = 'webvpn_cookie';
 
+export interface LoginSessionState {
+  accessToken: string | null;
+  userInfo: Object | null;
+  username: string | null;
+  fakeCookie: string | null;
+  webvpnCookie: string | null;
+}
+
 // 可选：其它会话字段，按需扩展
 // const KEY_REFRESH_TOKEN = 'refresh_token';
 
@@ -113,6 +121,61 @@ export class TokenStore {
     );
   }
 
+  async getLoginSessionState(): Promise<LoginSessionState> {
+    const accessToken: string | null = await this.getToken();
+    const userInfo: Object | null = await this.getUserInfo<Object>();
+    const username: string | null = await this.getUsername();
+    const fakeCookie: string | null = await this.getFakeCookie();
+    const webvpnCookie: string | null = await this.getWebvpnCookie();
+    return {
+      accessToken,
+      userInfo,
+      username,
+      fakeCookie,
+      webvpnCookie,
+    };
+  }
+
+  async replaceLoginSession(state: LoginSessionState): Promise<void> {
+    const pref = await this.getPref();
+    await guardAsyncStorage('TokenStore.replaceLoginSession', async () => {
+      const userInfo: string | null = state.userInfo === null ? null : JSON.stringify(state.userInfo);
+      const values: Array<[string, string | null]> = [
+        [KEY_TOKEN, state.accessToken],
+        [KEY_USER, userInfo],
+        [KEY_USERNAME, state.username],
+        [KEY_FAKE_COOKIE, state.fakeCookie],
+        [KEY_WEBVPN_COOKIE, state.webvpnCookie],
+      ];
+      for (const [key, value] of values) {
+        if (value === null || value.length === 0) {
+          await pref.delete(key);
+        } else {
+          await pref.put(key, value);
+        }
+      }
+      await pref.flush();
+    });
+  }
+
+  async clearBit101Session(): Promise<void> {
+    const pref = await this.getPref();
+    await guardAsyncStorage('TokenStore.clearBit101Session', async () => {
+      await pref.delete(KEY_TOKEN);
+      await pref.delete(KEY_USER);
+      await pref.delete(KEY_FAKE_COOKIE);
+      await pref.flush();
+    });
+  }
+
+  async clearSchoolSession(): Promise<void> {
+    const pref = await this.getPref();
+    await guardAsyncStorage('TokenStore.clearSchoolSession', async () => {
+      await pref.delete(KEY_WEBVPN_COOKIE);
+      await pref.flush();
+    });
+  }
+
   // ---------- BIT101 fake_cookie ----------
   async saveFakeCookie(v: string) {
     const pref = await this.getPref();
@@ -194,6 +257,7 @@ export class TokenStore {
       user_info_len: userStr ? String(userStr.length) : null
     };
   }
+
 }
 
 /**

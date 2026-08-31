@@ -4,7 +4,10 @@ import {
   inferSchoolLoginModeFromProbe,
   inferSchoolLoginModeFromWebvpnProbe,
 } from '../main/ets/services/school/SchoolNetworkProbe';
-import { appendTicketToServiceUrl } from '../main/ets/services/school/SchoolAuthService';
+import {
+  appendTicketToServiceUrl,
+  resolveWebvpnCasCallback,
+} from '../main/ets/services/school/SchoolAuthService';
 
 export default function schoolServiceResolverTest() {
   describe('School service resolver', () => {
@@ -61,6 +64,13 @@ export default function schoolServiceResolverTest() {
         .assertEqual('https://jxzxehallapp.bit.edu.cn/path?ticket=ST-1');
       expect(appendTicketToServiceUrl('https://jxzxehallapp.bit.edu.cn/path?a=1', 'ST-2'))
         .assertEqual('https://jxzxehallapp.bit.edu.cn/path?a=1&ticket=ST-2');
+    });
+
+    it('resolves a root-relative CAS callback against the WebVPN origin', 0, () => {
+      expect(resolveWebvpnCasCallback(
+        'https://sso.bit.edu.cn/cas/login',
+        '/login?cas_login=true&ticket=ST-1',
+      )).assertEqual('https://webvpn.bit.edu.cn/login?cas_login=true&ticket=ST-1');
     });
   });
 }

@@ -2,9 +2,10 @@
 // 获取用户信息仓库（/user/info/{id}，需要 header: fake-cookie）
 // 依赖：HttpClient、TokenStore
 
-import { HttpClient } from '../../core/network/httpClient';
+import { ApiError, HttpClient, HttpRequest, HttpResponse } from '../../core/network/httpClient';
 import { TokenStore } from '../storage/tokenStore';
 import { Logger } from '../../utils/Logger';
+import type { UpdateUserInfoRequest } from './UserModels';
 
 export interface Image {
   mid: string;
@@ -41,16 +42,32 @@ export interface FollowResponse {
   follower_num: number;    // 粉丝数量
 }
 
+export interface UserProfileHttpClient {
+  request<T = Object>(request: HttpRequest): Promise<HttpResponse<T>>;
+}
+
+export interface UserProfileTokenStore {
+  getFakeCookie(): Promise<string | null>;
+}
+
+export interface UserRepositoryOptions {
+  baseUrl?: string;
+  httpClient?: UserProfileHttpClient;
+  tokenStore?: UserProfileTokenStore;
+}
+
 export class UserRepository {
-  private http: HttpClient;
-  private store = new TokenStore();
+  private http: UserProfileHttpClient;
+  private store: UserProfileTokenStore;
   private logger = new Logger('UserRepository');
 
-  constructor(baseUrl: string = 'https://bit101.flwfdd.xyz') {
-    this.http = new HttpClient(baseUrl, {
-      'User-Agent': 'BIT101 HarmonyOS/1.0 (ArkTS)',
-      'Accept-Language': 'zh-CN,zh;q=0.9',
-    });
+  constructor(options?: UserRepositoryOptions) {
+    const baseUrl: string = options?.baseUrl ?? 'https://bit101.flwfdd.xyz';
+    this.http = options?.httpClient ?? new HttpClient(baseUrl, {
+        'User-Agent': 'BIT101 HarmonyOS/1.0 (ArkTS)',
+        'Accept-Language': 'zh-CN,zh;q=0.9',
+      });
+    this.store = options?.tokenStore ?? new TokenStore();
   }
 
   /**
@@ -81,6 +98,32 @@ export class UserRepository {
       return (obj?.data ?? obj) as UserInfoResponse;
     } catch {
       throw new Error('获取用户信息：返回格式异常');
+    }
+  }
+
+  /** Update the current user's profile. The API intentionally returns an empty 2xx body. */
+  async updateUserInfo(request: UpdateUserInfoRequest): Promise<void> {
+    const fakeCookie: string | null = await this.store.getFakeCookie();
+    if (!fakeCookie) {
+      throw new Error('未登录 BIT101：缺少 fake_cookie，请重新登录后再试。');
+    }
+
+    const response: HttpResponse<string> = await this.http.request<string>({
+      url: '/user/info',
+      method: 'PUT',
+      headers: {
+        'fake-cookie': fakeCookie,
+      },
+      json: request,
+    });
+
+    // HttpClient already enforces this; retain the check for injected/test clients.
+    if (response.status < 200 || response.status >= 300) {
+      throw new ApiError(
+        '更新用户信息失败：HTTP ' + response.status,
+        response.status,
+        response.text,
+      );
     }
   }
 

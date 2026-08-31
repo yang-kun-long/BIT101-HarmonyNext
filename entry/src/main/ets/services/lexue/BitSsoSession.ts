@@ -2,7 +2,7 @@
 import { Logger } from '../../utils/Logger';
 import RcpSession, { RcpResponseData } from '../../core/network/rcpSession';
 import SimpleCookieJar from '../../core/network/cookieJar';
-import { encryptPassword } from '../auth/encryptPassword';
+import type { CookieDump } from '../../core/network/cookieJar';
 import { LexueCookieStore } from '../storage/LexueCookieStore';
 import { loginViaWebvpn } from './BitSsoWebvpn';
 import { SchoolAuthService } from '../school/SchoolAuthService';
@@ -12,67 +12,27 @@ import {
   isBitSsoSessionReady,
   isRestoredLexueExportUsable,
 } from './BitSsoSessionState';
+import type { SmsCodeHandler } from '../auth/SmsChallengeCoordinator';
+import {
+  loginSchoolSsoPassword,
+} from '../school/SchoolSmsProtocol';
 
 const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36';
 
-const SSO_INNER_URL = 'https://sso.bit.edu.cn/cas/login';
 const LEXUE_BASE = 'https://lexue.bit.edu.cn';
 
 export interface BitSsoSessionOptions {
   useWebvpn?: boolean;
   debug?: boolean;
   webvpnLexueBase?: string;
+  persistCookies?: boolean;
+  smsCodeHandler?: SmsCodeHandler;
 }
 
 function isLoginPage(html: string): boolean {
   if (!html) return false;
   return html.includes('统一身份认证') || html.includes('帐号登录或动态码登录');
-}
-
-function extractSaltAndExecution(html: string): { salt: string; execution: string } {
-  let salt = '';
-  let execution = '';
-
-  const saltValueRe = /id=["']login-croypto["'][^>]*value=["']([^"']+)["']/i;
-  const saltTextRe = /id=["']login-croypto["'][^>]*>([^<]+)</i;
-
-  const execValueRe = /id=["']login-page-flowkey["'][^>]*value=["']([^"']+)["']/i;
-  const execTextRe = /id=["']login-page-flowkey["'][^>]*>([^<]+)</i;
-
-  let m = html.match(saltValueRe);
-  if (m && m[1]) {
-    salt = m[1].trim();
-  } else {
-    m = html.match(saltTextRe);
-    if (m && m[1]) {
-      salt = m[1].trim();
-    }
-  }
-
-  m = html.match(execValueRe);
-  if (m && m[1]) {
-    execution = m[1].trim();
-  } else {
-    m = html.match(execTextRe);
-    if (m && m[1]) {
-      execution = m[1].trim();
-    }
-  }
-
-  if (!salt || !execution) {
-    throw new Error('[BitSsoSession] 未能从登录页解析到 salt 或 execution');
-  }
-
-  return { salt, execution };
-}
-
-function toFormUrlEncoded(data: Record<string, string>): string {
-  const parts: string[] = [];
-  for (const [k, v] of Object.entries(data)) {
-    parts.push(encodeURIComponent(k) + '=' + encodeURIComponent(v));
-  }
-  return parts.join('&');
 }
 
 /**
@@ -113,11 +73,15 @@ export class BitSsoSession {
   private loggedInLexue = false;
   private readonly cookieStore: LexueCookieStore;
   private readonly webvpnLexueBase?: string;
+  private readonly persistCookies: boolean;
+  private readonly smsCodeHandler?: SmsCodeHandler;
 
   constructor(options?: BitSsoSessionOptions) {
     this.useWebvpn = !!options?.useWebvpn;
     this.debug = !!options?.debug;
     this.webvpnLexueBase = options?.webvpnLexueBase;
+    this.persistCookies = options?.persistCookies !== false;
+    this.smsCodeHandler = options?.smsCodeHandler;
 
     if (this.useWebvpn && this.debug) {
       this.logger.info('useWebvpn = true，将通过 WebVPN 登录 SSO');
@@ -136,6 +100,7 @@ export class BitSsoSession {
       ? new SchoolAuthService({
           debug: this.debug,
           userAgent: UA,
+          smsCodeHandler: this.smsCodeHandler,
         })
       : undefined;
     this.cookieStore = new LexueCookieStore(
@@ -150,6 +115,10 @@ export class BitSsoSession {
 
   getCookieHeaderFor(url: string): string | undefined {
     return this.jar.getCookieHeader(url);
+  }
+
+  getCookieDump(): CookieDump {
+    return this.jar.dump();
   }
 
   isFullyLoggedIn(): boolean {
@@ -334,46 +303,13 @@ export class BitSsoSession {
    * - 最终成功与否交给 ensureLexueSession 判定
    */
   private async loginSsoInner(username: string, password: string): Promise<void> {
-    const loginPage: RcpResponseData = await this.client.get(SSO_INNER_URL, {
-      autoRedirect: true,
-      collectTimeInfo: false,
-    });
-
-    if (loginPage.statusCode !== 200) {
-      throw new Error(`[BitSsoSession] GET 登录页失败：HTTP ${loginPage.statusCode}`);
-    }
-
-    const { salt, execution } = extractSaltAndExecution(loginPage.bodyText);
-    if (this.debug) {
-      this.logger.debug('salt =', salt);
-      this.logger.debug('execution =', execution);
-    }
-
-    const encryptedPassword = encryptPassword(password, salt);
-    if (this.debug) {
-      this.logger.debug('encryptedPassword (length) =', encryptedPassword.length);
-    }
-
-    const form: Record<string, string> = {
+    const loginResp = await loginSchoolSsoPassword(
+      this.client,
       username,
-      password: encryptedPassword,
-      execution,
-      captcha_payload: '',
-      croypto: salt,
-      captcha_code: '',
-      type: 'UsernamePassword',
-      _eventId: 'submit',
-      geolocation: '',
-    };
-    const body = toFormUrlEncoded(form);
-
-    const loginResp: RcpResponseData = await this.client.post(SSO_INNER_URL, body, {
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      autoRedirect: true,
-      collectTimeInfo: false,
-    });
+      password,
+      undefined,
+      this.smsCodeHandler,
+    );
 
     if (this.debug) {
       this.logger.debug('loginResp status =', loginResp.statusCode, 'effectiveUrl =', loginResp.effectiveUrl);
@@ -389,7 +325,6 @@ export class BitSsoSession {
     ) {
       throw new Error(`[BitSsoSession] 登录提交失败：HTTP ${loginResp.statusCode}`);
     }
-
 
   }
   private async loginSso(username: string, password: string): Promise<void> {
@@ -462,10 +397,12 @@ export class BitSsoSession {
     this.jar.clear();
     this.loggedInSso = false;
     this.loggedInLexue = false;
-    try {
-      await this.cookieStore.clearCookieDump();
-    } catch (e) {
-      this.logger.warn('清理持久化 cookie 失败：', e);
+    if (this.persistCookies) {
+      try {
+        await this.cookieStore.clearCookieDump();
+      } catch (e) {
+        this.logger.warn('清理持久化 cookie 失败：', e);
+      }
     }
   }
   /**
@@ -503,10 +440,12 @@ export class BitSsoSession {
         this.logger.debug('bootstrap details =', bootstrapResult.details);
         this.logger.debug('cookies snapshot =', this.jar.dump());
       }
-      try {
-        await this.cookieStore.saveCookieDump(this.jar.dump());
-      } catch (e) {
-        this.logger.warn('持久化 cookie 失败：', e);
+      if (this.persistCookies) {
+        try {
+          await this.cookieStore.saveCookieDump(this.jar.dump());
+        } catch (e) {
+          this.logger.warn('持久化 cookie 失败：', e);
+        }
       }
       return;
     } else {
@@ -545,13 +484,15 @@ export class BitSsoSession {
       }
     }
 
-    try {
-      await this.cookieStore.saveCookieDump(this.jar.dump());
-      if (this.debug) {
-        this.logger.debug('ensureLexueSession: cookie 已持久化');
+    if (this.persistCookies) {
+      try {
+        await this.cookieStore.saveCookieDump(this.jar.dump());
+        if (this.debug) {
+          this.logger.debug('ensureLexueSession: cookie 已持久化');
+        }
+      } catch (e) {
+        this.logger.warn('持久化 cookie 失败：', e);
       }
-    } catch (e) {
-      this.logger.warn('持久化 cookie 失败：', e);
     }
   }
 

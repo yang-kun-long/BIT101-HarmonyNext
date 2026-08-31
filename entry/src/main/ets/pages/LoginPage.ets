@@ -1,9 +1,9 @@
 // entry/src/main/ets/pages/LoginPage.ets
-import router from '@ohos.router'
-import { BusinessError } from '@kit.BasicServicesKit'; // 引入系统错误类型
 import { Logger } from '../utils/Logger';
 import { uiGetParams, uiReplaceUrl } from '../utils/uiContextBridge';
 import { LoginCoordinator } from '../services/auth/LoginCoordinator';
+import { AuthFailureKind, classifyAuthFailure } from '../services/auth/AuthFailure';
+import { SmsChallengeDialogHost } from '../components/auth/SmsVerificationDialog';
 
 interface RedirectParams {
   redirect?: string
@@ -15,10 +15,9 @@ struct LoginPage {
   private logger = new Logger('LoginPage');
   @State sid: string = ''        // 学号
   @State password: string = ''   // 明文密码
-  @State captcha: string = ''    // 验证码（允许留空）
+  @State webvpnImageCaptcha: string = '' // WebVPN 图形验证码（允许留空）
   @State busy: boolean = false   // 加载态
   @State msg: string = ''        // 成功/失败提示
-  @State showRaw: boolean = false // 开发开关：是否打印原始返回
 
   private loginCoordinator = new LoginCoordinator()
 
@@ -31,22 +30,8 @@ struct LoginPage {
       const result = await this.loginCoordinator.login({
         sid: this.sid.trim(),
         password: this.password,
-        captcha: this.captcha,
+        captcha: this.webvpnImageCaptcha,
       });
-
-      if (this.showRaw) {
-        this.logger.debug(
-          'login result:',
-          'bit101=',
-          result.bit101Ok,
-          'school=',
-          result.schoolOk,
-          'mode=',
-          result.mode,
-          'calendar=',
-          result.syncedCalendarCount,
-        );
-      }
 
       if (result.ok) {
         this.msg = '登录成功';
@@ -70,37 +55,43 @@ struct LoginPage {
       this.msg = `登录失败：BIT101=${bit101Text}，School=${schoolText}`
 
     } catch (e) {
-      // 🔥 核心修复：不再盲目转字符串，而是尝试提取有用信息
-      let errorMsg = '未知错误';
-
-      if (typeof e === 'string') {
-        errorMsg = e;
-      } else if (e instanceof Error) {
-        errorMsg = e.message;
-      } else if (e && typeof e === 'object') {
-        // 尝试读取 BusinessError 的 code 或 msg
-        const err = e as BusinessError;
-        if (err.code) {
-          errorMsg = `Code: ${err.code}, Msg: ${err.message ?? 'No message'}`;
-        } else {
-          // 其他对象，尝试 JSON 序列化
-          try {
-            errorMsg = JSON.stringify(e);
-          } catch {
-            errorMsg = String(e);
-          }
-        }
-      }
-
-      this.msg = `登录异常：${errorMsg}`
-      this.logger.error('login error details:', e);
+      const error: Error = e instanceof Error ? e : new Error(String(e));
+      const kind: AuthFailureKind = classifyAuthFailure(error);
+      this.msg = this.messageForFailure(kind);
+      this.logger.error('login failed, kind=', kind);
     } finally {
       this.busy = false
     }
   }
 
+  private messageForFailure(kind: AuthFailureKind): string {
+    switch (kind) {
+      case 'invalid_credentials':
+        return '账号或密码错误';
+      case 'sms_required':
+        return '短信验证码错误或已失效，请重新登录';
+      case 'interaction_required':
+        return '登录需要短信验证，请在前台重试';
+      case 'interaction_cancelled':
+        return '已取消短信验证';
+      case 'interaction_timeout':
+        return '短信验证已超时，请重新登录';
+      case 'captcha_required':
+        return '需要验证码';
+      case 'rate_limited':
+        return '操作过于频繁，请稍后再试';
+      case 'network_transient':
+        return '网络异常，请稍后重试';
+      case 'server_transient':
+        return '服务暂时不可用，请稍后重试';
+    }
+    return '登录失败，请稍后重试';
+  }
+
   build() {
     Column({ space: 12 }) {
+      SmsChallengeDialogHost()
+
       Text('BIT101 登录（HarmonyOS NEXT）')
         .fontSize(22).fontWeight(FontWeight.Bold).margin({ bottom: 8 })
 
@@ -111,8 +102,8 @@ struct LoginPage {
         .type(InputType.Password)
         .onChange(v => this.password = v)
 
-      TextInput({ placeholder: 'WebVPN 验证码（若需要，可留空）', text: this.captcha })
-        .onChange(v => this.captcha = v)
+      TextInput({ placeholder: 'WebVPN 图形验证码（若需要，可留空）', text: this.webvpnImageCaptcha })
+        .onChange(v => this.webvpnImageCaptcha = v)
 
       Row({ space: 8 }) {
         Button(this.busy ? '处理中…' : '登录')
@@ -120,10 +111,6 @@ struct LoginPage {
           .backgroundColor(this.busy ? '#9CA3AF' : '#2563EB')
           .enabled(!this.busy && !!this.sid && !!this.password)
           .onClick(() => this.onLogin())
-
-        Toggle({ type: ToggleType.Switch, isOn: this.showRaw })
-          .onChange(v => this.showRaw = v)
-        Text('开发日志')
       }
 
       if (this.msg) {

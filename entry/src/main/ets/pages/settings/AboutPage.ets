@@ -1,8 +1,11 @@
-import { router, promptAction } from '@kit.ArkUI';
 import { common, Want } from '@kit.AbilityKit';
 import bundleManager from '@ohos.bundle.bundleManager';
 import { util } from '@kit.ArkTS';
 import { uiBack, uiShowToast } from '../../utils/uiContextBridge';
+import { Logger } from '../../utils/Logger';
+
+const PROJECT_NAME: string = 'BIT101-HarmonyNext';
+const PROJECT_URL: string = 'https://github.com/yang-kun-long/BIT101-HarmonyNext';
 
 // ----------------------------------------------------------------------------
 // 1. 主页面结构
@@ -11,6 +14,8 @@ import { uiBack, uiShowToast } from '../../utils/uiContextBridge';
 @Entry
 @Component
 struct AboutPage {
+  private logger: Logger = new Logger('AboutPage');
+
   // --- 状态管理 ---
   @State versionName: string = "";
   @State autoDetectUpgrade: boolean = true;
@@ -111,8 +116,8 @@ struct AboutPage {
               Column() {
                 SettingItem({
                   title: "GitHub",
-                  subTitle: "BIT101-HarmonyOS",
-                  onItemClick: () => { this.openUrl("https://github.com/BIT101-dev/BIT101-Android") }
+                  subTitle: PROJECT_NAME,
+                  onItemClick: () => { this.openUrl(PROJECT_URL) }
                 })
 
                 Divider().color($r('sys.color.ohos_id_color_list_separator')).margin({ left: 16 })
@@ -147,7 +152,7 @@ struct AboutPage {
                 Divider().color($r('sys.color.ohos_id_color_list_separator')).margin({ left: 16 })
 
                 SettingItem({
-                  title: "关于 BIT101-HarmonyOS",
+                  title: "关于 BIT101 HarmonyOS",
                   onItemClick: () => { this.aboutAppDialogController.open() }
                 })
               }
@@ -164,15 +169,15 @@ struct AboutPage {
               Span("GitHub")
                 .fontColor($r('sys.color.ohos_id_color_text_primary_activated')) // 蓝色
                 .onClick(() => {
-                  this.openUrl("https://github.com/BIT101-dev/BIT101-Android")
+                  this.openUrl(PROJECT_URL)
                 })
-              Span(" 给上一颗可爱的🌟")
+              Span(" 查看源码与提交问题")
                 .fontColor($r('sys.color.ohos_id_color_text_primary'))
             }
             .fontSize(14)
             .margin({ bottom: 4 })
 
-            Text("Powered⚡ by fdd with 💖.")
+            Text("Built by BIT101 contributors.")
               .fontSize(12)
               .fontColor($r('sys.color.ohos_id_color_text_secondary'))
           }
@@ -240,7 +245,7 @@ struct AboutPage {
       uri: url
     };
     context.startAbility(want).catch((err: object) => {
-      console.error("Start ability failed", err);
+      this.logger.error('Start ability failed', err);
       uiShowToast(this.getUIContext(), { message: "无法打开链接" });
     });
   }
@@ -296,15 +301,16 @@ struct LicenseDialog {
 @CustomDialog
 struct AboutAppDialog {
   controller: CustomDialogController;
+  private logger: Logger = new Logger('AboutPage');
   private links: Record<string, string> = {
     "726965926": "https://jq.qq.com/?_wv=1027&k=OTttwrzb",
-    "GitHub": "https://github.com/BIT101-dev/BIT101-Android",
+    "GitHub": PROJECT_URL,
     "admin@bit101.cn": "mailto:admin@bit101.cn"
   };
 
   build() {
     Column() {
-      Text("关于 BIT101-HarmonyOS")
+      Text("关于 BIT101 HarmonyOS")
         .fontSize(20)
         .fontWeight(FontWeight.Bold)
         .padding(24)
@@ -312,7 +318,7 @@ struct AboutAppDialog {
 
       Scroll() {
         Column() {
-          Text("好耶🥳\nBIT101-HarmonyOS 终于破壳而出啦！！\n\n本来私以为什么东西都要搞一个APP抑或是小程序实在不是什么好文明——明明网页就可以解决的事情为什么要那么麻烦呢？不过最后我还是想到了一些理由：比如课程表，用网页看就是不够方便；比如密码管理，在APP里确实安全很多……\n\n不论怎样，非常感谢你能来用我的APP，BIT101应该是大家的捏 _(:з」∠)_\n\n")
+          Text("BIT101 HarmonyOS 是 BIT101 在 HarmonyOS 上的原生客户端，提供课程表、DDL、校园服务和社区功能。\n\n项目仍在持续完善，欢迎通过 GitHub、QQ 群或邮件反馈问题。\n\n")
             .fontSize(14)
             .fontColor($r('sys.color.ohos_id_color_text_primary'))
 
@@ -374,7 +380,7 @@ struct AboutAppDialog {
       uri: url
     };
     context.startAbility(want).catch((err: object) => {
-      console.error("Start ability failed", err);
+      this.logger.error('Start ability failed', err);
       uiShowToast(this.getUIContext(), { message: "无法打开链接" });
     });
   }

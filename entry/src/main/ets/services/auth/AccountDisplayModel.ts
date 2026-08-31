@@ -2,9 +2,17 @@ import type { GalleryUser } from '../gallery/GalleryModels';
 import type { UserInfoResponse } from '../user/userRepository';
 
 export interface AccountDisplayAvatarInfo {
+  mid?: string;
   url?: string;
   low_url?: string;
   lowUrl?: string;
+}
+
+export function resolveAccountDisplayAvatarMid(userInfo: AccountDisplayUserInfo | null): string | null {
+  if (!userInfo || typeof userInfo.avatar === 'string' || userInfo.avatar === undefined) {
+    return null;
+  }
+  return userInfo.avatar.mid === undefined ? null : String(userInfo.avatar.mid);
 }
 
 export interface AccountDisplayUserInfo {

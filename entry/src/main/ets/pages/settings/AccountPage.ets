@@ -3,6 +3,9 @@ import { BusinessError } from '@kit.BasicServicesKit';
 import { TokenStore } from '../../services/storage/tokenStore';
 import { GalleryUser } from '../../services/gallery/GalleryModels';
 import { UserInfoResponse, UserRepository } from '../../services/user/userRepository';
+import type { UpdateUserInfoRequest } from '../../services/user/UserModels';
+import { galleryService } from '../../services/gallery/GalleryService';
+import { Logger } from '../../utils/Logger';
 import { uiBack, uiClear, uiPushUrl, uiReplaceUrl, uiShowToast } from '../../utils/uiContextBridge';
 import { LoginHealthService, LoginHealthSummary } from '../../services/auth/LoginHealthService';
 import {
@@ -12,7 +15,7 @@ import {
   buildAccountDisplayModel,
   buildAccountDisplayModelFromCurrentUser,
   buildAccountLoginActionItem,
-  hasAccountDisplayProfile,
+  resolveAccountDisplayAvatarMid,
 } from '../../services/auth/AccountDisplayModel';
 
 // ----------------------------------------------------------------------------
@@ -33,9 +36,11 @@ struct AccountPage {
   @State user: GalleryUser | null = null;
   @State userMotto: string = "";
   @State sid: string = "";
+  private avatarMid: string | null = null;
   private readonly loginHealthService: LoginHealthService = new LoginHealthService();
   private readonly tokenStore: TokenStore = new TokenStore();
   private readonly userRepository: UserRepository = new UserRepository();
+  private readonly logger: Logger = new Logger('AccountPage');
 
   // --- 弹窗控制器 ---
   nicknameDialogController: CustomDialogController = new CustomDialogController({
@@ -43,14 +48,7 @@ struct AccountPage {
       title: '修改昵称',
       textValue: this.user?.nickname || '', // 安全访问
       onConfirm: (val: string) => {
-        this.updatingUserInfo = true;
-        setTimeout(() => {
-          if (this.user) {
-            this.user.nickname = val;
-          }
-          this.updatingUserInfo = false;
-          uiShowToast(this.getUIContext(), { message: "昵称更新成功" });
-        }, 500);
+        this.updateNickname(val);
       }
     }),
     alignment: DialogAlignment.Center,
@@ -63,12 +61,7 @@ struct AccountPage {
       title: '修改个性签名',
       textValue: this.userMotto,
       onConfirm: (val: string) => {
-        this.updatingUserInfo = true;
-        setTimeout(() => {
-          this.userMotto = val;
-          this.updatingUserInfo = false;
-          uiShowToast(this.getUIContext(), { message: "个性签名更新成功" });
-        }, 500);
+        this.updateMotto(val);
       }
     }),
     alignment: DialogAlignment.Center,
@@ -211,6 +204,7 @@ struct AccountPage {
   private async loadLocalLoginSnapshot(): Promise<void> {
     try {
       const snapshot = await this.tokenStore.dumpSnapshot();
+      const hasBit101Session: boolean = !!snapshot.bit101_fake_cookie;
       this.ifLogin = !!snapshot.bit101_fake_cookie || !!snapshot.webvpn_cookie;
       this.loginStatusText = this.ifLogin ? '已登录' : '未登录';
       const userInfo = await this.tokenStore.getUserInfo<AccountDisplayUserInfo>();
@@ -219,7 +213,8 @@ struct AccountPage {
       this.sid = displayModel.sid;
       this.user = displayModel.user;
       this.userMotto = displayModel.motto;
-      if (this.ifLogin && !hasAccountDisplayProfile(displayModel)) {
+      this.avatarMid = resolveAccountDisplayAvatarMid(userInfo);
+      if (hasBit101Session) {
         await this.loadRemoteCurrentUser();
       }
     } catch (error) {
@@ -228,28 +223,122 @@ struct AccountPage {
       this.sid = '';
       this.user = null;
       this.userMotto = '';
+      this.avatarMid = null;
     }
   }
 
   private async loadRemoteCurrentUser(): Promise<void> {
     try {
-      const response: UserInfoResponse = await this.userRepository.getUserInfo('0');
-      const displayModel: AccountDisplayModel = buildAccountDisplayModelFromCurrentUser(this.currentUsername, response);
-      this.user = displayModel.user;
-      this.userMotto = displayModel.motto;
-      if (displayModel.sid.length > 0) {
-        this.sid = displayModel.sid;
-      }
-      const storedUserInfo: AccountDisplayUserInfo = {
-        id: response.user.id,
-        nickname: response.user.nickname,
-        avatar: response.user.avatar,
-        motto: response.user.motto,
-        sid: this.sid,
-      };
-      await this.tokenStore.saveUserInfo(storedUserInfo);
-    } catch (_) {
+      await this.fetchAndApplyRemoteCurrentUser();
+    } catch (error) {
+      this.logger.warn('加载远端用户资料失败', error);
     }
+  }
+
+  private async fetchAndApplyRemoteCurrentUser(): Promise<void> {
+    const response: UserInfoResponse = await this.userRepository.getUserInfo('0');
+    const displayModel: AccountDisplayModel = buildAccountDisplayModelFromCurrentUser(this.currentUsername, response);
+    this.user = displayModel.user;
+    this.userMotto = displayModel.motto;
+    this.avatarMid = response.user.avatar.mid;
+    if (displayModel.sid.length > 0) {
+      this.sid = displayModel.sid;
+    }
+    const storedUserInfo: AccountDisplayUserInfo = {
+      id: response.user.id,
+      nickname: response.user.nickname,
+      avatar: response.user.avatar,
+      motto: response.user.motto,
+      sid: this.sid,
+    };
+    await this.tokenStore.saveUserInfo(storedUserInfo);
+  }
+
+  private async saveConfirmedProfile(request: UpdateUserInfoRequest): Promise<void> {
+    const currentUser: GalleryUser | null = this.user;
+    if (!currentUser) {
+      throw new Error('当前用户资料不可用');
+    }
+    const confirmedUser: GalleryUser = {
+      id: currentUser.id,
+      nickname: request.nickname,
+      avatar: currentUser.avatar,
+      identity: currentUser.identity,
+    };
+    this.user = confirmedUser;
+    this.userMotto = request.motto;
+    this.avatarMid = request.avatar_mid;
+    const storedUserInfo: AccountDisplayUserInfo = {
+      id: confirmedUser.id,
+      nickname: confirmedUser.nickname,
+      avatar: {
+        mid: request.avatar_mid,
+        url: confirmedUser.avatar,
+      },
+      motto: request.motto,
+      sid: this.sid,
+    };
+    await this.tokenStore.saveUserInfo(storedUserInfo);
+  }
+
+  private async updateProfile(
+    nickname: string | null,
+    motto: string | null,
+    avatarUri: string | null,
+    successMessage: string,
+  ): Promise<void> {
+    if (this.updatingUserInfo || !this.user) {
+      return;
+    }
+
+    this.updatingUserInfo = true;
+    try {
+      let nextAvatarMid: string;
+      if (avatarUri !== null) {
+        const uploadedMid: string | null = await galleryService.uploadImage(this.getUIContext(), avatarUri);
+        if (uploadedMid === null || uploadedMid.length === 0) {
+          throw new Error('头像上传失败');
+        }
+        nextAvatarMid = uploadedMid;
+      } else {
+        if (this.avatarMid === null) {
+          await this.fetchAndApplyRemoteCurrentUser();
+        }
+        nextAvatarMid = this.avatarMid ?? '';
+      }
+
+      const currentUser: GalleryUser | null = this.user;
+      if (!currentUser) {
+        throw new Error('当前用户资料不可用');
+      }
+      const request: UpdateUserInfoRequest = {
+        nickname: nickname ?? currentUser.nickname,
+        motto: motto ?? this.userMotto,
+        avatar_mid: nextAvatarMid,
+      };
+
+      await this.userRepository.updateUserInfo(request);
+      try {
+        await this.fetchAndApplyRemoteCurrentUser();
+      } catch (refreshError) {
+        this.logger.warn('资料已更新，但刷新远端资料失败', refreshError);
+        await this.saveConfirmedProfile(request);
+      }
+      uiShowToast(this.getUIContext(), { message: successMessage });
+    } catch (error) {
+      this.logger.error('更新用户资料失败', error);
+      uiShowToast(this.getUIContext(), { message: '更新失败' });
+    } finally {
+      this.updatingUserInfo = false;
+    }
+  }
+
+  private async updateNickname(value: string): Promise<void> {
+    await this.updateProfile(value, null, null, '昵称更新成功');
+  }
+
+  private async updateMotto(value: string): Promise<void> {
+    await this.updateProfile(null, value, null, '个性签名更新成功');
   }
 
   private loginActionItem(): AccountLoginActionItem {
@@ -294,7 +383,7 @@ struct AccountPage {
     });
   }
 
-  async handlePickAvatar() {
+  async handlePickAvatar(): Promise<void> {
     try {
       const photoSelectOptions = new photoAccessHelper.PhotoSelectOptions();
       photoSelectOptions.MIMEType = photoAccessHelper.PhotoViewMIMETypes.IMAGE_TYPE;
@@ -305,15 +394,14 @@ struct AccountPage {
 
       if (photoSelectResult.photoUris.length > 0) {
         const uri: string = photoSelectResult.photoUris[0];
-        // 确保 user 存在再赋值
-        if (this.user) {
-          this.user.avatar = uri;
-          uiShowToast(this.getUIContext(), { message: "头像已选择" });
-        }
+        await this.updateProfile(null, null, uri, '头像更新成功');
       }
     } catch (err) {
       const error = err as BusinessError;
-      console.error(`PhotoViewPicker failed, code is ${error.code}, message is ${error.message}`);
+      this.logger.error(
+        'PhotoViewPicker failed, code=' + error.code + ', message=' + error.message,
+      );
+      uiShowToast(this.getUIContext(), { message: '图片选择失败' });
     }
   }
 }

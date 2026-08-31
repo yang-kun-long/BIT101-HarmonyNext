@@ -26,6 +26,7 @@ export interface VerifyResult {
   status: number;
   body: Record<string, unknown> | string;
   setCookie?: string;
+  sessionCookie?: string;
 }
 
 export interface AuthRepositoryOptions {
@@ -50,6 +51,16 @@ export class AuthRepository {
   }
   // 登录 BIT101 侧（md5 小写）
   async loginBit101(params: { sid: string; password: string }): Promise<string> {
+    const fake = await this.requestBit101Login(params);
+    await this.tokenStore.saveFakeCookie(fake);
+    return fake;
+  }
+
+  async loginBit101Staged(params: { sid: string; password: string }): Promise<string> {
+    return await this.requestBit101Login(params);
+  }
+
+  private async requestBit101Login(params: { sid: string; password: string }): Promise<string> {
     const sid = params.sid?.trim();
     const pwdMd5 = md5HexLower(params.password || '');
     if (!sid || !pwdMd5) throw new Error('sid & password required');
@@ -64,7 +75,6 @@ export class AuthRepository {
     const body: any = typeof res.data === 'object' ? res.data : JSON.parse(res.text);
     const fake = body?.fake_cookie ?? body?.data?.fake_cookie;
     if (!fake) throw new Error('BIT101 login: fake_cookie missing');
-    await this.tokenStore.saveFakeCookie(String(fake));
     return String(fake);
   }
 
@@ -127,12 +137,23 @@ export class AuthRepository {
       ok: res.status >= 200 && res.status < 300,
       status: res.status,
       body: (typeof res.data === 'undefined') ? res.text : (res.data as any),
-      setCookie: setCookieStr || undefined
+      setCookie: setCookieStr || undefined,
     };
   }
 
   // 封装的高阶登录：init → encrypt → verify → 保存会话（若后端返回 token）
   async loginViaWebVpnVerify(params: { sid: string; password: string; captcha?: string }): Promise<VerifyResult> {
+    return await this.loginViaWebVpnVerifyInternal(params, true);
+  }
+
+  async loginViaWebVpnVerifyStaged(params: { sid: string; password: string; captcha?: string }): Promise<VerifyResult> {
+    return await this.loginViaWebVpnVerifyInternal(params, false);
+  }
+
+  private async loginViaWebVpnVerifyInternal(
+    params: { sid: string; password: string; captcha?: string },
+    persist: boolean,
+  ): Promise<VerifyResult> {
     const { sid, password } = params;
     if (!sid || !password) throw new Error('sid & password required');
 
@@ -148,7 +169,8 @@ export class AuthRepository {
     });
 
     // ☆ 只有 verify ok 才把 init.cookie 作为生效 cookie 落盘
-    if (ret.ok && init.cookie) {
+    ret.sessionCookie = init.cookie;
+    if (persist && ret.ok && init.cookie) {
       await this.tokenStore.saveWebvpnCookie(init.cookie);
     }
 
@@ -164,8 +186,8 @@ export class AuthRepository {
         (user as any).sid = sid;
       }
 
-      if (token) await this.tokenStore.saveToken(token);
-      if (user) await this.tokenStore.saveUserInfo(user);
+      if (persist && token) await this.tokenStore.saveToken(token);
+      if (persist && user) await this.tokenStore.saveUserInfo(user);
     } catch {}
 
 

@@ -38,6 +38,7 @@ class GalleryService {
   // 使用原生 http + fs 实现 Multipart 上传，确保能获取服务器响应 Body
   async uploadImage(context: Object, uri: string): Promise<string | null> {
     let fileFd: number | null = null;
+    let httpRequest: http.HttpRequest | null = null;
     try {
       this.logger.debug('Starting upload:', uri);
 
@@ -79,7 +80,7 @@ class GalleryService {
 
       // 4. 发送请求
       const uploadUrl = `${RCP_BASE_URL}/upload/image`;
-      const httpRequest = http.createHttp();
+      httpRequest = http.createHttp();
 
       const headerObj: Record<string, string> = {
         'Content-Type': `multipart/form-data; boundary=${boundary}`
@@ -96,7 +97,7 @@ class GalleryService {
       });
 
       // 5. 解析响应
-      if (resp.responseCode === 200 && resp.result) {
+      if (resp.responseCode >= 200 && resp.responseCode < 300 && resp.result) {
         const resultStr = typeof resp.result === 'string' ? resp.result : JSON.stringify(resp.result);
         this.logger.info('Upload response:', resultStr);
 
@@ -114,6 +115,13 @@ class GalleryService {
       this.logger.error('Upload exception', e);
       return null;
     } finally {
+      if (httpRequest !== null) {
+        try {
+          httpRequest.destroy();
+        } catch (e) {
+          this.logger.warn('Upload request destroy failed', e);
+        }
+      }
       if (fileFd !== null) {
         try { fs.closeSync(fileFd); } catch (e) {}
       }

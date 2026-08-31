@@ -22,6 +22,21 @@ class FakeAuth implements Bit101LoginFlowAuth {
       body: '',
     };
   }
+
+  async loginBit101Staged(params: Bit101LoginFlowParams): Promise<string> {
+    this.calls.push(`loginBit101Staged:${params.sid}:${params.password}`);
+    return 'staged-fake-cookie';
+  }
+
+  async loginViaWebVpnVerifyStaged(params: Bit101LoginFlowParams): Promise<VerifyResult> {
+    this.calls.push(`loginViaWebVpnVerifyStaged:${params.sid}:${params.password}:${params.captcha ?? ''}`);
+    return {
+      ok: true,
+      status: 200,
+      body: '',
+      sessionCookie: 'staged-cookie',
+    };
+  }
 }
 
 export default function bit101LoginFlowTest() {
@@ -39,6 +54,21 @@ export default function bit101LoginFlowTest() {
       expect(result.fakeCookie).assertEqual('fake-cookie');
       expect(auth.calls.join('|')).assertEqual(
         'loginBit101:1120230036:pw|loginViaWebVpnVerify:1120230036:pw:captcha-code',
+      );
+    });
+
+    it('keeps staged login results in memory when persistence is disabled', 0, async () => {
+      const auth = new FakeAuth();
+
+      const result = await loginBit101AndVerifyWebvpn(auth, {
+        sid: '1120230036',
+        password: 'pw',
+      }, false);
+
+      expect(result.fakeCookie).assertEqual('staged-fake-cookie');
+      expect(result.webvpn.sessionCookie).assertEqual('staged-cookie');
+      expect(auth.calls.join('|')).assertEqual(
+        'loginBit101Staged:1120230036:pw|loginViaWebVpnVerifyStaged:1120230036:pw:',
       );
     });
   });

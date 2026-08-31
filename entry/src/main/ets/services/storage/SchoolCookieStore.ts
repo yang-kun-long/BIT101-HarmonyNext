@@ -75,6 +75,14 @@ export class SchoolCookieStore {
       await pref.flush();
     });
   }
+
+  async replaceCookieDump(dump: CookieDump | null): Promise<void> {
+    if (dump === null) {
+      await this.clearCookieDump();
+      return;
+    }
+    await this.saveCookieDump(dump);
+  }
 }
 
 export function initSchoolCookieStore(ctx: any): void {

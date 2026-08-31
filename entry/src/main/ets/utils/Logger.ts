@@ -10,8 +10,8 @@ export class Logger {
   private static readonly DOMAIN: number = 0x0101;
   private static readonly ROOT_TAG: string = 'BIT101';
 
-  /** 全局总开关：false 则彻底关闭所有日志 */
-  private static IS_DEBUG: boolean = true;
+  /** Debug 包开启白名单内的详细日志；release 默认只保留 error/fatal。 */
+  private static verboseEnabled: boolean = false;
 
   /** * 过滤模式：
    * - 'BLOCK_LIST' (黑名单): 默认打印所有，**屏蔽** LIST 中的模块 (适合日常开发，屏蔽刷屏的)
@@ -34,6 +34,7 @@ export class Logger {
     'PosterDetailPage',
     'DebugCase',
     'DebugRunner',
+    'SmsChallengeDialog',
     'SchoolCasClient',
     'SchoolNetworkProbe',
     'WebvpnCodec',
@@ -43,7 +44,11 @@ export class Logger {
     'DDLSettingPage',
     'CourseExamRepository',
     'CourseTermRepository',
-    'SystemCalendarService'
+    'SystemCalendarService',
+    'AboutPage',
+    'AccountPage',
+    'UserRepository',
+    'LoginHealthService'
     // --- 可以在这里填入下方 ALL_MODULES 里的名字 ---
     // 'ScheduleGrid',
     // 'SchedulePage',
@@ -67,6 +72,8 @@ export class Logger {
     PostPage: 'PostPage',
     PostEditorPage: 'PostEditorPage',
     PosterDetailPage: 'PosterDetailPage',
+    AboutPage: 'AboutPage',
+    AccountPage: 'AccountPage',
 
     // [Components - 组件]
     ScheduleGrid: 'ScheduleGrid',
@@ -92,6 +99,7 @@ export class Logger {
     SchoolServiceResolver: 'SchoolServiceResolver',
     SchoolAuthService: 'SchoolAuthService',
     LoginCoordinator: 'LoginCoordinator',
+    LoginHealthService: 'LoginHealthService',
     LexueBootstrap: 'LexueBootstrap',
 
     // [Services - 业务服务]
@@ -105,6 +113,7 @@ export class Logger {
     CourseExamRepository: 'CourseExamRepository',
     CourseTermRepository: 'CourseTermRepository',
     SystemCalendarService: 'SystemCalendarService',
+    UserRepository: 'UserRepository',
 
     // [Storage - 本地存储]
     SemesterStore: 'SemesterStore',
@@ -116,6 +125,7 @@ export class Logger {
     // [Debug - 调试]
     DebugCase: 'DebugCase',
     DebugRunner: 'DebugRunner',
+    SmsChallengeDialog: 'SmsChallengeDialog',
   };
 
   // ================= 逻辑实现区域 (无需修改) =================
@@ -126,9 +136,13 @@ export class Logger {
     this.moduleName = moduleName;
   }
 
+  static configure(isDebugBuild: boolean): void {
+    Logger.verboseEnabled = isDebugBuild;
+  }
+
   private shouldLog(): boolean {
     // 1. 总开关
-    if (!Logger.IS_DEBUG) return false;
+    if (!Logger.verboseEnabled) return false;
 
     // 2. 判断是否在列表中
     const isInList = Logger.TARGET_MODULES.includes(this.moduleName);
@@ -158,14 +172,10 @@ export class Logger {
   }
 
   error(...args: any[]) {
-    // Error 级别通常建议始终打印，方便发现 Bug
-    // 如果你也想屏蔽 Error，就加上: if (!this.shouldLog()) return;
-    if (!Logger.IS_DEBUG) return;
     hilog.error(Logger.DOMAIN, this.getFullTag(), this.formatLog(args));
   }
 
   fatal(...args: any[]) {
-    if (!Logger.IS_DEBUG) return;
     hilog.fatal(Logger.DOMAIN, this.getFullTag(), this.formatLog(args));
   }
 

@@ -5,6 +5,7 @@ import {
   LoginDomainHealth,
   LoginHealthRequirement,
   LoginHealthSummary,
+  shouldClearLoginDomain,
 } from '../main/ets/services/auth/LoginHealthService';
 import {
   AccountDisplayModel,
@@ -15,9 +16,50 @@ import {
   hasAccountDisplayProfile,
   resolveAccountDisplaySid,
 } from '../main/ets/services/auth/AccountDisplayModel';
+import { ApiError } from '../main/ets/core/network/httpClient';
+import {
+  classifyAuthFailure,
+} from '../main/ets/services/auth/AuthFailure';
+import {
+  SmsChallengeCancelledError,
+  SmsChallengeInteractionRequiredError,
+  SmsChallengeTimeoutError,
+} from '../main/ets/services/auth/SmsChallengeCoordinator';
 
 export default function loginHealthTest() {
   describe('Login health service', () => {
+    it('classifies authentication failures for UI and retry policy', 0, () => {
+      expect(classifyAuthFailure(new ApiError('unauthorized', 401))).assertEqual('invalid_credentials');
+      expect(classifyAuthFailure(new ApiError('too many requests', 429))).assertEqual('rate_limited');
+      expect(classifyAuthFailure(new ApiError('server failed', 503))).assertEqual('server_transient');
+      expect(classifyAuthFailure(new Error('请输入短信动态码'))).assertEqual('sms_required');
+      expect(classifyAuthFailure(new Error('需要图片验证码'))).assertEqual('captcha_required');
+      expect(classifyAuthFailure(new Error('2300007 connection failed'))).assertEqual('network_transient');
+      expect(classifyAuthFailure(new SmsChallengeInteractionRequiredError())).assertEqual('interaction_required');
+      expect(classifyAuthFailure(new SmsChallengeCancelledError())).assertEqual('interaction_cancelled');
+      expect(classifyAuthFailure(new SmsChallengeTimeoutError())).assertEqual('interaction_timeout');
+      const smsRejected = new Error('验证码错误或已失效');
+      smsRejected.name = 'SchoolSmsVerificationError';
+      expect(classifyAuthFailure(smsRejected)).assertEqual('sms_required');
+    });
+
+    it('reports transient core health failures as unknown without claiming logout', 0, () => {
+      const summary: LoginHealthSummary = buildLoginHealthSummary(
+        { ok: false, status: 'unknown', message: 'BIT101 状态暂时无法确认' },
+        { ok: true, status: 'valid', message: '学校登录态有效' },
+      );
+
+      expect(summary.ok).assertFalse();
+      expect(summary.statusText).assertEqual('状态未知');
+      expect(summary.toastText).assertEqual('网络异常，登录状态未改变');
+      expect(shouldClearLoginDomain(summary.bit101)).assertFalse();
+      expect(shouldClearLoginDomain({
+        ok: false,
+        status: 'invalid',
+        message: 'BIT101 登录态不可用',
+      })).assertTrue();
+    });
+
     it('reports success only when BIT101 and school sessions are both available', 0, () => {
       const bit101: LoginDomainHealth = {
         ok: true,

@@ -4,6 +4,7 @@ import { DebugCase } from './DebugCase';
 import { TEST_USERNAME, TEST_PASSWORD } from './local.secret';
 import BitSsoSession from '../services/lexue/BitSsoSession';
 import LexueCalendarClient from '../services/lexue/LexueCalendarClient';
+import { globalSmsChallengeCoordinator } from '../services/auth/SmsChallengeCoordinator';
 
 export class BitSsoLexueWebvpnCase extends DebugCase {
   readonly name = 'Bit SSO + Lexue (via WebVPN)';
@@ -21,6 +22,10 @@ export class BitSsoLexueWebvpnCase extends DebugCase {
       useWebvpn: true,
       debug: true,
       webvpnLexueBase,
+      smsCodeHandler: globalSmsChallengeCoordinator.createHandler({
+        allowInteractive: true,
+        timeoutMs: 120000,
+      }),
     });
 
     await sso.restoreFromStorage();

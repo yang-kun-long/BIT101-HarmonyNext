@@ -151,7 +151,7 @@ Current ArkTS verifies mainly by fetching Lexue entry pages or export endpoints.
 New logic explicitly warms up the target system session before calling business APIs.
 
 ## Progress Update
-As of March 25, 2026, the repository has already migrated a meaningful part of the WebVPN + Lexue path to the newer ticket flow.
+As of August 31, 2026, the repository has migrated the WebVPN + Lexue path and the school SMS second-factor bridge to the newer service-driven flow. The first sections above describe the pre-migration baseline; the current implementation status is recorded below.
 
 Implemented and verified:
 
@@ -168,12 +168,17 @@ Implemented and verified:
   - `generateurl`
   - `subscribeUrl`
   - ICS fetch returning valid `BEGIN:VCALENDAR`
+- school SMS second-factor protocol:
+  - browser-style CAS password submission detects `secondSmsLoginForm`
+  - encrypted `getPhoneNumberByUserId` followed by `sendSmsCode` and `checkToken`
+  - one foreground `SmsChallengeCoordinator` request shared by inner and WebVPN login
 
 Current known state:
 
 - `webvpn` mode for Lexue is working and business-validated
-- `inner` mode is still using the older implementation and should be considered pending migration
-- `LoginPage` has been temporarily forced to `webvpn` mode for school login to avoid false `inner` detection in off-campus environments
+- `inner` mode now uses the shared browser-style CAS/SMS protocol; direct target-system verification is still pending
+- automatic inner/WebVPN detection remains environment-dependent and must be verified on a campus network and off campus
+- `LoginPage` no longer owns a fixed SMS/captcha field; it receives SMS challenges through the global foreground host
 - timetable verification is not complete yet because `TimetableRepository` still has its own local bug in debug logging
 
 ## Likely Impact on This Repository

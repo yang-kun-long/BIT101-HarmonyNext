@@ -75,7 +75,7 @@ struct Settings {
             // 6. 关于
             SettingItemCard({
               title: "关于",
-              subTitle: "关于BIT101-Android",
+              subTitle: "关于 BIT101 HarmonyOS",
               icon: $r('app.media.ic_warning'), // 暂替 Info
               targetUrl: 'pages/settings/AboutPage'
             })

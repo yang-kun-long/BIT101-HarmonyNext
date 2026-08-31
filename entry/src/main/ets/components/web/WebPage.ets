@@ -1,198 +1,195 @@
-// entry/src/main/ets/components/web/WebPage.ets
-import { Logger } from '../../utils/Logger';
 import web_webview from '@ohos.web.webview';
-import promptAction from '@ohos.promptAction';
 import common from '@ohos.app.ability.common';
 import Want from '@ohos.app.ability.Want';
-// 引入工具类
+import { Logger } from '../../utils/Logger';
 import { handleFileSelect, WebFileSelectorEvent } from './WebUtils';
-import { uiShowToast } from '../../utils/uiContextBridge';
+import {
+  buildWebSessionInjectionScript,
+  isAllowedInWebView,
+  shouldInjectBit101Session,
+  WebSessionModel,
+  WebSessionState,
+  WebThemeMode,
+} from './WebSessionModel';
 
 @Component
 export struct WebPage {
-  private logger = new Logger('WebPage');
-  // --- 外部参数 ---
   @Prop url: string;
-
-  // --- 全局状态订阅 ---
+  @Prop allowInitialOrigin: boolean = false;
   @StorageLink('themeIsDark') themeIsDark: boolean = false;
-  @StorageLink('fakeCookie') fakeCookie: string = '';
-  @StorageLink('studentId') studentId: string = '';
-  @StorageLink('password') password: string = '';
-
-  // --- 内部状态 ---
   @State progress: number = 0;
   @State isLoading: boolean = true;
+  @State sessionReady: boolean = false;
+  @State errorMessage: string = '';
+  @State sessionState: WebSessionState = {
+    fakeCookie: '',
+    username: '',
+    credentialState: 'unavailable',
+  };
 
-  // Web 控制器
   controller: web_webview.WebviewController = new web_webview.WebviewController();
+  onTitleChange: (title: string) => void = () => {};
 
-  // 上下文
-  private context = this.getUIContext().getHostContext() as common.UIAbilityContext;
+  private readonly logger: Logger = new Logger('WebPage');
+  private readonly sessionModel: WebSessionModel = new WebSessionModel();
+  private readonly context: common.UIAbilityContext =
+    this.getUIContext().getHostContext() as common.UIAbilityContext;
+  private hasReloadedForSession: boolean = false;
+
+  aboutToAppear(): void {
+    this.prepareSession();
+  }
 
   build() {
     Stack({ alignContent: Alignment.Top }) {
-      // === Layer 1: 浏览器核心 ===
-      Web({
-        src: this.url,
-        controller: this.controller
-      })
-        .javaScriptAccess(true)
-        .domStorageAccess(true)
-        .fileAccess(true)
-        .imageAccess(true)
-        .mixedMode(MixedMode.All)
-        .onlineImageAccess(true)
-        .zoomAccess(false)
-        .databaseAccess(true)
-
-        // 2. 页面开始加载
-        .onPageBegin(() => {
-          this.isLoading = true;
-          this.injectState();
+      if (this.sessionReady) {
+        Web({
+          src: this.url,
+          controller: this.controller,
         })
-
-        // 3. 页面加载结束
-        .onPageEnd(() => {
-          this.isLoading = false;
-          this.autoFillScore();
-        })
-
-        // 4. 链接拦截
-        .onLoadIntercept((event) => {
-          if (!event) {
-            return false;
-          }
-          const url = event.data.getRequestUrl();
-          // 白名单
-          if (url.includes('bit.edu.cn') || url.includes('flwfdd.xyz') || url.includes('bit101.cn')) {
-            return false;
-          }
-
-          // 拦截处理：拉起系统浏览器
-          // 【修复点】增加 try-catch 处理潜在异常
-          try {
-            let want: Want = {
-              action: 'ohos.want.action.viewData',
-              entities: ['entity.system.browsable'],
-              uri: url
-            };
-            this.context.startAbility(want);
-          } catch (error) {
-            this.logger.error('StartAbility failed:', error);
-          }
-          return true;
-        })
-
-        // 5. 文件上传支持
-        .onShowFileSelector((event) => {
-          if (event) {
-            // 【修复点】使用 ESObject 替代 unknown，解决红色报错
-            // ESObject 是 ArkTS 允许的“任意类型”，专门用于桥接原生对象
+          .javaScriptAccess(true)
+          .domStorageAccess(true)
+          .fileAccess(false)
+          .imageAccess(true)
+          .mixedMode(MixedMode.None)
+          .onlineImageAccess(true)
+          .zoomAccess(false)
+          .databaseAccess(true)
+          .onPageBegin((event) => {
+            this.isLoading = true;
+            this.progress = 0;
+            this.errorMessage = '';
+            this.logger.debug('Page loading started');
+          })
+          .onPageEnd((event) => {
+            this.isLoading = false;
+            this.progress = 100;
+            this.errorMessage = '';
+            this.syncSessionAfterLoad(event.url);
+          })
+          .onLoadIntercept((event) => {
+            if (!event) {
+              return false;
+            }
+            const targetUrl: string = event.data.getRequestUrl();
+            if (isAllowedInWebView(targetUrl, this.url, this.allowInitialOrigin)) {
+              return false;
+            }
+            this.openExternal(targetUrl);
+            return true;
+          })
+          .onShowFileSelector((event) => {
+            if (!event) {
+              return false;
+            }
             handleFileSelect((event as ESObject) as WebFileSelectorEvent);
             return true;
-          }
-          return false;
-        })
-        .onConsole((event) => {
-          if (event) {
-            const msg = event.message.getMessage();
-            const level = event.message.getMessageLevel();
-            // level枚举: 1: Debug, 2: Info, 3: Warn, 4: Error, 0: Tip
-
-            // 转发给 Logger，这样就能受黑/白名单控制了
-            // 加个 [Web] 前缀方便区分
-            if (level === 4) {
-              this.logger.error('[Web]', msg);
-            } else if (level === 3) {
-              this.logger.warn('[Web]', msg);
-            } else {
-              // Info/Debug/Log 全部降级为 Debug，保持清爽
-              this.logger.debug('[Web]', msg);
+          })
+          .onProgressChange((event) => {
+            if (event) {
+              this.progress = event.newProgress;
+              if (this.progress === 100) {
+                this.isLoading = false;
+              }
             }
-            // 返回 true 表示“消费掉这个事件”，阻止系统默认的 ARKWEB-CONSOLE 打印
-            return true;
-          }
-          return false;
-        })
-
-        // 6. 进度条更新
-        .onProgressChange((event) => {
-          if (event) {
-            this.progress = event.newProgress;
-            if (this.progress === 100) {
-              this.isLoading = false;
+          })
+          .onTitleReceive((event) => {
+            if (event && event.title) {
+              this.onTitleChange(event.title);
             }
-          }
-        })
+          })
+          .onErrorReceive((event) => {
+            this.isLoading = false;
+            this.errorMessage = '页面加载失败';
+            this.logger.error('Web resource error, code=' + event.error.getErrorCode());
+          })
+          .width('100%')
+          .height('100%')
+          .backgroundColor(this.themeIsDark ? '#000000' : '#FFFFFF')
+      } else {
+        Column() {
+          LoadingProgress()
+            .width(32)
+            .height(32)
+            .color(this.themeIsDark ? '#FF9A57' : '#007DFF')
+        }
         .width('100%')
         .height('100%')
-        .backgroundColor(this.themeIsDark ? '#000000' : '#FFFFFF')
+        .justifyContent(FlexAlign.Center)
+      }
 
-      // === Layer 2: 顶部进度条 ===
       if (this.isLoading && this.progress < 100) {
         Progress({ value: this.progress, total: 100, type: ProgressType.Linear })
-          .color(this.themeIsDark ? '#FFD700' : '#007DFF')
+          .color(this.themeIsDark ? '#FF9A57' : '#007DFF')
           .width('100%')
           .height(2)
       }
+
+      if (this.errorMessage.length > 0) {
+        Column({ space: 16 }) {
+          Text(this.errorMessage)
+            .fontSize(16)
+            .fontColor($r('sys.color.ohos_id_color_text_secondary'))
+          Button('重试')
+            .onClick(() => {
+              this.errorMessage = '';
+              this.isLoading = true;
+              this.controller.refresh();
+            })
+        }
+        .width('100%')
+        .height('100%')
+        .justifyContent(FlexAlign.Center)
+        .backgroundColor($r('sys.color.ohos_id_color_background'))
+      }
     }
+    .width('100%')
+    .height('100%')
   }
 
-  /**
-   * 注入状态到 H5
-   */
-  injectState() {
-    const mode = this.themeIsDark ? 'dark' : 'light';
-    const cookie = this.fakeCookie;
-
-    const injectScript = `
-      try {
-        let store = {};
-        const oldStore = window.localStorage.getItem("store");
-        if (oldStore) {
-          store = JSON.parse(oldStore);
-        }
-        store.theme_mode = "${mode}";
-        if ("${cookie}" !== "") {
-          store.fake_cookie = "${cookie}";
-        }
-        window.localStorage.setItem("store", JSON.stringify(store));
-      } catch (e) {
-        console.error("BIT101 Injection Error: " + e);
-      }
-    `;
-
-    // 【修复点】增加 try-catch，消除黄色警告
+  private async prepareSession(): Promise<void> {
     try {
-      this.controller.runJavaScript(injectScript);
+      this.sessionState = await this.sessionModel.load();
     } catch (error) {
-      this.logger.error('InjectState failed:', error);
+      this.logger.error('Load Web session failed', error);
+      this.sessionState = {
+        fakeCookie: '',
+        username: '',
+        credentialState: 'unavailable',
+      };
+    } finally {
+      this.sessionReady = true;
     }
   }
 
-  /**
-   * 成绩单自动填充
-   */
-  autoFillScore() {
-    if (this.url.includes('/score') && this.studentId && this.password) {
-      const fillScript = `
-        var sidInput = document.getElementById("sid");
-        var pwdInput = document.getElementById("password");
-        if (sidInput && pwdInput) {
-          sidInput.value = "${this.studentId}";
-          sidInput.dispatchEvent(new Event('input'));
-          pwdInput.value = "${this.password}";
-          pwdInput.dispatchEvent(new Event('input'));
-        }
-      `;
-      // 【修复点】增加 try-catch，消除黄色警告
-      try {
-        this.controller.runJavaScript(fillScript);
-        uiShowToast(this.getUIContext(), { message: '已为您自动填充学号密码' });
-      } catch (error) {
-        this.logger.error('AutoFill failed:', error);
+  private async syncSessionAfterLoad(pageUrl: string): Promise<void> {
+    if (!shouldInjectBit101Session(pageUrl)) {
+      return;
+    }
+    try {
+      this.sessionState = await this.sessionModel.load();
+      const themeMode: WebThemeMode = this.themeIsDark ? 'dark' : 'light';
+      const script: string = buildWebSessionInjectionScript(this.sessionState, themeMode);
+      await this.controller.runJavaScript(script);
+      if (!this.hasReloadedForSession) {
+        this.hasReloadedForSession = true;
+        this.controller.refresh();
       }
+    } catch (error) {
+      this.logger.error('Sync Web session failed', error);
+    }
+  }
+
+  private async openExternal(targetUrl: string): Promise<void> {
+    try {
+      const want: Want = {
+        action: 'ohos.want.action.viewData',
+        entities: ['entity.system.browsable'],
+        uri: targetUrl,
+      };
+      await this.context.startAbility(want);
+    } catch (error) {
+      this.logger.error('Open external URL failed', error);
     }
   }
 }

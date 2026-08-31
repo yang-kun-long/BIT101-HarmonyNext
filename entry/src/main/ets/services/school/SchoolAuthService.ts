@@ -7,6 +7,8 @@ import { extractPortalServiceFromLocation, resolveAbsoluteUrl, resolveServiceFro
 import { buildWebvpnJumpUrl } from './WebvpnJumpBuilder';
 import type { SchoolLoginMode, SchoolLoginResult } from './SchoolAuthTypes';
 import type { SchoolSessionState } from './SchoolSessionState';
+import type { SmsCodeHandler } from '../auth/SmsChallengeCoordinator';
+import { loginSchoolSsoPassword } from './SchoolSmsProtocol';
 
 const logger = new Logger('SchoolAuthService');
 const WEBVPN_PORTAL_ENTRY = 'https://webvpn.bit.edu.cn/login?cas_login=true';
@@ -47,9 +49,17 @@ export function appendTicketToServiceUrl(service: string, ticket: string): strin
     : `${service}?ticket=${encodeURIComponent(ticket)}`;
 }
 
+export function resolveWebvpnCasCallback(currentUrl: string, location: string): string {
+  if (!location) return '';
+  return location.startsWith('/')
+    ? `https://webvpn.bit.edu.cn${location}`
+    : resolveAbsoluteUrl(currentUrl, location);
+}
+
 export interface SchoolAuthServiceOptions {
   debug?: boolean;
   userAgent?: string;
+  smsCodeHandler?: SmsCodeHandler;
 }
 
 export class SchoolAuthService {
@@ -58,11 +68,13 @@ export class SchoolAuthService {
   private readonly jar: SimpleCookieJar;
   private readonly client: RcpSession;
   private readonly casClient: SchoolCasClient;
+  private readonly smsCodeHandler?: SmsCodeHandler;
   private lastTgtUrl?: string;
 
   constructor(options?: SchoolAuthServiceOptions) {
     this.debug = !!options?.debug;
     this.userAgent = options?.userAgent ?? DEFAULT_UA;
+    this.smsCodeHandler = options?.smsCodeHandler;
     this.jar = new SimpleCookieJar();
     this.client = new RcpSession({
       debug: this.debug,
@@ -104,10 +116,19 @@ export class SchoolAuthService {
 
   async loginWebvpnPortal(username: string, password: string): Promise<SchoolLoginResult> {
     const portalService = await this.resolveWebvpnPortalService();
-    const tgtUrl = await this.casClient.getTgt(username, password);
-    this.lastTgtUrl = tgtUrl;
-    const st = await this.casClient.getSt(tgtUrl, portalService);
-    const jumpUrl = buildWebvpnJumpUrl(portalService, st);
+    const loginResponse = await loginSchoolSsoPassword(
+      this.client,
+      username,
+      password,
+      portalService,
+      this.smsCodeHandler,
+    );
+    this.lastTgtUrl = undefined;
+    const location = findHeader(loginResponse.headers as Record<string, Object>, 'location');
+    if (!location) {
+      throw new SchoolWebvpnLandingError('CAS login did not return a WebVPN callback');
+    }
+    const jumpUrl = resolveWebvpnCasCallback(String(loginResponse.effectiveUrl ?? ''), location);
     logger.info('loginWebvpnPortal portalService =', portalService);
 
     const resp = await this.client.get(jumpUrl, {
@@ -170,13 +191,13 @@ export class SchoolAuthService {
   }
 
   async loginWebvpnTarget(targetUrl: string, targetName: string, username?: string, password?: string): Promise<SchoolLoginResult> {
-    const tgtUrl = this.lastTgtUrl ?? ((username && password) ? await this.casClient.getTgt(username, password) : '');
-    if (!tgtUrl) {
-      throw new SchoolServiceResolutionError('No TGT available for target login');
-    }
-
     const targetService = await this.resolveWebvpnTargetService(targetUrl);
-    const st = await this.casClient.getSt(tgtUrl, targetService);
+    let st: string;
+    if (this.lastTgtUrl) {
+      st = await this.casClient.getSt(this.lastTgtUrl, targetService);
+    } else {
+      st = await this.getServiceTicketFromSsoSession(targetService);
+    }
     const jumpUrl = buildWebvpnJumpUrl(targetService, st);
     logger.info('loginWebvpnTarget targetName =', targetName, 'targetService =', targetService);
 
@@ -205,6 +226,20 @@ export class SchoolAuthService {
       targetName,
       effectiveUrl,
     };
+  }
+
+  private async getServiceTicketFromSsoSession(service: string): Promise<string> {
+    const casUrl = `https://sso.bit.edu.cn/cas/login?service=${encodeURIComponent(service)}`;
+    const response = await this.client.get(casUrl, {
+      autoRedirect: false,
+      collectTimeInfo: false,
+    });
+    const location = findHeader(response.headers as Record<string, Object>, 'location');
+    const ticketMatch = location.match(/[?&]ticket=([^&#]+)/i);
+    if (!ticketMatch || !ticketMatch[1]) {
+      throw new SchoolServiceResolutionError('The active SSO session did not issue a service ticket');
+    }
+    return decodeURIComponent(ticketMatch[1]);
   }
 
   async resolveInnerTargetService(targetUrl: string, maxRedirects: number = 10): Promise<string> {
