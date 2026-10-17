@@ -260,6 +260,10 @@
 
 **Commit:** `feat(auth): securely restore expired sessions`
 
+**Task 6 基础进展（2026-10-17）:** 新增 SecureCredentialStore（加密后才写入、串行 save/get/clear、字节缓冲清零）、HuksCredentialCipher（HUKS 内 AES-256-GCM 密钥、随机 12 字节 nonce、固定 AAD、版本化密文）及缓存目录平台存储适配器（不参与备份，缓存淘汰后需重新登录）。新增 LoginRefreshCoordinator 和单次重试辅助函数：SUCCESS/FAILED/INTERACTION_REQUIRED/BUSY，仅显式 invalid_credentials 清凭据。尚未接入登录页面、网络层、登出或健康检查，未启用自动恢复；HUKS 实际设备往返、密钥不可导出和篡改拒绝尚待验证，故本任务不新增完成勾选。早期 4 项新增状态机测试使全套 299 项成功；新增存储测试后首次报告为 300 项中 1 Error（本地系统 UTF-8 桩返回空数据），测试改为注入独立 codec 后，连续两次运行均遇到测试运行器 No port available，报告时效门禁拒绝旧报告，最终全量测试尚未通过。最终 release 签名构建成功。证据：entry/build/credential-debug.log、credential-release.log、credential-tests.log。
+
+**Task 6 基础复核（2026-10-17）:** 测试运行器端口问题本次未再复现，全套 300 项两次通过（Failure=0、Error=0、Ignore=0）。新增 CredentialCase，在 Huawei_Phone 模拟器执行实际 HUKS 加密/解密、重建适配器读取、随机 nonce、篡改拒绝和密钥导出拒绝断言全部通过。设备发现 isKeyItemExist 在密钥不存在时可能抛 12000011，已仅对该错误执行创建，其他错误继续上抛。平台工厂改为共享 store，确保多个调用者的 save/clear 共用串行队列。调试目标已恢复 NONE。设备证据：entry/build/credential-device-log.txt、credential-device-run.log；本地测试：credential-tests.log。凭据平台存储尚未在设备做完整文件写入/重启读取，登录/网络/登出仍未接入；不将整个安全存储或自动恢复标为完成。
+
 ### Task 7 [P1]: 实现原生消息中心和未读角标
 
 **Files:**

@@ -1,3 +1,4 @@
+import credentialTest from './Credential.test';
 import messageTest from './Message.test';
 import mapSettingsTest from './MapSettings.test';
 import webNavigationTest from './WebNavigation.test';
@@ -78,4 +79,5 @@ export default function testsuite() {
   themeSettingsTest();
   followListTest();
   messageTest();
+  credentialTest();
 }

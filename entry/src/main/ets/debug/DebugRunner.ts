@@ -1,3 +1,4 @@
+import { CredentialCase } from './CredentialCase';
 // entry/src/main/ets/debug/DebugRunner.ts
 import { BitSsoLexueCase } from './BitSsoLexueCase';
 import { BitSsoSessionCase } from './BitSsoSessionCase';
@@ -37,6 +38,7 @@ import {
 const logger = new DebugLog('DebugRunner');
 
 export enum DebugTarget {
+  CREDENTIAL = 'CREDENTIAL',
   NONE = 'NONE',
   ALL = 'ALL',
   BIT_SSO_LEXUE = 'BIT_SSO_LEXUE',
@@ -70,6 +72,7 @@ interface DebugCaseEntry {
 }
 
 const DEBUG_CASES: DebugCaseEntry[] = [
+  { target: DebugTarget.CREDENTIAL, create: () => new CredentialCase() },
   { target: DebugTarget.BIT_SSO_LEXUE, create: () => new BitSsoLexueCase() },
   { target: DebugTarget.BIT_SSO_SESSION, create: () => new BitSsoSessionCase() },
   { target: DebugTarget.EXAMPLE, create: () => new ExampleDebugCase() },
