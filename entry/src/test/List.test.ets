@@ -25,6 +25,8 @@ import userProfileTest from './UserProfile.test';
 import webSessionModelTest from './WebSessionModel.test';
 import smsChallengeCoordinatorTest from './SmsChallengeCoordinator.test';
 import schoolSmsProtocolTest from './SchoolSmsProtocol.test';
+import versionModelsTest from './VersionModels.test';
+import aboutSettingsTest from './AboutSettings.test';
 
 export default function testsuite() {
   localUnitTest();
@@ -54,4 +56,6 @@ export default function testsuite() {
   webSessionModelTest();
   smsChallengeCoordinatorTest();
   schoolSmsProtocolTest();
+  versionModelsTest();
+  aboutSettingsTest();
 }

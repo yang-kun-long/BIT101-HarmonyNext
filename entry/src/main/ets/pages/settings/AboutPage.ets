@@ -3,6 +3,8 @@ import bundleManager from '@ohos.bundle.bundleManager';
 import { util } from '@kit.ArkTS';
 import { uiBack, uiShowToast } from '../../utils/uiContextBridge';
 import { Logger } from '../../utils/Logger';
+import { UpdateChecker } from '../../components/settings/UpdateChecker';
+import { createAboutSettingsStore } from '../../services/storage/AboutSettingsStore';
 
 const PROJECT_NAME: string = 'BIT101-HarmonyNext';
 const PROJECT_URL: string = 'https://github.com/yang-kun-long/BIT101-HarmonyNext';
@@ -20,6 +22,9 @@ struct AboutPage {
   @State versionName: string = "";
   @State autoDetectUpgrade: boolean = true;
   @State isDetectingUpgrade: boolean = false;
+  @State updateRequestId: number = 0;
+  @State isSavingSettings: boolean = false;
+  @State settingsReady: boolean = false;
   @State licensesText: string = "正在加载开源声明...";
 
   // --- 弹窗控制器 ---
@@ -41,11 +46,16 @@ struct AboutPage {
   aboutToAppear() {
     this.getAppVersion();
     this.loadLicenses();
-    this.checkUpdate(true); // 模拟启动自动检查
+    this.loadUpdateSettings();
   }
 
   build() {
     Column() {
+      UpdateChecker({
+        automatic: false,
+        requestId: this.updateRequestId,
+        onChecking: (checking: boolean) => { this.isDetectingUpgrade = checking; },
+      })
       // 1. 顶部导航栏
       Row() {
         Image($r('app.media.ic_chevron_left'))
@@ -94,7 +104,7 @@ struct AboutPage {
                   subTitle: "点击检查更新",
                   valueText: this.versionName,
                   enable: !this.isDetectingUpgrade,
-                  onItemClick: () => { this.checkUpdate(false) }
+                  onItemClick: () => { this.updateRequestId++; }
                 })
 
                 Divider().color($r('sys.color.ohos_id_color_list_separator')).margin({ left: 16 })
@@ -103,8 +113,9 @@ struct AboutPage {
                   title: "自动检查更新",
                   subTitle: "在启动时自动检查更新",
                   checked: this.autoDetectUpgrade,
-                  onChange: (isOn) => { this.autoDetectUpgrade = isOn }
+                  onChange: (isOn) => { this.saveAutoUpdate(isOn); }
                 })
+                .enabled(this.settingsReady && !this.isSavingSettings)
               }
             }
           }
@@ -220,19 +231,32 @@ struct AboutPage {
     }
   }
 
-  // 3. 检查更新
-  checkUpdate(isAuto: boolean) {
-    if (this.isDetectingUpgrade) return;
+  private async loadUpdateSettings(): Promise<void> {
+    try {
+      const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
+      const settings = await createAboutSettingsStore(context).load();
+      this.autoDetectUpgrade = settings.autoDetectUpgrade;
+      this.settingsReady = true;
+    } catch (_) {
+      this.logger.warn('Failed to load update settings');
+      uiShowToast(this.getUIContext(), { message: '读取更新设置失败，请重新进入此页' });
+    }
+  }
 
-    if (!isAuto) {
-      this.isDetectingUpgrade = true;
-      uiShowToast(this.getUIContext(), { message: "正在检查更新..." });
-
-      // 模拟请求延迟
-      setTimeout(() => {
-        this.isDetectingUpgrade = false;
-        uiShowToast(this.getUIContext(), { message: "当前已是最新版本" });
-      }, 1500);
+  private async saveAutoUpdate(enabled: boolean): Promise<void> {
+    if (!this.settingsReady || this.isSavingSettings) return;
+    this.isSavingSettings = true;
+    try {
+      const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
+      const store = createAboutSettingsStore(context);
+      const settings = await store.load();
+      settings.autoDetectUpgrade = enabled;
+      await store.save(settings);
+      this.autoDetectUpgrade = enabled;
+    } catch (_) {
+      uiShowToast(this.getUIContext(), { message: '保存更新设置失败，请重试' });
+    } finally {
+      this.isSavingSettings = false;
     }
   }
 

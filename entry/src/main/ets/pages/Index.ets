@@ -12,6 +12,7 @@ import ForumPage from './ForumPage';
 import PostPage from './PostPage';
 import MePage from './MePage';
 import { SmsChallengeDialogHost } from '../components/auth/SmsVerificationDialog';
+import { UpdateChecker } from '../components/settings/UpdateChecker';
 
 // 1. 保持你原有的数字枚举，这是页面切换的核心
 enum TabKey {
@@ -167,6 +168,7 @@ struct Index {
   build() {
     Column() {
       SmsChallengeDialogHost()
+      UpdateChecker()
 
       // 内容区 (Stack + Visibility)
       Stack() {
