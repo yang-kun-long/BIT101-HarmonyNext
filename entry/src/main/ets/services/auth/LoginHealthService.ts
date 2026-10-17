@@ -8,6 +8,7 @@ import { LexueCookieStore } from '../storage/LexueCookieStore';
 import { SchoolCookieStore } from '../storage/SchoolCookieStore';
 import { TokenStore } from '../storage/tokenStore';
 import { classifyAuthFailure } from './AuthFailure';
+import { clearWebLoginData } from './WebLogout';
 
 const WEBVPN_LEXUE_BASE =
   'https://webvpn.bit.edu.cn/https/77726476706e69737468656265737421fcf25989227e6a596a468ca88d1b203b';
@@ -181,6 +182,7 @@ export class LoginHealthService {
     await new LexueCookieStore('webvpn').clearCookieDump();
     await new SchoolCookieStore('inner').clearCookieDump();
     await new SchoolCookieStore('webvpn').clearCookieDump();
+    await clearWebLoginData();
   }
 
   private async clearExplicitlyInvalidDomains(summary: LoginHealthSummary): Promise<void> {

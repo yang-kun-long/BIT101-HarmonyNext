@@ -1,3 +1,4 @@
+import webLogoutTest from './WebLogout.test';
 import credentialTest from './Credential.test';
 import messageTest from './Message.test';
 import mapSettingsTest from './MapSettings.test';
@@ -80,4 +81,5 @@ export default function testsuite() {
   followListTest();
   messageTest();
   credentialTest();
+  webLogoutTest();
 }

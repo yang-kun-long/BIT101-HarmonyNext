@@ -1,5 +1,6 @@
 import { canOpenExternalWebUrl, isHttpWebUrl, shouldShowWebError, WebNavigationState, WebScrollPosition } from './WebNavigationModel';
 import { uiShowToast } from '../../utils/uiContextBridge';
+import { observeWebLogout, webSessionRevision } from '../../services/auth/WebLogout';
 import web_webview from '@ohos.web.webview';
 import common from '@ohos.app.ability.common';
 import Want from '@ohos.app.ability.Want';
@@ -44,8 +45,25 @@ export struct WebPage {
   private readonly context: common.UIAbilityContext =
     this.getUIContext().getHostContext() as common.UIAbilityContext;
   private hasReloadedForSession: boolean = false;
+  private stopLogout: () => void = () => {};
+  private sessionRevision: number = webSessionRevision();
 
   aboutToAppear(): void {
+    this.stopLogout = observeWebLogout(async () => {
+      this.loadGeneration++;
+      this.sessionRevision = webSessionRevision();
+      this.navigation.clear();
+      this.restoreScroll = null; this.restoreUrl = '';
+      this.hasReloadedForSession = false;
+      if (this.attached) this.controller.stop();
+      this.sessionReady = false;
+      this.errorMessage = '已退出登录，点击重试以重新打开网页';
+      this.isLoading = false;
+    });
+    if (this.sessionRevision !== webSessionRevision()) {
+      this.navigation.clear();
+      this.sessionRevision = webSessionRevision();
+    }
     this.alive = true;
     this.initialUrl = this.navigation.url || this.url;
     if (!isHttpWebUrl(this.initialUrl) || !isAllowedInWebView(this.initialUrl, this.url, this.allowInitialOrigin)) {
@@ -59,8 +77,9 @@ export struct WebPage {
   }
 
   aboutToDisappear(): void {
+    this.stopLogout();
     this.alive = false; this.loadGeneration++;
-    if (!this.attached) return;
+    if (!this.attached || this.sessionRevision !== webSessionRevision() || !this.sessionReady) return;
     try {
       this.navigation.recordUrl(this.controller.getUrl());
       this.navigation.recordHistory(this.controller.serializeWebState());
@@ -203,12 +222,13 @@ export struct WebPage {
   }
 
   private async prepareSession(): Promise<void> {
+    const revision = webSessionRevision();
     if (!isHttpWebUrl(this.initialUrl) || !isAllowedInWebView(this.initialUrl, this.url, this.allowInitialOrigin)) {
       this.isLoading = false; this.errorMessage = '链接无效'; return;
     }
     try {
       const session = await this.sessionModel.load();
-      if (!this.alive) return;
+      if (!this.alive || revision !== webSessionRevision()) return;
       this.sessionState = session;
     } catch (error) {
       this.logger.error('Load Web session failed', error);
@@ -218,7 +238,7 @@ export struct WebPage {
         credentialState: 'unavailable',
       };
     } finally {
-      if (this.alive) this.sessionReady = true;
+      if (this.alive && revision === webSessionRevision()) this.sessionReady = true;
     }
   }
 
