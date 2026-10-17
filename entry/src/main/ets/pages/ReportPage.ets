@@ -166,7 +166,7 @@ struct ReportPage {
       Row() {
         Text('< 返回')
           .fontSize(14)
-          .fontColor('#2563EB')
+          .fontColor($r('sys.color.ohos_id_color_text_primary_activated'))
           .onClick(() => {
             try {
               uiBack(this.getUIContext());
@@ -178,7 +178,7 @@ struct ReportPage {
         Text(this.getTitle())
           .fontSize(18)
           .fontWeight(FontWeight.Bold)
-          .fontColor('#111827')
+          .fontColor($r('sys.color.ohos_id_color_text_primary'))
           .margin({ left: 12 })
           .layoutWeight(1);
 
@@ -189,15 +189,15 @@ struct ReportPage {
       .height(52)
       .padding({ left: 16, right: 16 })
       .alignItems(VerticalAlign.Center)
-      .backgroundColor(Color.White)
-      .border({ width: { bottom: 0.5 }, color: '#E5E7EB' });
+      .backgroundColor($r('sys.color.ohos_id_color_background'))
+      .border({ width: { bottom: 0.5 }, color: $r('sys.color.ohos_id_color_list_separator') });
 
       // 内容区域
       if (this.loadingTypes) {
         Column() {
           Text('正在加载举报类型...')
             .fontSize(14)
-            .fontColor('#6B7280');
+            .fontColor($r('sys.color.ohos_id_color_text_secondary'));
         }
         .width('100%')
         .layoutWeight(1)
@@ -207,11 +207,11 @@ struct ReportPage {
         Column() {
           Text('举报类型加载失败')
             .fontSize(14)
-            .fontColor('#EF4444')
+            .fontColor($r('sys.color.ohos_id_color_warning'))
             .margin({ bottom: 8 });
           Text('点击重试')
             .fontSize(14)
-            .fontColor('#2563EB')
+            .fontColor($r('sys.color.ohos_id_color_text_primary_activated'))
             .onClick(() => {
               this.loadReportTypes();
             });
@@ -228,16 +228,16 @@ struct ReportPage {
             Text('举报类型')
               .fontSize(15)
               .fontWeight(FontWeight.Medium)
-              .fontColor('#111827')
+              .fontColor($r('sys.color.ohos_id_color_text_primary'))
               .margin({ bottom: 6 });
 
             // 当前选中的类型 + 列表
             Column() {
               Text(this.getSelectedTypeText())
                 .fontSize(14)
-                .fontColor('#111827')
+                .fontColor($r('sys.color.ohos_id_color_text_primary'))
                 .padding({ left: 12, right: 12, top: 10, bottom: 10 })
-                .backgroundColor('#F3F4F6')
+                .backgroundColor($r('sys.color.ohos_id_color_sub_background'))
                 .borderRadius(8)
                 .width('100%');
 
@@ -247,14 +247,15 @@ struct ReportPage {
                   ForEach(this.reportTypes, (item: ReportType, index: number) => {
                     Row() {
                       // 选中圆点
-                      Circle()
+                      Row()
                         .width(12)
                         .height(12)
-                        .fill(this.selectedTypeIndex === index ? '#2563EB' : '#E5E7EB');
+                        .borderRadius(6)
+                        .backgroundColor(this.selectedTypeIndex === index ? $r('sys.color.ohos_id_color_text_primary_activated') : $r('sys.color.ohos_id_color_list_separator'));
 
                       Text(item.text)
                         .fontSize(14)
-                        .fontColor('#111827')
+                        .fontColor($r('sys.color.ohos_id_color_text_primary'))
                         .margin({ left: 8 });
                     }
                     .padding({ top: 8, bottom: 8 })
@@ -273,7 +274,7 @@ struct ReportPage {
             Text('内容')
               .fontSize(15)
               .fontWeight(FontWeight.Medium)
-              .fontColor('#111827')
+              .fontColor($r('sys.color.ohos_id_color_text_primary'))
               .margin({ bottom: 6 });
 
             TextArea({
@@ -285,7 +286,7 @@ struct ReportPage {
               .height(160)
               .width('100%')
               .borderRadius(8)
-              .backgroundColor('#F9FAFB')
+              .backgroundColor($r('sys.color.ohos_id_color_sub_background'))
               .padding(12)
               .onChange((val: string) => {
                 this.text = val;
@@ -326,11 +327,11 @@ struct ReportPage {
       .width('100%')
       .height(60)
       .padding({ left: 16, right: 16, bottom: 12 })
-      .backgroundColor(Color.White)
-      .border({ width: { top: 0.5 }, color: '#E5E7EB' });
+      .backgroundColor($r('sys.color.ohos_id_color_background'))
+      .border({ width: { top: 0.5 }, color: $r('sys.color.ohos_id_color_list_separator') });
     }
     .width('100%')
     .height('100%')
-    .backgroundColor(Color.White);
+    .backgroundColor($r('sys.color.ohos_id_color_background'));
   }
 }

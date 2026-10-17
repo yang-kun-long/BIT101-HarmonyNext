@@ -45,7 +45,7 @@ struct TagInputDialog {
       TextInput({ placeholder: '输入标签 (空格可分隔多个)', text: this.textValue })
         .height(48)
         .margin({ left: 16, right: 16, bottom: 8 })
-        .backgroundColor('#F5F5F5')
+        .backgroundColor($r('sys.color.ohos_id_color_sub_background'))
         .borderRadius(8)
         .onChange((value: string) => {
           this.textValue = value;
@@ -55,7 +55,7 @@ struct TagInputDialog {
 
       Text(`${this.textValue.length}/11`)
         .fontSize(12)
-        .fontColor(this.textValue.length > 11 ? Color.Red : Color.Gray)
+        .fontColor(this.textValue.length > 11 ? $r('sys.color.ohos_id_color_warning') : $r('sys.color.ohos_id_color_text_secondary'))
         .alignSelf(ItemAlign.End)
         .margin({ right: 16, bottom: 20 })
 
@@ -67,7 +67,7 @@ struct TagInputDialog {
               this.controller.close();
             })
             .backgroundColor(Color.Transparent)
-            .fontColor(Color.Red)
+            .fontColor($r('sys.color.ohos_id_color_warning'))
             .layoutWeight(1)
         } else {
           Button('取消')
@@ -86,7 +86,7 @@ struct TagInputDialog {
       .width('100%')
       .padding({ bottom: 16 })
     }
-    .backgroundColor(Color.White)
+    .backgroundColor($r('sys.color.ohos_id_color_background'))
     .borderRadius(24)
     .width('80%')
   }
@@ -151,7 +151,7 @@ struct SelectClaimDialog {
               // 文本
               Text(item.text)
                 .fontSize(16)
-                .fontColor('#1d1b20')
+                .fontColor($r('sys.color.ohos_id_color_text_primary'))
                 .layoutWeight(1)
                 .padding({ left: 16 })
                 .maxLines(1)
@@ -196,7 +196,7 @@ struct SelectClaimDialog {
       .padding({ top: 16, bottom: 16, left: 16, right: 16 })
       .width('100%')
     }
-    .backgroundColor(Color.White)
+    .backgroundColor($r('sys.color.ohos_id_color_background'))
     .borderRadius(28) // Android Material 3 默认圆角较大
     .width('90%') // 稍微宽一点
   }
@@ -389,7 +389,7 @@ struct PostEditorPage {
       },
       secondaryButton: {
         value: '删除',
-        fontColor: Color.Red,
+        fontColor: $r('sys.color.ohos_id_color_warning'),
         action: () => {
           this.localImages.splice(index, 1);
         }
@@ -496,8 +496,10 @@ struct PostEditorPage {
           TextInput({ placeholder: '在这里输入标题', text: this.title })
             .fontSize(22)
             .fontWeight(FontWeight.Bold)
-            .placeholderColor('#99000000')
+            .placeholderColor($r('sys.color.ohos_id_color_text_secondary'))
             .backgroundColor(Color.Transparent)
+            .fontColor($r('sys.color.ohos_id_color_text_primary'))
+            .placeholderColor($r('sys.color.ohos_id_color_text_secondary'))
             .padding({ left: 12, right: 12, top: 16, bottom: 8 })
             .width('100%')
             .onChange((val) => this.title = val)
@@ -506,7 +508,7 @@ struct PostEditorPage {
             Text(`创作者声明：${this.selectedClaim.text}`)
               .fontSize(14)
               .fontWeight(FontWeight.Bold)
-              .fontColor(Color.Red)
+              .fontColor($r('sys.color.ohos_id_color_warning'))
               .padding({ left: 16, right: 16, bottom: 8 })
               .width('100%')
           }
@@ -514,6 +516,8 @@ struct PostEditorPage {
           TextArea({ placeholder: '在这里输入内容', text: this.text })
             .fontSize(16)
             .backgroundColor(Color.Transparent)
+            .fontColor($r('sys.color.ohos_id_color_text_primary'))
+            .placeholderColor($r('sys.color.ohos_id_color_text_secondary'))
             .padding({ left: 12, right: 12 })
             .width('100%')
             .constraintSize({ minHeight: 300 })
@@ -525,7 +529,7 @@ struct PostEditorPage {
       .align(Alignment.TopStart)
 
       Column() {
-        Divider().color('#1A000000')
+        Divider().color($r('sys.color.ohos_id_color_list_separator'))
 
         // 图片预览区域
         if (this.localImages.length > 0) {
@@ -541,7 +545,7 @@ struct PostEditorPage {
                   // 修复点：使用本地资源 ic_cancel_red.svg
                   Image($r('app.media.ic_cancel_red'))
                     .width(20).height(20)
-                    .fillColor(Color.Red)
+                    .fillColor($r('sys.color.ohos_id_color_warning'))
                     .offset({ x: 5, y: -5 })
                     .onClick((): void => this.deleteImage(index))
                 }
@@ -562,8 +566,8 @@ struct PostEditorPage {
               ListItem() {
                 Text(`#${tag}`)
                   .fontSize(14)
-                  .fontColor('#1d1b20')
-                  .backgroundColor('#e7e0ec')
+                  .fontColor($r('sys.color.ohos_id_color_text_primary'))
+                  .backgroundColor($r('sys.color.ohos_id_color_button_normal'))
                   .padding({ left: 12, right: 12, top: 6, bottom: 6 })
                   .borderRadius(16)
                   .onClick((): void => this.openTagDialog(index))
@@ -573,8 +577,8 @@ struct PostEditorPage {
               ListItem() {
                 Text('#添加一个标签吧')
                   .fontSize(14)
-                  .fontColor('#99000000')
-                  .backgroundColor('#f0f0f0')
+                  .fontColor($r('sys.color.ohos_id_color_text_secondary'))
+                  .backgroundColor($r('sys.color.ohos_id_color_sub_background'))
                   .padding({ left: 12, right: 12, top: 6, bottom: 6 })
                   .borderRadius(16)
               }

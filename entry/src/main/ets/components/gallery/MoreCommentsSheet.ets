@@ -200,7 +200,7 @@ export struct MoreCommentsSheet {
 
       if (c.own) {
         MenuItem({ content: '删除' })
-          .contentFontColor('#EF4444') // 修复 fontColor 参数报错
+          .contentFontColor($r('sys.color.ohos_id_color_warning')) // 修复 fontColor 参数报错
           .onClick(() => this.deleteComment(c))
       }
 
@@ -237,7 +237,7 @@ export struct MoreCommentsSheet {
             Row() {
               Image(c.like ? $r('app.media.ic_public_heart_filled') : $r('app.media.ic_public_heart_outline'))
                 .width(14).height(14)
-                .fillColor(c.like ? '#EF4444' : $r('sys.color.ohos_id_color_text_tertiary'))
+                .fillColor(c.like ? $r('sys.color.ohos_id_color_warning') : $r('sys.color.ohos_id_color_text_tertiary'))
                 .animation({ duration: 300, curve: curves.springCurve(10, 1, 228, 30) })
 
               Text(this.formatNumber(c.likeNum))

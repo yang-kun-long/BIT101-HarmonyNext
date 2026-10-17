@@ -427,6 +427,8 @@
 
 **深色适配进展（2026-10-17）:** 帖子详情正文、主评论/子评论、引用回复、顶栏/底栏、加载/空态、排序和更多操作弹层改用系统主题资源；昵称和可点击正文组件默认颜色同步适配。保留图片预览黑底和遮罩。最终 release 签名构建通过，在 Huawei_Phone（127.0.0.1:5555）覆盖安装启动成功，未发现应用崩溃日志；debug 签名构建在补齐引用回复背景前通过。证据见 entry/build/detail-theme-debug.log、detail-theme-release.log、detail-theme-run.log 和 detail-theme-crash.log。本轮为颜色资源适配，没有新增单元测试；真实帖子及各弹层深浅色视觉交互尚待验收，Task 11 全量适配项仍保留未完成。
 
+**编辑/举报主题进展（2026-10-17）:** 发帖/编辑的标签、输入提示、创作者声明及标签弹窗，举报的正文、加载/错误、类型选择、输入区和页头/页尾，以及更多评论的警示颜色改用系统语义资源。举报类型选中圆点改为圆角 Row 背景，移除 API 26 Shape.fill 兼容警告。debug 签名构建在最后一轮输入/警示颜色调整前通过，最终 release 签名构建通过，Huawei_Phone 模拟器覆盖安装启动成功，未发现应用崩溃日志。证据见 entry/build/editor-theme-debug.log、editor-theme-release.log、editor-theme-run.log、editor-theme-crash.log。仅颜色与选中指示器适配，没有新增单元测试；发帖/举报真实后端行为和深浅色交互仍待验收，Task 11 全量适配继续保留。
+
 **Acceptance:** 将“图”设为主页后冷启动进入地图；主题和旋转设置重启后保留并真正改变窗口行为；现有页面配置可迁移不丢失。
 
 **Commit:** `fix(settings): apply page and theme preferences`
