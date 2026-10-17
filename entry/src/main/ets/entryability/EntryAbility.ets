@@ -1,4 +1,6 @@
 import { initializeGallerySettings } from '../services/storage/GallerySettingsStore';
+import { initializeCredentialStore } from '../services/storage/CredentialStorePlatform';
+import { initializeAutomaticLogin } from '../services/auth/AutomaticLogin';
 import { AbilityConstant, ConfigurationConstant, UIAbility, Want } from '@kit.AbilityKit';
 import { window } from '@kit.ArkUI';
 import { Logger } from '../utils/Logger';
@@ -49,6 +51,8 @@ export default class EntryAbility extends UIAbility {
     AppStorage.setOrCreate('tempDir',  this.context.tempDir);
 
     initTokenStore(this.context);
+    initializeCredentialStore(this.context);
+    initializeAutomaticLogin(this.context);
     initLexueCookieStore(this.context);
     initSchoolCookieStore(this.context);
     initLexueCalendarStore(this.context);

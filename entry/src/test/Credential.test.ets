@@ -4,6 +4,7 @@ import { CredentialStore, SavedCredentials, RefreshLogin, LoginRefreshCoordinato
 import { HuksCredentialCipher } from '../main/ets/services/storage/HuksCredentialCipher';
 import { CredentialBackend, CredentialCipher, CredentialCodec, SecureCredentialStore } from '../main/ets/services/storage/SecureCredentialStore';
 import { util } from '@kit.ArkTS';
+import { applyLoginCredentialChoice } from '../main/ets/services/auth/LoginCredentialPolicy';
 class Backend implements CredentialBackend {
   value: string = '';
   async read(): Promise<string> { return this.value; }
@@ -31,6 +32,13 @@ class Login implements RefreshLogin {
 }
 export default function credentialTest() {
   describe('Credential refresh', () => {
+    it('clears the previous identity before opt-in and clears on opt-out', 0, async () => {
+      const backend = new Backend(); const store = new SecureCredentialStore(backend, new Cipher(), new Codec());
+      await applyLoginCredentialChoice(store, true, { username: 'next-user', password: 'fixture' });
+      expect((await store.get())?.username).assertEqual('next-user');
+      await applyLoginCredentialChoice(store, false, { username: 'next-user', password: 'fixture' });
+      expect(await store.get()).assertNull();
+    });
     it('writes only ciphertext and serializes clear after save', 0, async () => {
       const backend = new Backend(); const store = new SecureCredentialStore(backend, new Cipher(), new Codec());
       await store.save({ username: 'fixture', password: 'test-secret' });

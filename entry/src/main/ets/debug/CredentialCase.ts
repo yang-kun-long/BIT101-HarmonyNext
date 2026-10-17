@@ -2,6 +2,9 @@ import { DebugCase } from './DebugCase';
 import { HuksCredentialCipher } from '../services/storage/HuksCredentialCipher';
 import { util } from '@kit.ArkTS';
 import { huks } from '@kit.UniversalKeystoreKit';
+import { createSecureCredentialStore } from '../services/storage/CredentialStorePlatform';
+import { common } from '@kit.AbilityKit';
+import { fileIo } from '@kit.CoreFileKit';
 
 export class CredentialCase extends DebugCase {
   readonly name = 'HUKS credential integration';
@@ -24,6 +27,19 @@ export class CredentialCase extends DebugCase {
     let exportRejected = false;
     try { await huks.exportKeyItem('bit101.credentials.aesgcm.v1', { properties: [] }); } catch (_) { exportRejected = true; }
     this.assertTrue(exportRejected, 'Symmetric key cannot be exported');
+    const context = getContext() as common.UIAbilityContext;
+    const store = createSecureCredentialStore(context);
+    // Never replace a real user's saved secret when running this case.
+    if (!(await store.get())) {
+      try {
+        await store.save({ username: 'integration-fixture', password: 'fixture-only' });
+        const disk = fileIo.readTextSync(context.cacheDir + '/secure-credentials-v1.json');
+        this.assertTrue(!disk.includes('fixture'), 'Disk contains only encrypted envelope');
+        const saved = await store.get();
+        this.assertTrue(saved?.username === 'integration-fixture' && saved?.password === 'fixture-only', 'File-backed credential roundtrip');
+      } finally { await store.clear(); }
+      this.assertTrue((await store.get()) === null, 'Credential file cleared');
+    }
     plaintext.fill(0); restored.fill(0);
     this.logInfo('HUKS roundtrip, random nonce and tamper rejection PASS');
   }

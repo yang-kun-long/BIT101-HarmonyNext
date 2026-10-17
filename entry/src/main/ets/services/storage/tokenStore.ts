@@ -3,6 +3,8 @@
 // 依赖：@ohos.data.preferences
 
 import preferences from '@ohos.data.preferences';
+import { clearSavedCredentials } from './CredentialStorePlatform';
+import { drainAuthenticationRefresh } from '../../core/network/AuthRetryHook';
 import { guardAsyncStorage } from './storageGuard';
 
 const PREF_FILE = 'bit101_prefs';
@@ -223,6 +225,8 @@ export class TokenStore {
    * 清空所有会话信息（登出）
    */
   async clear() {
+    await drainAuthenticationRefresh();
+    await clearSavedCredentials();
     const pref = await this.getPref();
     await guardAsyncStorage('TokenStore.clear', async () => {
       await pref.delete(KEY_TOKEN);

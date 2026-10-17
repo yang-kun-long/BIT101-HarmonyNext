@@ -32,6 +32,10 @@ class LocalCredentialBackend implements CredentialBackend {
   }
 }
 let sharedStore: SecureCredentialStore | null = null;
+export function initializeCredentialStore(context: common.Context): void { createSecureCredentialStore(context); }
+export async function clearSavedCredentials(): Promise<void> {
+  if (sharedStore) await sharedStore.clear();
+}
 export function createSecureCredentialStore(context: common.Context): SecureCredentialStore {
   if (!sharedStore) sharedStore = new SecureCredentialStore(new LocalCredentialBackend(context), new HuksCredentialCipher(), new Utf8CredentialCodec());
   return sharedStore;

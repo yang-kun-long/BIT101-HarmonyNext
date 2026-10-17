@@ -1,4 +1,5 @@
 import { unreadStore } from '../services/message/UnreadStore';
+import { LoginHealthService } from '../services/auth/LoginHealthService';
 import { badgeText } from '../services/message/MessageModels';
 import { Logger } from '../utils/Logger';
 // entry/src/main/ets/pages/MePage.ets
@@ -146,7 +147,7 @@ export default struct MePage {
 
   private async logout() {
     unreadStore.reset();
-    await this.tokenStore.clear();
+    await new LoginHealthService().clearLoginState();
     this.authed = false;
     this.userInfo = null;
     this.uiUser = null;

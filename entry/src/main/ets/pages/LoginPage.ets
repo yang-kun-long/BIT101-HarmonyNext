@@ -4,6 +4,10 @@ import { uiGetParams, uiReplaceUrl } from '../utils/uiContextBridge';
 import { LoginCoordinator } from '../services/auth/LoginCoordinator';
 import { AuthFailureKind, classifyAuthFailure } from '../services/auth/AuthFailure';
 import { SmsChallengeDialogHost } from '../components/auth/SmsVerificationDialog';
+import { createSecureCredentialStore } from '../services/storage/CredentialStorePlatform';
+import { applyLoginCredentialChoice } from '../services/auth/LoginCredentialPolicy';
+import { drainAuthenticationRefresh } from '../core/network/AuthRetryHook';
+import { common } from '@kit.AbilityKit';
 
 interface RedirectParams {
   redirect?: string
@@ -19,6 +23,7 @@ struct LoginPage {
   @State webvpnImageCaptcha: string = '' // WebVPN 图形验证码（允许留空）
   @State busy: boolean = false   // 加载态
   @State msg: string = ''        // 成功/失败提示
+  @State saveCredentials: boolean = false;
 
   private loginCoordinator = new LoginCoordinator()
 
@@ -28,6 +33,7 @@ struct LoginPage {
     this.msg = ''
 
     try {
+      await drainAuthenticationRefresh();
       const result = await this.loginCoordinator.login({
         sid: this.sid.trim(),
         password: this.password,
@@ -35,6 +41,15 @@ struct LoginPage {
       });
 
       if (result.ok) {
+        try {
+          await applyLoginCredentialChoice(createSecureCredentialStore(this.getUIContext().getHostContext() as common.Context),
+            this.saveCredentials, { username: this.sid.trim(), password: this.password });
+        } catch (_) {
+          this.msg = '登录成功，但安全凭据保存或清除失败，请重试';
+          this.password = '';
+          return;
+        }
+        this.password = '';
         this.msg = '登录成功';
         AppStorage.setOrCreate('current_username', this.sid)
 
@@ -108,6 +123,13 @@ struct LoginPage {
       TextInput({ placeholder: 'WebVPN 图形验证码（若需要，可留空）', text: this.webvpnImageCaptcha })
         .onChange(v => this.webvpnImageCaptcha = v)
 
+      Row({ space: 8 }) {
+        Toggle({ type: ToggleType.Switch, isOn: this.saveCredentials })
+          .enabled(!this.busy).onChange((value: boolean) => { this.saveCredentials = value; })
+        Text('安全保存凭据用于会话恢复（默认关闭）').fontSize(13).layoutWeight(1)
+      }
+      Text('凭据仅加密保存在本机，清理缓存后需重新登录；短信验证需要手动登录。')
+        .fontSize(12).fontColor($r('sys.color.ohos_id_color_text_secondary'))
       Row({ space: 8 }) {
         Button(this.busy ? '处理中…' : '登录')
           .type(ButtonType.Capsule)

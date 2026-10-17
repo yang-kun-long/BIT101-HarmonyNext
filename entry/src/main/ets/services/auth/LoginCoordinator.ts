@@ -199,13 +199,13 @@ export class LoginCoordinator {
   private readonly logger: Logger = new Logger('LoginCoordinator');
   private inFlight: Promise<LoginCoordinatorResult> | null = null;
 
-  constructor(deps?: LoginCoordinatorDeps) {
+  constructor(deps?: LoginCoordinatorDeps, allowInteractive: boolean = true) {
     this.deps = deps ?? new DefaultLoginCoordinatorDeps(
       new AuthRepository(),
       new TokenStore(),
       false,
       globalSmsChallengeCoordinator.createHandler({
-        allowInteractive: true,
+        allowInteractive,
         timeoutMs: 120000,
       }),
     );

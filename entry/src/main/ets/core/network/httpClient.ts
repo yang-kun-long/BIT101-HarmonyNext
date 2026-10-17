@@ -1,6 +1,7 @@
 // entry/src/main/ets/core/network/httpClient.ts
 import http from '@ohos.net.http';
 import { guardAsyncStorage } from '../../services/storage/storageGuard';
+import { refreshRejectedCookie } from './AuthRetryHook';
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
 
@@ -44,6 +45,19 @@ export class HttpClient {
   }
 
   async request<T = unknown>(req: HttpRequest): Promise<HttpResponse<T>> {
+    try { return await this.requestOnce<T>(req); }
+    catch (error) {
+      const url = this.buildUrl(req.url);
+      if (!(error instanceof ApiError) || error.status !== 401 ||
+        !url.startsWith('https://bit101.flwfdd.xyz/') || !req.headers?.['fake-cookie']) throw error;
+      const cookie = await refreshRejectedCookie();
+      if (!cookie) throw error;
+      const retry: HttpRequest = { ...req, headers: { ...req.headers, 'fake-cookie': cookie } };
+      return await this.requestOnce<T>(retry);
+    }
+  }
+
+  private async requestOnce<T>(req: HttpRequest): Promise<HttpResponse<T>> {
     const url = this.buildUrl(req.url);
     const method = (req.method || 'GET') as http.RequestMethod;
 

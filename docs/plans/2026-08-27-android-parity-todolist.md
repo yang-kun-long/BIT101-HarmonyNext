@@ -264,6 +264,8 @@
 
 **Task 6 基础复核（2026-10-17）:** 测试运行器端口问题本次未再复现，全套 300 项两次通过（Failure=0、Error=0、Ignore=0）。新增 CredentialCase，在 Huawei_Phone 模拟器执行实际 HUKS 加密/解密、重建适配器读取、随机 nonce、篡改拒绝和密钥导出拒绝断言全部通过。设备发现 isKeyItemExist 在密钥不存在时可能抛 12000011，已仅对该错误执行创建，其他错误继续上抛。平台工厂改为共享 store，确保多个调用者的 save/clear 共用串行队列。调试目标已恢复 NONE。设备证据：entry/build/credential-device-log.txt、credential-device-run.log；本地测试：credential-tests.log。凭据平台存储尚未在设备做完整文件写入/重启读取，登录/网络/登出仍未接入；不将整个安全存储或自动恢复标为完成。
 
+**Task 6 登录接入进展（2026-10-17）:** 登录页新增默认关闭的安全保存开关，成功登录后先清旧账号凭据，再按选择保存；失败明确提示。初始化共享凭据仓库及非交互后台 LoginCoordinator。HttpClient 仅对 HTTPS bit101.flwfdd.xyz、带 fake-cookie 的明确 401 响应触发恢复，成功后换新 cookie 只重试一次；短信/验证码要求手动登录，BUSY 不清状态。手动登录和 TokenStore.clear 等待正在进行的刷新结束，避免刷新晚到覆盖退出；TokenStore.clear 同时删除安全凭据，“我”页登出改用统一学校/Lexue 会话清理。新增保存选择测试，全套 301 项通过；debug 签名构建通过。CredentialCase 在模拟器实际验证密文文件写入、解密读取、无明文字段及 clear，通过后恢复 NONE；日志 entry/build/credential-file-log.txt。最终 release 构建及安装日志为 credential-login-release.log / credential-login-run.log。仍待 WebView 全量登出清理、真实账号过期恢复/短信验收、跨进程文件恢复与 Release 测试凭据构建隔离；学校 RCP 网络路径未统一接入自动刷新，Task 6 继续保留未完成。
+
 ### Task 7 [P1]: 实现原生消息中心和未读角标
 
 **Files:**
