@@ -488,12 +488,14 @@
 **Todo:**
 
 - [ ] 每个 repository 先用 fixture 覆盖字段映射、分页、空响应和非 2xx，再接 UI。
-- [ ] 运行本地测试：`& 'D:\Software\Huawei\DevEco Studio\tools\hvigor\bin\hvigorw.bat' test --no-daemon`。
+- [x] 运行本地测试：`& 'D:\Software\Huawei\DevEco Studio\tools\hvigor\bin\hvigorw.bat' test --no-daemon`。
 - [ ] 运行构建：`devecocli build`；P0 合并前再运行 `devecocli build --build-mode release`。
 - [ ] 优先用 `devecocli run --module entry --device <emulator-serial>` 做登录替身、Web、资料修改、消息、关注、话廊设置、更新和日志分享模拟器冒烟；真实账号、校园网络和系统联动统一真机后置。
 - [ ] 优先用模拟器日志检查异常；真机后置时再用 `devecocli log --device <serial> --bundle-name <official-bundle-name> --level E --from 10m --tail 300` 做最终回归。
-- [ ] 每个 DebugCase 结束后恢复 `CURRENT_DEBUG_TARGET = NONE`；在测试中把该要求变成硬门禁。
+- [x] 每个 DebugCase 结束后恢复 `CURRENT_DEBUG_TARGET = NONE`；在测试中把该要求变成硬门禁。
 - [ ] 在本文件维护完成证据：commit、测试结果、设备型号、日期和关键日志，不再维护第二份平行 Todo。
+
+**回归门禁进展（2026-10-17）:** 功能批次已提交为 ecefd13。新增 scripts/Test-Parity.ps1，可通过 -DevEcoPath 指定 DevEco 安装目录（本机实际为 D:/Huawei/DevEco Studio，旧文档 D:/Software/Huawei 路径已不可用）。脚本检查 CURRENT_DEBUG_TARGET=NONE，执行本地测试并验证报告为本次生成、用例非空、失败/错误/跳过均为零且全部通过；运行后恢复进程环境变量，不修改签名配置。实际执行通过：286 项成功，Failure=0、Error=0、Ignore=0，日志为 entry/build/parity-gate.log。现有 DebugRunnerContract 测试继续覆盖默认 NONE 和 release 禁用调试。此批次复用上一轮 debug/release 签名构建及模拟器启动证据；跨域设备交互和真实账号回归仍待完成。
 
 **Acceptance:** 本地测试、ArkTS 编译/打包/包检查和模拟器可运行路径通过；P0/P1 主路径先形成模拟器或 fixture 证据，真机证据集中后置；release 冷启动无 DebugCase。
 
