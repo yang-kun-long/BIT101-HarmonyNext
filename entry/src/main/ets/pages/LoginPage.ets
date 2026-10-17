@@ -7,6 +7,7 @@ import { SmsChallengeDialogHost } from '../components/auth/SmsVerificationDialog
 
 interface RedirectParams {
   redirect?: string
+  redirectParams?: Object
 }
 
 @Entry
@@ -39,14 +40,16 @@ struct LoginPage {
 
         const p = uiGetParams(this.getUIContext()) as object
         let target = 'pages/Index'
+        let targetParams: Object | undefined = undefined
         if (p && typeof p === 'object') {
           const maybe = p as RedirectParams
           if (typeof maybe.redirect === 'string' && maybe.redirect.length > 0) {
             target = maybe.redirect
+            targetParams = maybe.redirectParams
           }
         }
 
-        await uiReplaceUrl(this.getUIContext(), { url: target })
+        await uiReplaceUrl(this.getUIContext(), { url: target, params: targetParams })
         return
       }
 

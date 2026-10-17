@@ -30,6 +30,7 @@ import aboutSettingsTest from './AboutSettings.test';
 import logExportTest from './LogExport.test';
 import pageSettingsTest from './PageSettings.test';
 import themeSettingsTest from './ThemeSettings.test';
+import followListTest from './FollowList.test';
 
 export default function testsuite() {
   localUnitTest();
@@ -64,4 +65,5 @@ export default function testsuite() {
   logExportTest();
   pageSettingsTest();
   themeSettingsTest();
+  followListTest();
 }

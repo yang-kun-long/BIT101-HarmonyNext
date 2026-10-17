@@ -6,6 +6,7 @@ import { GalleryUser, Poster } from '../services/gallery/GalleryModels';
 import { AvatarWithName, FollowInfo, UserInfoButton } from '../components/user/UserInfoComponents';
 import { PosterCard } from '../components/gallery/PosterCard';
 import { uiBack, uiGetParams, uiPushUrl, uiReplaceUrl, uiShowToast } from '../utils/uiContextBridge';
+import { isAuthedBit101 } from '../services/auth/authGuard';
 
 @Entry
 @Component
@@ -21,6 +22,7 @@ struct UserDetailPage {
   @State currentPage: number = 0;
   @State hasMore: boolean = true;
   @State isPostersLoading: boolean = false;
+  @State followingBusy: boolean = false;
 
   // --- 🌟 滚动与导航栏状态 ---
   @State navOpacity: number = 0; // 导航栏背景透明度 (0.0 - 1.0)
@@ -122,11 +124,18 @@ struct UserDetailPage {
 
   // 🔥 [核心修改] 真实的关注逻辑
   private async handleFollow() {
-    if (!this.userInfo || !this.uiUser) return;
+    if (!this.userInfo || !this.uiUser || this.followingBusy) return;
+    this.followingBusy = true;
 
     const userRepo = new UserRepository();
 
     try {
+      if (!(await isAuthedBit101())) {
+        await uiPushUrl(this.getUIContext(), { url: 'pages/LoginPage', params: {
+          redirect: 'pages/UserDetailPage', redirectParams: { uid: this.uid },
+        } });
+        return;
+      }
       const result = await userRepo.followUser(this.uiUser.id);
 
       if (result) {
@@ -154,6 +163,8 @@ struct UserDetailPage {
       }
     } catch (e) {
       uiShowToast(this.getUIContext(), { message: '网络错误，请检查连接' });
+    } finally {
+      this.followingBusy = false;
     }
   }
 
@@ -179,6 +190,7 @@ struct UserDetailPage {
         // ✅ 这里的绑定是正确的，点击触发上面的 handleFollow
         UserInfoButton({
           text: this.getButtonText(),
+          enable: !this.followingBusy,
           isPrimary: !this.userInfo.following, // 未关注时为 True (粉色)，已关注为 False (灰色)
           onAction: () => {
             this.handleFollow();

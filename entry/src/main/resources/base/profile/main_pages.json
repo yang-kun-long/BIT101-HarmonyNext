@@ -6,6 +6,7 @@
     "pages/WebBrowserPage",
     "pages/PostEditorPage",
     "pages/UserDetailPage",
+    "pages/FollowListPage",
     "pages/MapPage2",
     "pages/SearchPage",
     "pages/ReportPage",

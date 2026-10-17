@@ -69,10 +69,12 @@ struct FollowInfoItem {
 export struct FollowInfo {
   @Prop followerNum: number;
   @Prop followingNum: number;
+  onFollowersClick: () => void = () => {};
+  onFollowingsClick: () => void = () => {};
 
   build() {
     Row() {
-      FollowInfoItem({ count: this.followerNum.toString(), label: "粉丝" })
+      FollowInfoItem({ count: this.followerNum.toString(), label: "粉丝", onItemClick: this.onFollowersClick })
 
       Divider()
         .vertical(true)
@@ -80,7 +82,7 @@ export struct FollowInfo {
         .color($r('sys.color.ohos_id_color_list_separator'))
         .margin({ left: 16, right: 16 })
 
-      FollowInfoItem({ count: this.followingNum.toString(), label: "关注" })
+      FollowInfoItem({ count: this.followingNum.toString(), label: "关注", onItemClick: this.onFollowingsClick })
     }
   }
 }

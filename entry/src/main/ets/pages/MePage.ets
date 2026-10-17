@@ -9,6 +9,7 @@ import { AvatarWithName, FollowInfo, UserInfoButton } from '../components/user/U
 import { PosterCard } from '../components/gallery/PosterCard';
 import { TokenStore } from '../services/storage/tokenStore';
 import { uiPushUrl, uiShowToast } from '../utils/uiContextBridge';
+import { observeUserRelations } from '../services/user/UserRelationEvents';
 
 @Component
 export default struct MePage {
@@ -37,9 +38,28 @@ export default struct MePage {
   private userRepo: UserRepository = new UserRepository();
   private posterRepo: PosterRepository = new PosterRepository();
   private tokenStore: TokenStore = new TokenStore();
+  private stopObservingRelations: () => void = () => {};
+  private relationRequest: number = 0;
 
   aboutToAppear() {
+    this.stopObservingRelations = observeUserRelations(() => { this.refreshRelationCounts(); });
     this.bootstrap();
+  }
+
+  aboutToDisappear(): void { this.stopObservingRelations(); }
+
+  private async refreshRelationCounts(): Promise<void> {
+    if (!this.authed) return;
+    const request = ++this.relationRequest;
+    try {
+      const data = await this.userRepo.getUserInfo('0');
+      if (this.authed && request === this.relationRequest) this.userInfo = data;
+    } catch (_) { this.logger.warn('Failed to refresh follow counts'); }
+  }
+
+  private openFollowList(mode: string): void {
+    uiPushUrl(this.getUIContext(), { url: 'pages/FollowListPage', params: { mode } })
+      .catch(() => { uiShowToast(this.getUIContext(), { message: '无法打开关注列表，请重试' }); });
   }
 
   // ---------------- 业务逻辑 ----------------
@@ -242,7 +262,9 @@ export default struct MePage {
 
         FollowInfo({
           followerNum: this.userInfo.follower_num,
-          followingNum: this.userInfo.following_num
+          followingNum: this.userInfo.following_num,
+          onFollowersClick: () => { this.openFollowList('followers'); },
+          onFollowingsClick: () => { this.openFollowList('followings'); },
         })
           .margin({ bottom: 16 })
       }

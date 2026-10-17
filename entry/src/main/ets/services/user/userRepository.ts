@@ -6,6 +6,8 @@ import { ApiError, HttpClient, HttpRequest, HttpResponse } from '../../core/netw
 import { TokenStore } from '../storage/tokenStore';
 import { Logger } from '../../utils/Logger';
 import type { UpdateUserInfoRequest } from './UserModels';
+import { parseFollowUsers } from './FollowListModel';
+import { notifyUserRelationsChanged } from './UserRelationEvents';
 
 export interface Image {
   mid: string;
@@ -138,6 +140,7 @@ export class UserRepository {
         headers['fake-cookie'] = fakeCookie;
       } else {
         this.logger.warn('关注操作缺少 fake-cookie');
+        return null;
       }
 
       this.logger.info(`发起关注请求: uid=${uid}`);
@@ -149,6 +152,9 @@ export class UserRepository {
         headers: headers,
         json: {} // <--- 这里改成了 json，对应 HttpRequest 接口
       });
+      if (res.status < 200 || res.status >= 300) {
+        throw new ApiError('关注操作失败：HTTP ' + res.status, res.status);
+      }
 
       // 解析逻辑
       let json = res.data;
@@ -163,6 +169,7 @@ export class UserRepository {
       const data = json?.data ?? json;
 
       if (data && typeof data.following === 'boolean') {
+        notifyUserRelationsChanged();
         this.logger.info(`关注操作成功: following=${data.following}`);
         return {
           following: Boolean(data.following),
@@ -179,5 +186,28 @@ export class UserRepository {
       this.logger.error('关注网络异常', e);
       return null;
     }
+  }
+
+  async getFollowers(page: number = 0): Promise<User[]> {
+    return await this.getFollowList('followers', page);
+  }
+
+  async getFollowings(page: number = 0): Promise<User[]> {
+    return await this.getFollowList('followings', page);
+  }
+
+  private async getFollowList(mode: string, page: number): Promise<User[]> {
+    if (!Number.isSafeInteger(page) || page < 0) throw new Error('Invalid follow list page');
+    const cookie = await this.store.getFakeCookie();
+    if (!cookie) throw new ApiError('请先登录 BIT101', 401);
+    const response = await this.http.request<User[]>({
+      url: `/user/${mode}?page=${page}`,
+      method: 'GET',
+      headers: { 'fake-cookie': cookie },
+    });
+    if (response.status < 200 || response.status >= 300) {
+      throw new ApiError('获取关注列表失败：HTTP ' + response.status, response.status);
+    }
+    return parseFollowUsers(response.data ?? JSON.parse(response.text));
   }
 }
