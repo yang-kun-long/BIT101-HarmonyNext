@@ -194,7 +194,7 @@ export struct MoreCommentsSheet {
             Image(this.getImageUrl(img.url))
               .width('100%').aspectRatio(1)
               .objectFit(ImageFit.Cover)
-              .borderRadius(4).backgroundColor('#F3F4F6')
+              .borderRadius(4).backgroundColor($r('sys.color.ohos_id_color_sub_background'))
               .onClick(() => this.onImageClick(index, images))
           }
         })
@@ -231,7 +231,7 @@ export struct MoreCommentsSheet {
       // 头像
       Image(this.getAvatarUrl(c))
         .width(32).height(32)
-        .borderRadius(16).backgroundColor('#F3F4F6')
+        .borderRadius(16).backgroundColor($r('sys.color.ohos_id_color_sub_background'))
         .margin({ right: 12 }).objectFit(ImageFit.Cover)
         .onClick(() => {
           if (c.user) this.onUserClick(c.user);
@@ -241,22 +241,22 @@ export struct MoreCommentsSheet {
         // 昵称与点赞
         Row() {
           Text(c.anonymous ? '匿名用户' : c.user?.nickname)
-            .fontSize(14).fontWeight(FontWeight.Bold).fontColor('#4B5563')
+            .fontSize(14).fontWeight(FontWeight.Bold).fontColor($r('sys.color.ohos_id_color_text_secondary'))
             .layoutWeight(1)
 
           if (isParent) {
-            Text('楼主').fontSize(10).fontColor('white').backgroundColor('#2563EB')
+            Text('楼主').fontSize(10).fontColor('white').backgroundColor($r('sys.color.ohos_id_color_primary'))
               .padding({ left: 4, right: 4, top: 2, bottom: 2 }).borderRadius(4)
           } else {
             // 点赞区域
             Row() {
               Image(c.like ? $r('app.media.ic_public_heart_filled') : $r('app.media.ic_public_heart_outline'))
                 .width(14).height(14)
-                .fillColor(c.like ? '#EF4444' : '#9CA3AF')
+                .fillColor(c.like ? '#EF4444' : $r('sys.color.ohos_id_color_text_tertiary'))
                 .animation({ duration: 300, curve: curves.springCurve(10, 1, 228, 30) })
 
               Text(this.formatNumber(c.likeNum))
-                .fontSize(12).fontColor('#6B7280').margin({ left: 4 })
+                .fontSize(12).fontColor($r('sys.color.ohos_id_color_text_secondary')).margin({ left: 4 })
             }
             .onClick(() => {
               if (index >= 0) this.toggleLike(c, index);
@@ -269,14 +269,14 @@ export struct MoreCommentsSheet {
         Text() {
           if (c.replyUser && c.replyUser.nickname && c.replyObj && c.replyObj !== `comment${this.parentComment.id}`) {
             Span('回复 ')
-              .fontSize(15).fontColor('#1F2937')
+              .fontSize(15).fontColor($r('sys.color.ohos_id_color_text_primary'))
             Span(`@${c.replyUser.nickname}`)
-              .fontSize(15).fontColor('#2563EB')
+              .fontSize(15).fontColor($r('sys.color.ohos_id_color_primary'))
             Span('：')
-              .fontSize(15).fontColor('#1F2937')
+              .fontSize(15).fontColor($r('sys.color.ohos_id_color_text_primary'))
           }
           Span(c.text)
-            .fontSize(15).fontColor('#1F2937')
+            .fontSize(15).fontColor($r('sys.color.ohos_id_color_text_primary'))
         }
         .lineHeight(24).margin({ top: 4 })
         .onClick(() => this.onReply(c))
@@ -286,16 +286,16 @@ export struct MoreCommentsSheet {
 
         // 底部 (时间、回复、更多)
         Row() {
-          Text(this.getTimeText(c)).fontSize(12).fontColor('#9CA3AF').margin({ right: 12 })
+          Text(this.getTimeText(c)).fontSize(12).fontColor($r('sys.color.ohos_id_color_text_tertiary')).margin({ right: 12 })
 
           if (!isParent) {
-            Text('回复').fontSize(12).fontColor('#4B5563').fontWeight(FontWeight.Bold)
+            Text('回复').fontSize(12).fontColor($r('sys.color.ohos_id_color_text_secondary')).fontWeight(FontWeight.Bold)
               .onClick(() => this.onReply(c))
           }
 
           if (!isParent) {
             Text('更多')
-              .fontSize(12).fontColor('#9CA3AF').margin({ left: 16 })
+              .fontSize(12).fontColor($r('sys.color.ohos_id_color_text_tertiary')).margin({ left: 16 })
             // 点击 "更多" 触发菜单 (ResponseType.Tap 是默认)
               .bindMenu(this.MenuBuilder(c))
           }
@@ -307,7 +307,7 @@ export struct MoreCommentsSheet {
     .width('100%')
     .alignItems(VerticalAlign.Top)
     .padding({ top: 12, bottom: 12 })
-    .backgroundColor(isParent ? Color.White : Color.Transparent)
+    .backgroundColor(isParent ? $r('sys.color.ohos_id_color_background') : Color.Transparent)
     // 【关键修复】整个 Item 绑定长按菜单 (模拟 Android/iOS 的长按效果)
     .bindContextMenu(this.MenuBuilder(c), ResponseType.LongPress)
   }
@@ -321,27 +321,27 @@ export struct MoreCommentsSheet {
           .fontSize(16).fontWeight(FontWeight.Bold)
           .layoutWeight(2).textAlign(TextAlign.Center)
         Text('关闭')
-          .fontSize(14).fontColor('#6B7280')
+          .fontSize(14).fontColor($r('sys.color.ohos_id_color_text_secondary'))
           .layoutWeight(1).textAlign(TextAlign.End)
           .onClick(() => this.onClose())
       }
       .width('100%').height(48)
       .padding({ left: 16, right: 16 })
-      .border({ width: { bottom: 0.5 }, color: '#E5E7EB' })
-      .backgroundColor(Color.White)
+      .border({ width: { bottom: 0.5 }, color: $r('sys.color.ohos_id_color_list_separator') })
+      .backgroundColor($r('sys.color.ohos_id_color_background'))
 
       // 排序
       Row() {
         Blank()
         Row() {
           Text(this.getSubCommentsOrderLabel())
-            .fontSize(13).fontColor('#6B7280')
+            .fontSize(13).fontColor($r('sys.color.ohos_id_color_text_secondary'))
         }
         .onClick(() => this.switchSubCommentsOrder())
       }
       .width('100%').height(40)
       .padding({ left: 16, right: 16 })
-      .backgroundColor(Color.White)
+      .backgroundColor($r('sys.color.ohos_id_color_background'))
 
       // 列表
       List() {
@@ -349,7 +349,7 @@ export struct MoreCommentsSheet {
         ListItem() {
           Column() {
             this.ItemBuilder(this.parentComment, true)
-            Divider().color('#F3F4F6').strokeWidth(8)
+            Divider().color($r('sys.color.ohos_id_color_sub_background')).strokeWidth(8)
           }
           .padding({ left: 16, right: 16 })
         }
@@ -368,7 +368,7 @@ export struct MoreCommentsSheet {
             if (this.isLoading) {
               LoadingProgress().width(20).height(20)
             } else if (!this.hasMore) {
-              Text('没有更多了').fontSize(12).fontColor('#9CA3AF')
+              Text('没有更多了').fontSize(12).fontColor($r('sys.color.ohos_id_color_text_tertiary'))
             }
           }
           .width('100%').height(40).justifyContent(FlexAlign.Center)
@@ -380,6 +380,6 @@ export struct MoreCommentsSheet {
         this.loadData(true);
       })
     }
-    .width('100%').height('100%').backgroundColor(Color.White)
+    .width('100%').height('100%').backgroundColor($r('sys.color.ohos_id_color_background'))
   }
 }

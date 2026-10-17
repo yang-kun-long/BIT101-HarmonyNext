@@ -31,7 +31,9 @@ import {
 import { DEFAULT_SCHEDULE_DISPLAY_SETTINGS } from '../services/schoolSchedule/ScheduleSettingsModels';
 import { initSystemCalendarService } from '../services/systemCalendar/SystemCalendarService';
 // 确保路径正确，如果在 pages 下就是 '../pages/PageEnum'
-import { PageShowOnNav } from '../pages/PageEnum';
+import { LegacyPageSettings, migratePageSettings } from '../services/settings/PageSettingsModel';
+import { applyPageSettings, createPageSettingsStore } from '../services/storage/PageSettingsStore';
+import { initializeWindowTheme, releaseWindowTheme } from '../services/settings/WindowThemeTarget';
 
 export default class EntryAbility extends UIAbility {
   private logger = new Logger('EntryAbility');
@@ -113,9 +115,16 @@ export default class EntryAbility extends UIAbility {
   onWindowStageCreate(windowStage: window.WindowStage): void {
     this.logger.info('Ability onWindowStageCreate');
 
-    // 🔥🔥🔥【核心修复】：在加载 UI 之前，先初始化持久化数据 🔥🔥🔥
-    this.initPersistentStorage();
+    this.loadInitialContent(windowStage);
+  }
 
+  private async loadInitialContent(windowStage: window.WindowStage): Promise<void> {
+    await this.initPersistentStorage();
+    try {
+      await initializeWindowTheme(this.context, windowStage.getMainWindowSync());
+    } catch (error) {
+      this.logger.error('Failed to initialize window theme. Cause:', error);
+    }
     windowStage.loadContent('pages/Index', (err) => {
       if (err.code) {
         this.logger.error('Failed to load the content. Cause:', err);
@@ -125,43 +134,34 @@ export default class EntryAbility extends UIAbility {
     });
   }
 
-  // 🔥 新增：初始化持久化存储的方法
-  private initPersistentStorage() {
-    this.logger.info('Initializing PersistentStorage...');
-
-    // 1. 定义默认顺序
-    const defaultPages = [
-      PageShowOnNav.Home,   // 1. 卷
-      PageShowOnNav.Map,    // 2. 图 (之前漏了导致Tab消失)
-      PageShowOnNav.Forum,  // 3. 网
-      PageShowOnNav.Post,   // 4. 话 (之前漏了导致Tab消失)
-      PageShowOnNav.Mine    // 5. 我
-    ];
-
-    // 2. 初始化 pages_order
-    // persistProp 的作用是：如果磁盘里没有这个key，就写入默认值；如果有，就读磁盘的
-    PersistentStorage.persistProp('pages_order', defaultPages);
-
-    // 3. 初始化其他配置
+  private async initPersistentStorage(): Promise<void> {
+    // Read old values before detaching their legacy persistence bindings.
+    PersistentStorage.persistProp('pages_order', ['Home', 'Map', 'Forum', 'Post', 'Mine']);
     PersistentStorage.persistProp('pages_hidden', []);
-    PersistentStorage.persistProp('home_page', PageShowOnNav.Home);
+    PersistentStorage.persistProp('home_page', 'Home');
+    const legacy: LegacyPageSettings = {
+      order: AppStorage.get<string[]>('pages_order') ?? [],
+      hidden: AppStorage.get<string[]>('pages_hidden') ?? [],
+      home: AppStorage.get<string>('home_page') ?? 'Home',
+    };
+    try {
+      const settings = await createPageSettingsStore(this.context).load(legacy);
+      PersistentStorage.deleteProp('pages_order');
+      PersistentStorage.deleteProp('pages_hidden');
+      PersistentStorage.deleteProp('home_page');
+      applyPageSettings(settings);
+    } catch (error) {
+      this.logger.error('Failed to load page settings. Cause:', error);
+      applyPageSettings(migratePageSettings(legacy));
+    }
     AppStorage.setOrCreate(FREE_CLASSROOM_APP_CAMPUS_CODE, DEFAULT_FREE_CLASSROOM_SETTINGS.currentCampusCode);
     AppStorage.setOrCreate(FREE_CLASSROOM_APP_CAMPUS_NAME, DEFAULT_FREE_CLASSROOM_SETTINGS.currentCampusName);
     AppStorage.setOrCreate(FREE_CLASSROOM_APP_HIDE_BUSY, DEFAULT_FREE_CLASSROOM_SETTINGS.hideBusyClassroom);
     AppStorage.setOrCreate(FREE_CLASSROOM_APP_FREE_THRESHOLD, DEFAULT_FREE_CLASSROOM_SETTINGS.freeMinutesThreshold);
-
-    // 4. 🔥 强制数据清洗 🔥
-    // 因为之前的 bug 可能导致磁盘里存了一个空数组 []
-    // persistProp 读到空数组会认为是有效数据，导致 Tab 栏消失
-    // 所以这里必须手动检查一下，如果是空的，强制覆盖！
-    const currentOrder = AppStorage.get<PageShowOnNav[]>('pages_order');
-    if (!currentOrder || currentOrder.length === 0) {
-      this.logger.warn('Found empty or dirty pages_order, resetting to default.');
-      AppStorage.setOrCreate('pages_order', defaultPages);
-    }
   }
 
   onWindowStageDestroy(): void {
+    releaseWindowTheme();
     this.logger.info('Ability onWindowStageDestroy');
   }
 

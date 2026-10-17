@@ -93,7 +93,7 @@ export struct CommentInputDialog {
 
       // 2. 输入框
       TextArea({ text: this.text, placeholder: '友善的评论是交流的起点...' })
-        .width('100%').height(100).backgroundColor('#F3F4F6').borderRadius(8)
+        .width('100%').height(100).backgroundColor($r('sys.color.ohos_id_color_sub_background')).borderRadius(8)
         .onChange((value: string) => { this.text = value; })
 
       // 3. 图片展示区域 (复用组件)
@@ -108,16 +108,16 @@ export struct CommentInputDialog {
         Row() {
           Checkbox({ name: 'anonymous', group: 'grp' })
             .select(this.isAnonymous)
-            .selectedColor('#2563EB')
+            .selectedColor($r('sys.color.ohos_id_color_primary'))
             .onChange((val: boolean) => { this.isAnonymous = val })
             .width(18).height(18)
-          Text('匿名').fontSize(14).fontColor('#6B7280').margin({ left: 4 })
+          Text('匿名').fontSize(14).fontColor($r('sys.color.ohos_id_color_text_secondary')).margin({ left: 4 })
         }
 
         // 图片按钮
         Image($r('app.media.ic_image'))
           .width(24).height(24)
-          .fillColor('#6B7280')
+          .fillColor($r('sys.color.ohos_id_color_text_secondary'))
           .margin({ left: 16 })
           .onClick(() => {
             this.triggerPickImages()
@@ -127,8 +127,8 @@ export struct CommentInputDialog {
 
         Button('发送')
           .type(ButtonType.Capsule)
-          .backgroundColor(this.text.trim().length === 0 ? '#E5E7EB' : '#2563EB')
-          .fontColor(this.text.trim().length === 0 ? '#9CA3AF' : Color.White)
+          .backgroundColor(this.text.trim().length === 0 ? $r('sys.color.ohos_id_color_list_separator') : $r('sys.color.ohos_id_color_primary'))
+          .fontColor(this.text.trim().length === 0 ? $r('sys.color.ohos_id_color_text_tertiary') : Color.White)
           .enabled(this.text.trim().length > 0)
           .height(32)
           .onClick(() => {
@@ -143,6 +143,6 @@ export struct CommentInputDialog {
       }
       .width('100%').margin({ top: 12 }).alignItems(VerticalAlign.Center)
     }
-    .padding(16).width('100%').backgroundColor(Color.White).borderRadius(16)
+    .padding(16).width('100%').backgroundColor($r('sys.color.ohos_id_color_background')).borderRadius(16)
   }
 }

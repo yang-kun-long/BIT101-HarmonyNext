@@ -1,13 +1,12 @@
 import { Logger } from '../utils/Logger';
-import router from '@ohos.router';
 import { isAuthedBit101 } from '../services/auth/authGuard';
 // 引入 PageEnum 用于和设置页数据对接
 import { PageShowOnNav } from './PageEnum';
+import { defaultPageSettings, migratePageSettings, navigationTabIndex, resolveStartupTab } from '../services/settings/PageSettingsModel';
 import { uiGetParams, uiPushUrl } from '../utils/uiContextBridge';
 
 import ScheduleShellPage from './ScheduleShellPage';
 import MapPage from './MapPage';
-import MapPage2 from './MapPage2';
 import ForumPage from './ForumPage';
 import PostPage from './PostPage';
 import MePage from './MePage';
@@ -37,31 +36,19 @@ struct Index {
   @State isPostLoaded: boolean = false;
   @State isMeLoaded: boolean = false;
 
-  // --- 接入设置页数据 (仅用于控制底部栏显示顺序) ---
-  @StorageLink('pages_order') storagePages: PageShowOnNav[] = [];
-  @StorageLink('pages_hidden') storageHidden: PageShowOnNav[] = [];
-
-  // 4. 核心映射：将设置页的 String 枚举映射回 TabKey 数字枚举
-  private tabMapping: Record<string, TabKey> = {
-    [PageShowOnNav.Home]: TabKey.Schedule,     // 首页 -> 卷
-    [PageShowOnNav.Schedule]: TabKey.Schedule, // 课表 -> 卷
-    [PageShowOnNav.DDL]: TabKey.Schedule,      // DDL  -> 卷
-    [PageShowOnNav.Map]: TabKey.Map,           // 地图 -> 图
-    [PageShowOnNav.Forum]: TabKey.Forum,       // 论坛 -> 网
-    [PageShowOnNav.Post]: TabKey.Post,         // 发帖 -> 话
-    [PageShowOnNav.Mine]: TabKey.Me            // 我的 -> 我
-  };
+  @StorageLink('pages_order') storagePages: PageShowOnNav[] = defaultPageSettings().order;
+  @StorageLink('pages_hidden') @Watch('onNavigationChanged') storageHidden: PageShowOnNav[] = [];
+  @StorageLink('home_page') homePage: PageShowOnNav = PageShowOnNav.Schedule;
 
   aboutToAppear() {
     const params = uiGetParams(this.getUIContext()) as Record<string, Object>;
     const tabParam = params?.['tab'] as number | undefined;
+    this.goto(resolveStartupTab(this.homePage, tabParam) as TabKey, false);
+  }
 
-    if (tabParam !== undefined) {
-      const t = tabParam as TabKey;
-      this.goto(t, false);
-    } else {
-      // 默认加载首页
-      this.goto(TabKey.Schedule, false);
+  private onNavigationChanged(): void {
+    if (this.storageHidden.some(page => navigationTabIndex(page) === this.current)) {
+      this.goto(resolveStartupTab(this.homePage) as TabKey, false);
     }
   }
 
@@ -86,42 +73,13 @@ struct Index {
 
   // 计算底部应该显示哪些 Tab (动态列表)
   getVisibleTabs(): PageShowOnNav[] {
-    // 1. 获取原始数据，如果没有就用硬编码的完整默认值 (防止数据丢失导致Tab消失)
-    let pages = this.storagePages;
-    if (!pages || pages.length === 0) {
-      pages = [
-        PageShowOnNav.Home,
-        PageShowOnNav.Map,
-        PageShowOnNav.Forum,
-        PageShowOnNav.Post,
-        PageShowOnNav.Mine
-      ];
-    }
-
-    // 2. 获取隐藏列表
-    const hidden = this.storageHidden || [];
-
-    // 3. 过滤逻辑
-    const result: PageShowOnNav[] = [];
-    const seenTabKeys = new Set<TabKey>();
-
-    for (const p of pages) {
-      if (hidden.includes(p)) continue; // 如果被隐藏了就跳过
-
-      const mappedKey = this.tabMapping[p];
-      // 只有当映射存在，且该 TabKey 还没显示过时，才加入
-      // (避免 Home, Schedule, DDL 同时出现导致底部有3个“卷”图标)
-      if (mappedKey !== undefined && !seenTabKeys.has(mappedKey)) {
-        result.push(p);
-        seenTabKeys.add(mappedKey);
-      }
-    }
-    return result;
+    const settings = migratePageSettings({ order: this.storagePages, hidden: this.storageHidden, home: this.homePage });
+    return settings.order.filter(page => !settings.hidden.includes(page));
   }
 
   // 获取图标文字
   getTabLabel(page: PageShowOnNav): string {
-    const key = this.tabMapping[page];
+    const key = navigationTabIndex(page);
     switch (key) {
       case TabKey.Schedule: return '卷';
       case TabKey.Map: return '图';
@@ -138,14 +96,14 @@ struct Index {
     // 找到对应的 TabKey 用于判断高亮
     Column() {
       Text(this.getTabLabel(page))
-        .fontSize(this.current === this.tabMapping[page] ? 16 : 14)
-        .fontWeight(this.current === this.tabMapping[page] ? FontWeight.Bold : FontWeight.Normal)
-        .fontColor(this.current === this.tabMapping[page] ? '#2563EB' : '#6B7280')
+        .fontSize(this.current === navigationTabIndex(page) ? 16 : 14)
+        .fontWeight(this.current === navigationTabIndex(page) ? FontWeight.Bold : FontWeight.Normal)
+        .fontColor(this.current === navigationTabIndex(page) ? $r('sys.color.ohos_id_color_primary') : $r('sys.color.ohos_id_color_text_secondary'))
     }
     .padding({ top: 10, bottom: 6 })
     .layoutWeight(1)
     .onClick(() => {
-      const key = this.tabMapping[page];
+      const key = navigationTabIndex(page);
       if (key !== undefined) this.goto(key);
     })
   }
@@ -160,9 +118,9 @@ struct Index {
       })
     }
     .height(52)
-    .backgroundColor('#FFFFFF')
+    .backgroundColor($r('sys.color.ohos_id_color_background'))
     .padding({ left: 8, right: 8 })
-    .border({ width: { top: 0.5 }, color: '#E5E7EB' })
+    .border({ width: { top: 0.5 }, color: $r('sys.color.ohos_id_color_list_separator') })
   }
 
   build() {
@@ -227,7 +185,7 @@ struct Index {
       // 底部导航
       this.BottomBar()
     }
-    .backgroundColor('#F7F7F7')
+    .backgroundColor($r('sys.color.ohos_id_color_sub_background'))
     .height('100%')
     .width('100%')
   }

@@ -16,6 +16,17 @@ export interface VersionCheckResult {
   latest: VersionInfo;
 }
 
+export const HARMONY_PROJECT_URL: string = 'https://github.com/yang-kun-long/BIT101-HarmonyNext';
+
+export function resolveUpdateUrl(value: string): string {
+  const trimmed = value.trim();
+  if (!/^https?:\/\/[a-z0-9.-]+(?::[0-9]+)?(?:[/?#][^\s\\]*)?$/i.test(trimmed)) return HARMONY_PROJECT_URL;
+  let decoded = trimmed;
+  try { decoded = decodeURIComponent(trimmed); } catch (_) { return HARMONY_PROJECT_URL; }
+  if (/\.apk(?:[/?&#]|$)/i.test(decoded)) return HARMONY_PROJECT_URL;
+  return trimmed;
+}
+
 function requiredString(value: unknown, field: string): string {
   if (typeof value !== 'string') {
     throw new Error(`Invalid version response field: ${field}`);

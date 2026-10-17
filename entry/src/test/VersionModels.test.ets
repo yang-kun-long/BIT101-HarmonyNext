@@ -1,5 +1,5 @@
 import { describe, it, expect } from '@ohos/hypium';
-import { evaluateVersion, isHarmonyPlatform, parseVersionInfo } from '../main/ets/services/version/VersionModels';
+import { evaluateVersion, isHarmonyPlatform, parseVersionInfo, resolveUpdateUrl, HARMONY_PROJECT_URL } from '../main/ets/services/version/VersionModels';
 import type { HttpRequest, HttpResponse } from '../main/ets/core/network/httpClient';
 import { VersionService, VersionHttpClient } from '../main/ets/services/version/VersionService';
 
@@ -44,6 +44,13 @@ class ResponseVersionClient implements VersionHttpClient {
 
 export default function versionModelsTest() {
   describe('Version models', () => {
+    it('falls back to the project for absent, unsafe or Android update URLs', 0, () => {
+      expect(resolveUpdateUrl('')).assertEqual(HARMONY_PROJECT_URL);
+      expect(resolveUpdateUrl('javascript:alert(1)')).assertEqual(HARMONY_PROJECT_URL);
+      expect(resolveUpdateUrl('https://android.bit101.cn/app%2eapk?download=1')).assertEqual(HARMONY_PROJECT_URL);
+      expect(resolveUpdateUrl('https://example.org/app.apk')).assertEqual(HARMONY_PROJECT_URL);
+      expect(resolveUpdateUrl('https://example.org/app.hap')).assertEqual('https://example.org/app.hap');
+    });
     it('parses the Android-compatible snake_case payload and keeps platform', 0, () => {
       const result = parseVersionInfo(PAYLOAD);
       expect(result.minVersionCode).assertEqual(4);

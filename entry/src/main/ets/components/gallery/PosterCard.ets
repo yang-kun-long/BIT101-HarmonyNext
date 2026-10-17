@@ -228,7 +228,7 @@ export struct PosterCard {
       UserNameWithIdentity({
         user: this.poster.user,
         fontSize: 13, // 列表页字号
-        fontColor: '#4B5563'
+        fontColor: $r('sys.color.ohos_id_color_text_secondary')
       })
         .layoutWeight(1) // 占满剩余空间
         .margin({ left: 6 }) // 名字和头像的间距

@@ -28,6 +28,8 @@ import schoolSmsProtocolTest from './SchoolSmsProtocol.test';
 import versionModelsTest from './VersionModels.test';
 import aboutSettingsTest from './AboutSettings.test';
 import logExportTest from './LogExport.test';
+import pageSettingsTest from './PageSettings.test';
+import themeSettingsTest from './ThemeSettings.test';
 
 export default function testsuite() {
   localUnitTest();
@@ -60,4 +62,6 @@ export default function testsuite() {
   versionModelsTest();
   aboutSettingsTest();
   logExportTest();
+  pageSettingsTest();
+  themeSettingsTest();
 }

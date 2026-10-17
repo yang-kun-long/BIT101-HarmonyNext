@@ -75,10 +75,10 @@ export struct PostersTabPage {
               ListItem() {
                 Row() {
                   if (this.state.isLoading) {
-                    LoadingProgress().width(24).height(24).color('#999999')
-                    Text(' 正在加载...').fontSize(14).fontColor('#999999')
+                    LoadingProgress().width(24).height(24).color($r('sys.color.ohos_id_color_text_secondary'))
+                    Text(' 正在加载...').fontSize(14).fontColor($r('sys.color.ohos_id_color_text_secondary'))
                   } else if (!this.state.hasMore) {
-                    Text('--- 我是有底线的 ---').fontSize(12).fontColor('#CCCCCC')
+                    Text('--- 我是有底线的 ---').fontSize(12).fontColor($r('sys.color.ohos_id_color_text_tertiary'))
                   }
                 }
                 .width('100%')
@@ -117,7 +117,7 @@ export struct PostersTabPage {
       }
       .width('100%')
       .height('100%')
-      .backgroundColor('#F7F7F7')
+      .backgroundColor($r('sys.color.ohos_id_color_sub_background'))
 
       // === 悬浮按钮区域 (UI 对齐 Android FAB Column) ===
       Column() {
@@ -130,7 +130,7 @@ export struct PostersTabPage {
           }
           .width(56) // Android FAB size
           .height(56)
-          .backgroundColor('#E6E0E9') // Android: primaryContainer copy(0.8) 模拟色
+          .backgroundColor($r('sys.color.ohos_id_color_button_normal')) // Android: primaryContainer copy(0.8) 模拟色
           .shadow({ radius: 6, color: '#33000000', offsetY: 4 }) // Elevation
           .onClick(() => this.handleBackToTop())
           .transition(TransitionEffect.OPACITY.animation({ duration: 200 })) // 淡入淡出动画
@@ -145,7 +145,7 @@ export struct PostersTabPage {
         }
         .width(56)
         .height(56)
-        .backgroundColor('#E6E0E9') // Android: primaryContainer copy(0.8)
+        .backgroundColor($r('sys.color.ohos_id_color_button_normal')) // Android: primaryContainer copy(0.8)
         .shadow({ radius: 6, color: '#33000000', offsetY: 4 })
         .onClick(() => this.handlePostClick())
 

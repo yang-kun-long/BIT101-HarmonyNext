@@ -1,26 +1,23 @@
-import { router, promptAction } from '@kit.ArkUI';
 import { uiBack, uiShowToast } from '../../utils/uiContextBridge';
 // 注意：这里改为上一级目录，因为 PageEnum 在 pages/ 下
 import { PageShowOnNav, getPageName } from '../PageEnum';
+import { defaultPageSettings, PageSettings, validatePageSettings } from '../../services/settings/PageSettingsModel';
+import { applyPageSettings, createPageSettingsStore } from '../../services/storage/PageSettingsStore';
 
 @Entry
 @Component
 struct PagesSettingPage {
   // --- 从 AppStorage 获取当前配置 (作为初始数据) ---
-  @StorageLink('pages_order') allPages: PageShowOnNav[] = [
-    PageShowOnNav.Home,
-    PageShowOnNav.Schedule,
-    PageShowOnNav.DDL,
-    PageShowOnNav.Forum,
-    PageShowOnNav.Mine
-  ];
-  @StorageLink('home_page') homePage: PageShowOnNav = PageShowOnNav.Home;
+  @StorageLink('pages_order') allPages: PageShowOnNav[] = defaultPageSettings().order;
+  @StorageLink('home_page') homePage: PageShowOnNav = PageShowOnNav.Schedule;
   @StorageLink('pages_hidden') hiddenPages: PageShowOnNav[] = [];
 
   // --- 编辑状态 (用户操作时修改这些临时变量，点击保存才写入 AppStorage) ---
   @State editingPages: PageShowOnNav[] = [];
-  @State editingHomePage: PageShowOnNav = PageShowOnNav.Home;
+  @State editingHomePage: PageShowOnNav = PageShowOnNav.Schedule;
   @State editingHiddenPages: PageShowOnNav[] = [];
+
+  @State saving: boolean = false;
 
   aboutToAppear() {
     // 初始化编辑状态
@@ -36,45 +33,40 @@ struct PagesSettingPage {
 
   // 恢复默认设置 (硬编码的默认值)
   restoreDefault() {
-    this.editingPages = [
-      PageShowOnNav.Home,
-      PageShowOnNav.Schedule,
-      PageShowOnNav.DDL,
-      PageShowOnNav.Map,
-      PageShowOnNav.Forum,
-      PageShowOnNav.Post,
-      PageShowOnNav.Mine
-    ];
-    this.editingHomePage = PageShowOnNav.Home;
-    this.editingHiddenPages = [];
+    const defaults = defaultPageSettings();
+    this.editingPages = defaults.order;
+    this.editingHomePage = defaults.home;
+    this.editingHiddenPages = defaults.hidden;
     uiShowToast(this.getUIContext(), { message: "已恢复默认配置，请点击保存生效" });
   }
 
   // 保存逻辑
-  saveSettings() {
-    // 1. 校验逻辑：主页不能隐藏
-    if (this.editingHiddenPages.includes(this.editingHomePage)) {
-      uiShowToast(this.getUIContext(), { message: "主页不能被隐藏" });
+  async saveSettings(): Promise<void> {
+    if (this.saving) return;
+    const settings: PageSettings = {
+      order: this.editingPages.slice(),
+      home: this.editingHomePage,
+      hidden: this.editingHiddenPages.slice(),
+    };
+    try {
+      validatePageSettings(settings);
+    } catch (error) {
+      uiShowToast(this.getUIContext(), { message: (error as Error).message });
       return;
     }
-    // 2. 校验逻辑：我的页面不能隐藏
-    if (this.editingHiddenPages.includes(PageShowOnNav.Mine)) {
-      uiShowToast(this.getUIContext(), { message: "“我的”页面不能被隐藏" });
-      return;
+    this.saving = true;
+    try {
+      const context = this.getUIContext().getHostContext();
+      if (!context) throw new Error('Context unavailable');
+      await createPageSettingsStore(context).save(settings);
+      applyPageSettings(settings);
+      uiShowToast(this.getUIContext(), { message: '保存成功' });
+      uiBack(this.getUIContext());
+    } catch (_) {
+      uiShowToast(this.getUIContext(), { message: '保存失败，请重试' });
+    } finally {
+      this.saving = false;
     }
-
-    // 3. 写入 AppStorage (这将触发 Index.ets 的自动更新)
-    AppStorage.setOrCreate('pages_order', this.editingPages);
-    AppStorage.setOrCreate('home_page', this.editingHomePage);
-    AppStorage.setOrCreate('pages_hidden', this.editingHiddenPages);
-
-    // 同时持久化保存
-    PersistentStorage.persistProp('pages_order', this.editingPages);
-    PersistentStorage.persistProp('home_page', this.editingHomePage);
-    PersistentStorage.persistProp('pages_hidden', this.editingHiddenPages);
-
-    uiShowToast(this.getUIContext(), { message: "保存成功" });
-    uiBack(this.getUIContext());
   }
 
   build() {
@@ -106,7 +98,7 @@ struct PagesSettingPage {
           .fontColor($r('sys.color.ohos_id_color_text_primary'))
           .margin({ bottom: 8 })
 
-        Text("长按条目可拖动排序。\n右侧复选框控制是否在底部导航栏显示。\n右侧单选框设置启动时的主页。\n\nTips: “我的”页面不能隐藏。")
+        Text("长按条目可拖动排序。\n右侧复选框控制是否在底部导航栏显示。\n右侧单选框设置启动时的主页。\n\n主页和“我的”页面不能隐藏。")
           .fontSize(14)
           .fontColor($r('sys.color.ohos_id_color_text_secondary'))
           .lineHeight(20)
@@ -128,6 +120,7 @@ struct PagesSettingPage {
       .width('94%')
       .layoutWeight(1) // 占据剩余空间
       .onItemMove((from: number, to: number) => {
+        if (this.saving || from < 0 || to < 0 || from >= this.editingPages.length || to >= this.editingPages.length) return false;
         // ArkUI List 原生拖拽逻辑
         const item = this.editingPages.splice(from, 1)[0];
         this.editingPages.splice(to, 0, item);
@@ -144,17 +137,19 @@ struct PagesSettingPage {
           .borderRadius(20)
           .height(40)
           .width(80)
+          .enabled(!this.saving)
           .onClick(() => { this.restoreDefault() })
 
         Blank().width(12)
 
-        Button("保存")
+        Button(this.saving ? "保存中…" : "保存")
           .type(ButtonType.Normal)
           .backgroundColor($r('sys.color.ohos_id_color_primary')) // 主色按钮
           .fontColor(Color.White)
           .borderRadius(20)
           .height(40)
           .width(80)
+          .enabled(!this.saving)
           .onClick(() => { this.saveSettings() })
       }
       .padding({ top: 16, bottom: 32, right: 16 })
@@ -185,7 +180,8 @@ struct PagesSettingPage {
 
       // 右侧：隐藏复选框 (Checkbox)
       // 逻辑：选中 = 显示 (不在隐藏列表中)
-      Checkbox({ name: 'visible', group: 'visibleGroup' })
+      Checkbox({ name: page, group: 'visibleGroup' })
+        .enabled(!this.saving && page !== this.editingHomePage && page !== PageShowOnNav.Mine)
         .select(!this.editingHiddenPages.includes(page))
         .onChange((isVisible: boolean) => {
           if (isVisible) {
@@ -202,10 +198,12 @@ struct PagesSettingPage {
 
       // 右侧：主页单选框 (Radio)
       Radio({ value: page.toString(), group: 'homePageGroup' })
+        .enabled(!this.saving)
         .checked(this.editingHomePage === page)
         .onChange((isChecked: boolean) => {
           if (isChecked) {
             this.editingHomePage = page;
+            this.editingHiddenPages = this.editingHiddenPages.filter(p => p !== page);
           }
         })
         .width(20)

@@ -20,7 +20,7 @@
 
 ### Android 更新复核（2026-10-17）
 
-本次重新检查了 `BIT101-Android` 的远端分支、提交历史和工作区：当前 `origin/main` 仍为 `6d79f18`（2026-08-06，1.4.0），没有比本计划基线更新的安卓版提交，工作区也没有未提交改动。因此本轮没有新增独立的 Android 功能域或 Task 14，但把最近一批提交逐项映射到现有 Todo，后续实现以这些行为为准：
+本次使用 `git -c http.proxy= fetch origin main` 直连复核了 `BIT101-Android` 的远端分支（本机原代理端口不可用）、提交历史和工作区：当前 `origin/main` 仍为 `6d79f18`（2026-08-06，1.4.0），没有比本计划基线更新的安卓版提交，工作区也没有未提交改动。因此本轮没有新增独立的 Android 功能域或 Task 14，但把最近一批提交逐项映射到现有 Todo，后续实现以这些行为为准：
 
 | Android 提交/更新 | 已确认的产品行为 | 鸿蒙 Todo 落点 |
 | --- | --- | --- |
@@ -358,7 +358,7 @@
 - [ ] 对 `/version` 响应建立 `min_version_code/name`、`version_code/name`、`url`、`msg` 解析测试，并确认后端是否提供 HarmonyOS 独立版本通道；不能直接把 Android APK 更新信息展示给鸿蒙用户。
 - [x] 实现手动检查、启动自动检查、忽略普通版本和最低版本强制更新策略（设备交互待验收）。
 - [x] 持久化 `autoDetectUpgrade`、`ignoredVersion` 和最后成功检查时间；失败时显示真实失败，不提示“已是最新”。
-- [ ] 通过系统浏览器/应用市场打开更新 URL；强制更新对话框不可被普通忽略，但必须处理无可用 URL。
+- [x] 通过系统浏览器打开更新 URL；强制更新不可普通忽略，空链接、非法协议及 APK 链接回退项目主页（真实鸿蒙更新通道及跳转仍待验收）。
 - [x] 设计 HarmonyOS 可获得的应用日志导出方式；导出前对 cookie、token、学号、手机号和 URL query 中敏感字段脱敏。
 - [x] 接入系统分享文本日志；失败时提示用户并保留可重试入口（分享面板与接收端文件仍待设备验收）。
 - [x] 将生产模块中的 `console.*` 迁移到 Logger，并把新模块同时注册到 `TARGET_MODULES`/`ALL_MODULES`。
@@ -371,6 +371,8 @@
 **Acceptance:** 后端返回新版本时展示真实版本/说明/链接；自动检查开关重启后保留；分享出的日志不含凭据。
 
 **Commit:** `feat(settings): add updates and log export`
+
+**补充验证（2026-10-17）:** 更新 URL 为空、不安全协议、无效格式或 APK（含编码扩展名）时，更新按钮改为前往项目主页；补回归测试。release 包在 API 19 模拟器实测诊断日志系统分享面板，显示 UTF-8 文本附件，取消后可重新导出。尚未核验接收端文本内容，设备验收项继续保留。
 
 ### Task 11 [P1]: 让主页、主题和旋转设置真正生效
 
@@ -388,13 +390,16 @@
 
 **Todo:**
 
-- [ ] 将页面枚举收敛为 Android 对应的 5 个真实入口：Schedule、Map、BIT101Web、Gallery、Mine；移除 Home/Schedule/DDL 映射到同一 tab 的历史兼容混乱，必要时写迁移函数。
-- [ ] 写失败测试：保存的 `home_page` 必须成为冷启动选中 tab；隐藏主页和隐藏 Mine 必须拒绝。
-- [ ] `Index.aboutToAppear()` 无显式 route 参数时读取 home page，而不是固定 `Schedule`。
-- [ ] 页面顺序/隐藏/主页统一改用 store，避免页面自己反复调用 `PersistentStorage.persistProp()`。
-- [ ] 持久化 `dynamicTheme`、`darkThemeMode(system/light/dark)` 和 `autoRotate`。
-- [ ] 在 `EntryAbility`/窗口阶段应用 color mode 和方向策略；系统模式变化时实时响应。
+- [x] 将页面枚举收敛为 Android 对应的 5 个真实入口：Schedule、Map、BIT101Web、Gallery、Mine；移除 Home/Schedule/DDL 映射到同一 tab 的历史兼容混乱，必要时写迁移函数。
+- [x] 写失败测试：保存的 `home_page` 必须成为冷启动选中 tab；隐藏主页和隐藏 Mine 必须拒绝。
+- [x] `Index.aboutToAppear()` 无显式 route 参数时读取 home page，而不是固定 `Schedule`。
+- [x] 页面顺序/隐藏/主页统一改用 store，避免页面自己反复调用 `PersistentStorage.persistProp()`。
+- [x] 持久化 `darkThemeMode(system/light/dark)` 和 `autoRotate`，启动前恢复并实际应用。
+- [ ] 评估鸿蒙壁纸取色/动态主题能力；已移除无实现且标注 Android 12 的开关，未冒充对齐。
+- [x] 在 `EntryAbility`/窗口阶段应用 color mode 和方向策略；系统模式变化时实时响应。
 - [ ] 清除大量固定 `#FFFFFF/#F7F7F7/#2563EB` 对主题的硬编码阻断点，优先处理 Index、设置、消息、用户和话廊主页面。
+
+**Progress (2026-10-17):** 新增五入口模型、旧别名去重迁移、PageSettingsStore、ThemeSettingsStore 和可注入的主题控制器。首屏加载前恢复主页，合法路由参数优先；保存落盘成功后才更新导航，主页与 Mine 禁止隐藏。深浅模式使用 ApplicationContext.setColorMode，旋转使用主窗口 setPreferredOrientation；保存或运行时应用失败会回滚，禁止并发覆盖。Index、用户头部、话廊列表/评论的主要固定背景与文字颜色改用系统资源。游客和资料加载失败页补设置入口。12 项新增页面/主题回归及更新链接回退测试使本地测试达到 249 项通过（Failure=0, Error=0）。release 包在 Huawei_Phone（HarmonyOS 5.1.1 API 19）验证地图主页冷启动、隐藏网页入口、深/浅模式立即切换、主题和旋转重启恢复、关闭旋转窗口策略 1、开启策略 8；尚未用传感器模拟验证横竖转换，也未完成所有业务页深色视觉验收。动态主题和全量视觉适配继续保留，Task 11 不整体勾选。
 
 **Acceptance:** 将“图”设为主页后冷启动进入地图；主题和旋转设置重启后保留并真正改变窗口行为；现有页面配置可迁移不丢失。
 

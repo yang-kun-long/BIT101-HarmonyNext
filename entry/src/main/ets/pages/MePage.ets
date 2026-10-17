@@ -144,7 +144,7 @@ export default struct MePage {
       Row()
         .width('100%')
         .height('100%')
-        .backgroundColor(Color.White)
+        .backgroundColor($r('sys.color.ohos_id_color_background'))
         .opacity(this.navOpacity)
         .shadow(this.navOpacity > 0.9 ? { radius: 3, color: '#0D000000', offsetY: 1 } : undefined)
 
@@ -247,7 +247,7 @@ export default struct MePage {
           .margin({ bottom: 16 })
       }
       .width('100%')
-      .backgroundColor(Color.White)
+      .backgroundColor($r('sys.color.ohos_id_color_background'))
       .padding({ top: 56 + 12 }) // 预留给顶部导航栏的高度
     }
   }
@@ -289,6 +289,12 @@ export default struct MePage {
         Button('去登录')
           .type(ButtonType.Capsule)
           .onClick(() => { this.gotoLogin() })
+
+        Button('设置')
+          .type(ButtonType.Capsule)
+          .backgroundColor($r('sys.color.ohos_id_color_button_normal'))
+          .fontColor($r('sys.color.ohos_id_color_text_primary'))
+          .onClick(() => { uiPushUrl(this.getUIContext(), { url: 'pages/settings/Settings' }); })
       }
       .padding(16)
       .width('100%')
@@ -309,6 +315,12 @@ export default struct MePage {
         Button('退出登录')
           .type(ButtonType.Capsule)
           .onClick(() => { this.logout() })
+
+        Button('设置')
+          .type(ButtonType.Capsule)
+          .backgroundColor($r('sys.color.ohos_id_color_button_normal'))
+          .fontColor($r('sys.color.ohos_id_color_text_primary'))
+          .onClick(() => { uiPushUrl(this.getUIContext(), { url: 'pages/settings/Settings' }); })
       }
       .padding(16)
       .width('100%')

@@ -196,7 +196,7 @@ struct UserDetailPage {
       Row()
         .width('100%')
         .height('100%')
-        .backgroundColor(Color.White)
+        .backgroundColor($r('sys.color.ohos_id_color_background'))
         .opacity(this.navOpacity)
         .shadow(this.navOpacity > 0.9 ? { radius: 3, color: '#0D000000', offsetY: 1 } : undefined)
 
@@ -271,7 +271,7 @@ struct UserDetailPage {
           .margin({ bottom: 16 })
       }
       .width('100%')
-      .backgroundColor(Color.White)
+      .backgroundColor($r('sys.color.ohos_id_color_background'))
       .padding({ top: 56 + 12 })
     }
   }

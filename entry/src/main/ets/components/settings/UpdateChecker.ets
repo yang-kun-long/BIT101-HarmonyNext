@@ -2,7 +2,7 @@ import { common, Want } from '@kit.AbilityKit';
 import bundleManager from '@ohos.bundle.bundleManager';
 import { createAboutSettingsStore } from '../../services/storage/AboutSettingsStore';
 import { VersionService } from '../../services/version/VersionService';
-import { VersionInfo } from '../../services/version/VersionModels';
+import { VersionInfo, resolveUpdateUrl } from '../../services/version/VersionModels';
 import { uiShowToast } from '../../utils/uiContextBridge';
 import { Logger } from '../../utils/Logger';
 
@@ -93,16 +93,13 @@ export struct UpdateChecker {
 
   private async openUpdate(): Promise<void> {
     if (this.latest === null) return;
-    if (!/^https?:\/\/[^\s]+$/i.test(this.latest.url) || /\.apk(?:[?#]|$)/i.test(this.latest.url)) {
-      uiShowToast(this.getUIContext(), { message: '更新链接暂不可用，请前往项目主页查看' });
-      return;
-    }
+    const updateUrl = resolveUpdateUrl(this.latest.url);
     try {
       const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
       const want: Want = {
         action: 'ohos.want.action.viewData',
         entities: ['entity.system.browsable'],
-        uri: this.latest.url,
+        uri: updateUrl,
       };
       await context.startAbility(want);
       if (!this.forced) this.dialog.close();
@@ -133,7 +130,8 @@ struct UpdateDialog {
       Scroll() {
         Text(this.latest?.message ?? '').fontSize(16).width('100%')
       }.constraintSize({ maxHeight: 280 }).width('100%')
-      Button('前往更新').onClick(() => { this.onUpdate(); })
+      Button(this.latest !== null && resolveUpdateUrl(this.latest.url) === this.latest.url.trim()
+        ? '前往更新' : '前往项目主页').onClick(() => { this.onUpdate(); })
       if (!this.forced) {
         Row({ space: 24 }) {
           Button('稍后').onClick(() => { this.controller.close(); })

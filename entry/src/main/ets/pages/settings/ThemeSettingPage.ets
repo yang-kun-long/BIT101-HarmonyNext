@@ -1,39 +1,53 @@
-import { router } from '@kit.ArkUI';
-import { uiBack } from '../../utils/uiContextBridge';
-
-// 对应 Android 的 DarkThemeMode 枚举
-enum DarkThemeMode {
-  System = 0,
-  Light = 1,
-  Dark = 2
-}
-
-// 获取模式对应的显示文本
-function getDarkThemeName(mode: DarkThemeMode): string {
-  switch (mode) {
-    case DarkThemeMode.System: return "跟随系统";
-    case DarkThemeMode.Light: return "亮色模式";
-    case DarkThemeMode.Dark: return "深色模式";
-    default: return "";
-  }
-}
+import { uiBack, uiShowToast } from '../../utils/uiContextBridge';
+import { DarkThemeMode, getDarkThemeName, ThemeSettings } from '../../services/settings/ThemeSettingsModel';
+import { getThemeSettingsController } from '../../services/settings/WindowThemeTarget';
 
 @Entry
 @Component
 struct ThemeSettingPage {
-  // 对应 Android ViewModel 中的状态
-  @State dynamic: boolean = false;
-  // 【修复 1】重命名 rotate -> autoRotate，避免与系统旋转属性冲突
+  // Settings are restored before the first page is loaded.
   @State autoRotate: boolean = false;
   @State darkMode: DarkThemeMode = DarkThemeMode.System;
+
+  @State saving: boolean = false;
+  @State ready: boolean = false;
+
+  aboutToAppear(): void {
+    try {
+      const settings = getThemeSettingsController().snapshot();
+      this.darkMode = settings.darkThemeMode;
+      this.autoRotate = settings.autoRotate;
+      this.ready = true;
+    } catch (_) {
+      uiShowToast(this.getUIContext(), { message: '外观设置暂不可用，请重新打开应用' });
+    }
+  }
+
+  private async saveSettings(mode: DarkThemeMode, autoRotate: boolean): Promise<void> {
+    if (this.saving || !this.ready) return;
+    this.saving = true;
+    const previousMode = this.darkMode;
+    const previousRotation = this.autoRotate;
+    this.darkMode = mode;
+    this.autoRotate = autoRotate;
+    const settings: ThemeSettings = { darkThemeMode: mode, autoRotate };
+    try {
+      const saved = await getThemeSettingsController().save(settings);
+      this.darkMode = saved.darkThemeMode;
+      this.autoRotate = saved.autoRotate;
+    } catch (_) {
+      this.darkMode = previousMode;
+      this.autoRotate = previousRotation;
+      uiShowToast(this.getUIContext(), { message: '外观设置未保存，请重试' });
+    } finally { this.saving = false; }
+  }
 
   // 暗黑模式选择弹窗控制器
   darkModeDialogController: CustomDialogController = new CustomDialogController({
     builder: DarkModeDialog({
       currentMode: this.darkMode,
       onConfirm: (mode: DarkThemeMode) => {
-        this.darkMode = mode;
-        // TODO: 这里添加实际切换主题的逻辑
+        this.saveSettings(mode, this.autoRotate);
       }
     }),
     alignment: DialogAlignment.Center,
@@ -66,16 +80,6 @@ struct ThemeSettingPage {
       List() {
         ListItem() {
           Column() {
-            // Item 1: 动态适配系统主题
-            SwitchSettingItem({
-              title: "动态适配系统主题",
-              subTitle: "需要Android 12及以上",
-              checked: this.dynamic,
-              onChange: (isOn) => { this.dynamic = isOn; }
-            })
-
-            Divider().color($r('sys.color.ohos_id_color_list_separator')).margin({ left: 16 })
-
             // Item 2: 暗黑模式
             SelectionSettingItem({
               title: "暗黑模式",
@@ -83,7 +87,7 @@ struct ThemeSettingPage {
               valueText: getDarkThemeName(this.darkMode),
               // 【修复 2】这里对应下面的重命名
               onItemClick: () => {
-                this.darkModeDialogController.open();
+                if (this.ready && !this.saving) this.darkModeDialogController.open();
               }
             })
 
@@ -92,14 +96,15 @@ struct ThemeSettingPage {
             // Item 3: 自动旋转
             SwitchSettingItem({
               title: "自动旋转",
-              subTitle: "设置是否自动旋转",
+              subTitle: "开启后跟随系统旋转锁定；关闭后保持竖屏",
               checked: this.autoRotate, // 【修复 1】使用新名字
-              onChange: (isOn) => { this.autoRotate = isOn; }
+              onChange: (isOn) => { this.saveSettings(this.darkMode, isOn); }
             })
           }
           .backgroundColor($r('sys.color.ohos_id_color_card_bg'))
           .borderRadius(12)
           .clip(true)
+          .enabled(this.ready && !this.saving)
         }
         .padding(16)
       }
