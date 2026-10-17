@@ -1,3 +1,8 @@
+import mapSettingsTest from './MapSettings.test';
+import webNavigationTest from './WebNavigation.test';
+import galleryFilterTest from './GalleryFilter.test';
+import gallerySettingsTest from './GallerySettings.test';
+import galleryCommentsTest from './GalleryComments.test';
 import localUnitTest from './LocalUnit.test';
 import bitSsoSessionStateTest from './BitSsoSessionState.test';
 import schoolCasClientTest from './SchoolCasClient.test';
@@ -33,6 +38,11 @@ import themeSettingsTest from './ThemeSettings.test';
 import followListTest from './FollowList.test';
 
 export default function testsuite() {
+  galleryFilterTest();
+  gallerySettingsTest();
+  galleryCommentsTest();
+  mapSettingsTest();
+  webNavigationTest();
   localUnitTest();
   bitSsoSessionStateTest();
   schoolCasClientTest();

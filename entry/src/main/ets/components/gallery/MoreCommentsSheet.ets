@@ -1,3 +1,6 @@
+import { FilteredPager, FilteredPageSnapshot } from '../../services/gallery/FilteredPager';
+import { filterComments } from '../../services/gallery/GalleryFilter';
+import { getGallerySettingsStore } from '../../services/storage/GallerySettingsStore';
 import { Logger } from '../../utils/Logger';
 import { Comment, GalleryImage, GalleryUser } from '../../services/gallery/GalleryModels';
 import { reactionService } from '../../services/gallery/ReactionService';
@@ -28,41 +31,19 @@ export struct MoreCommentsSheet {
   @State hasMore: boolean = true;
   @State page: number = 0;
 
-  aboutToAppear() {
-    this.loadData(false);
-  }
-
-  // --- 数据加载 ---
-  async loadData(isLoadMore: boolean) {
-    if (this.isLoading) return;
-    if (isLoadMore && !this.hasMore) return;
-
-    this.isLoading = true;
-    const requestPage = isLoadMore ? this.page + 1 : 0;
-
-    try {
-      const newItems = await reactionService.getCommentsForComment(
-        this.parentComment.id,
-        requestPage,
-        this.subCommentsOrder
-      );
-
-      if (isLoadMore) {
-        this.subComments = [...this.subComments, ...newItems];
-      } else {
-        this.subComments = newItems;
-      }
-
-      if (newItems.length > 0) {
-        this.page = requestPage;
-      }
-      this.hasMore = newItems.length > 0;
-
-    } catch (e) {
-      this.logger.error('[MoreComments] 加载失败', e);
-    } finally {
-      this.isLoading = false;
-    }
+  @State loadError: string = '';
+  private pager: FilteredPager<Comment> = new FilteredPager<Comment>(
+    (page: number) => reactionService.getCommentsForComment(this.parentComment.id, page, this.subCommentsOrder),
+    (items: Comment[]) => filterComments(items, getGallerySettingsStore().snapshot()),
+    (item: Comment) => item.id, (state: FilteredPageSnapshot<Comment>) => {
+      this.subComments = state.items; this.isLoading = state.loading;
+      this.hasMore = state.hasMore; this.loadError = state.error;
+    });
+  aboutToAppear(): void { this.pager.refresh(); }
+  aboutToDisappear(): void { this.pager.cancel(); }
+  async loadData(isLoadMore: boolean): Promise<void> {
+    if (isLoadMore) { if (!this.loadError) await this.pager.loadMore(); }
+    else await this.pager.refresh();
   }
 
   // --- 交互逻辑 ---
@@ -87,6 +68,7 @@ export struct MoreCommentsSheet {
       if (ok) {
         // 使用 filter 产生新数组，触发 UI 刷新
         this.subComments = this.subComments.filter(item => item.id !== target.id);
+        this.pager.replaceItems(this.subComments);
         this.showToast('删除成功');
       } else {
         this.showToast('删除失败');
@@ -119,6 +101,7 @@ export struct MoreCommentsSheet {
 
     // 2. 强制 UI 刷新：通过数组展开赋值 [...arr] 通知系统数据变了
     this.subComments = [...this.subComments];
+    this.pager.replaceItems(this.subComments);
 
     try {
       const res = await reactionService.likeComment(item.id);
@@ -127,7 +110,8 @@ export struct MoreCommentsSheet {
       if (res) {
         this.subComments[index].like = res.like;
         this.subComments[index].likeNum = res.likeNum;
-        this.subComments = [...this.subComments]; // 再次刷新确信状态
+        this.subComments = [...this.subComments];
+        this.pager.replaceItems(this.subComments); // 再次刷新确信状态
       } else {
         // 如果返回 false 或 null，视为失败，抛错进入 catch 回滚
         throw new Error('Server returned failure');
@@ -138,6 +122,7 @@ export struct MoreCommentsSheet {
       this.subComments[index].like = oldLike;
       this.subComments[index].likeNum = oldNum;
       this.subComments = [...this.subComments];
+      this.pager.replaceItems(this.subComments);
       this.showToast('操作失败');
     }
   }
@@ -355,6 +340,9 @@ export struct MoreCommentsSheet {
         }
 
         // 子评论
+        if (this.loadError) {
+          ListItem() { Text(this.loadError).padding(16).onClick(() => { this.pager.retry(); }) }
+        }
         ForEach(this.subComments, (item: Comment, index: number) => {
           ListItem() {
             this.ItemBuilder(item, false, index)

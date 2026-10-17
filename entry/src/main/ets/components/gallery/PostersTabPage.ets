@@ -70,6 +70,14 @@ export struct PostersTabPage {
               }
             }, (item: Poster, index: number) => item.id + "_" + index)
 
+            if (this.state.error) {
+              ListItem() {
+                Text(this.state.error).width('100%').textAlign(TextAlign.Center).padding(24)
+                  .onClick(() => { this.state.retry(); })
+              }
+            } else if (!this.state.isLoading && this.state.items.length === 0) {
+              ListItem() { Text('暂无符合条件的帖子').padding(24).fontColor($r('sys.color.font_secondary')) }
+            }
             // 底部加载状态条
             if (this.state.items.length > 0) {
               ListItem() {

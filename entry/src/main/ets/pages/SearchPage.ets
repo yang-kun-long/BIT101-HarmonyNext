@@ -17,6 +17,9 @@ struct SearchPage {
   // 初始化为 Search 模式
   @State searchState: PosterListState = new PosterListState(PostersMode.Search);
 
+  aboutToAppear(): void { this.searchState.activate(); }
+  aboutToDisappear(): void { this.searchState.deactivate(); }
+
   // --- 2. UI 交互状态 ---
   @State searchKeyword: string = '';
   @State currentOrder: string = 'new'; // 默认按最新排序
@@ -147,7 +150,8 @@ struct SearchPage {
               .fontColor([$r('sys.color.icon_tertiary')])
               .margin({ bottom: 12 })
 
-            Text('输入关键词开始搜索')
+            Text(this.searchState.error || (this.searchKeyword ? '没有符合条件的帖子' : '输入关键词开始搜索'))
+              .onClick(() => { if (this.searchState.error) this.searchState.retry(); })
               .fontSize(16)
               .fontColor($r('sys.color.font_secondary'))
           }

@@ -1,3 +1,4 @@
+import { getGallerySettingsStore } from '../services/storage/GallerySettingsStore';
 // entry/src/main/ets/pages/PostPage.ets
 import { Logger } from '../utils/Logger';
 import { PostersTabPage } from '../components/gallery/PostersTabPage';
@@ -15,6 +16,23 @@ export default struct PostPage {
   @State hotState: PosterListState = new PosterListState(PostersMode.Hot);
   @State newestState: PosterListState = new PosterListState(PostersMode.Newest);
   @State followState: PosterListState = new PosterListState(PostersMode.Follow);
+
+  @State allowHorizontalScroll: boolean = true;
+  private unsubscribeSettings: (() => void) | null = null;
+
+  aboutToAppear(): void {
+    this.allowHorizontalScroll = getGallerySettingsStore().snapshot().allowHorizontalScroll;
+    this.unsubscribeSettings = getGallerySettingsStore().subscribe(() => {
+      this.allowHorizontalScroll = getGallerySettingsStore().snapshot().allowHorizontalScroll;
+    });
+    this.recommendState.activate(); this.hotState.activate();
+    this.newestState.activate(); this.followState.activate();
+  }
+  aboutToDisappear(): void {
+    if (this.unsubscribeSettings) this.unsubscribeSettings();
+    this.recommendState.deactivate(); this.hotState.deactivate();
+    this.newestState.deactivate(); this.followState.deactivate();
+  }
 
   // 当前选中的 Tab 索引，默认选中 "推荐"
   @State currentIndex: number = 1;
@@ -154,7 +172,7 @@ export default struct PostPage {
       }
       .barHeight(0)
       .vertical(false)
-      .scrollable(true)
+      .scrollable(this.allowHorizontalScroll)
       .animationDuration(200)
       .onChange((index: number) => {
         this.currentIndex = index;

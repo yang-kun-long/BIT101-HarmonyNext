@@ -33,6 +33,7 @@ export struct ImagePickerGrid {
         // ✅ 修复：显式声明 map 的返回类型，并使用 'as ImageUploadItem' 断言
         const newItems: ImageUploadItem[] = photoSelectResult.photoUris.map((uri: string): ImageUploadItem => {
           return {
+            uploadId: Date.now().toString() + Math.random().toString(),
             uri: uri,
             status: 'uploading',
             mid: undefined
@@ -51,23 +52,26 @@ export struct ImagePickerGrid {
           const mid = await galleryService.uploadImage(this.context, item.uri);
 
           // 查找当前最新的 index (因为数组可能变动)
-          const index = this.images.indexOf(item);
+          const index = this.images.findIndex(current => current.uploadId === item.uploadId);
           if (index !== -1) {
             // 需要构建新对象来触发更新，直接修改属性有时监听不到
             if (mid) {
               this.images[index] = {
+                uploadId: item.uploadId,
                 uri: item.uri,
                 status: 'success',
                 mid: mid
               } as ImageUploadItem;
             } else {
               this.images[index] = {
+                uploadId: item.uploadId,
                 uri: item.uri,
                 status: 'fail',
                 mid: undefined
               } as ImageUploadItem;
             }
           }
+          this.images = this.images.slice();
         });
       }
     } catch (err) {

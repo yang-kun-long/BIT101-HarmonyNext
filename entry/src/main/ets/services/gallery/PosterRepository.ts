@@ -1,4 +1,6 @@
-import RcpSession from '../../core/network/rcpSession';
+import { GallerySettings, getGallerySettingsStore } from '../storage/GallerySettingsStore';
+import { hideBotForMode } from './GalleryFilter';
+import RcpSession, { RcpResponseData, RcpRequestOptions } from '../../core/network/rcpSession';
 import { Poster, GalleryUser, GalleryImage } from './GalleryModels';
 import { TokenStore } from '../storage/tokenStore';
 import { Logger } from '../../utils/Logger'; // ✅ 引入您的 Logger
@@ -38,15 +40,20 @@ interface PosterApiRaw {
   };
 }
 
-export class PosterRepository {
-  private rcp: RcpSession;
-  private tokenStore: TokenStore = new TokenStore();
+export interface PosterHttpSource {
+  get(path: string, options?: RcpRequestOptions): Promise<RcpResponseData>;
+}
 
-  constructor() {
-    this.rcp = new RcpSession({
-      baseUrl: 'https://bit101.flwfdd.xyz',
-      debug: false // RcpSession 内部也有 Logger，这里可以关掉 console debug
-    });
+export class PosterRepository {
+  private rcp: PosterHttpSource;
+  private cookie: () => Promise<string | null>;
+  private settings: () => GallerySettings;
+
+  constructor(source?: PosterHttpSource, cookie?: () => Promise<string | null>,
+    settings?: () => GallerySettings) {
+    this.rcp = source ?? new RcpSession({ baseUrl: 'https://bit101.flwfdd.xyz', debug: false });
+    this.cookie = cookie ?? (() => new TokenStore().getFakeCookie());
+    this.settings = settings ?? (() => getGallerySettingsStore().snapshot());
   }
 
   async getPostersOfUser(uid: number, page: number = 1): Promise<Poster[]> {
@@ -56,7 +63,7 @@ export class PosterRepository {
     }
 
     try {
-      const fakeCookie = await this.tokenStore.getFakeCookie();
+      const fakeCookie = await this.cookie();
       const headers: Record<string, string> = {};
 
       if (fakeCookie) {
@@ -116,17 +123,16 @@ export class PosterRepository {
   async getPosters(mode: string, page: number): Promise<Poster[]> {
     try {
       const headers: Record<string, string> = {};
-      const fakeCookie = await this.tokenStore.getFakeCookie();
+      const fakeCookie = await this.cookie();
       if (fakeCookie) headers['fake-cookie'] = fakeCookie;
 
       const queryParams: Record<string, string | number> = {
         mode: mode,
-        page: page
+        page: page,
+        hide_bot: String(hideBotForMode(mode, this.settings()))
       };
 
-      // 特殊处理：如果 mode 是 "newest" (UI层的概念)，对应 API 的 recommend/hot?
-      // 实际上根据之前的分析，"最新"通常是 mode=search & order=new & uid=-1
-      // 这里为了兼容你的 Tab，我们做个简单的判断：
+      // Android 最新流使用 search + new + 全站 UID。
       if (mode === 'newest') {
         queryParams['mode'] = 'search';
         queryParams['order'] = 'new';
@@ -143,7 +149,7 @@ export class PosterRepository {
       return this.handleResponse(response);
     } catch (err) {
       logger.error(`getPosters 异常 (mode=${mode})`, err);
-      return [];
+      throw err;
     }
   }
 
@@ -158,7 +164,7 @@ export class PosterRepository {
   ): Promise<Poster[]> {
     try {
       const headers: Record<string, string> = {};
-      const fakeCookie = await this.tokenStore.getFakeCookie();
+      const fakeCookie = await this.cookie();
       if (fakeCookie) headers['fake-cookie'] = fakeCookie;
 
       const queryParams: Record<string, string | number> = {
@@ -166,7 +172,8 @@ export class PosterRepository {
         search: keyword,
         order: order,
         uid: uid,
-        page: page
+        page: page,
+        hide_bot: String(hideBotForMode('search', this.settings()))
       };
 
       logger.info(`搜索请求: keyword=${keyword}, order=${order}, page=${page}`);
@@ -179,17 +186,17 @@ export class PosterRepository {
       return this.handleResponse(response);
     } catch (err) {
       logger.error(`getSearchPosters 异常: ${keyword}`, err);
-      return [];
+      throw err;
     }
   }
 
   // ==========================================================
   // [优化] 抽取公共响应处理逻辑 (复用现有代码)
   // ==========================================================
-  private handleResponse(response: any): Poster[] {
+  private handleResponse(response: RcpResponseData): Poster[] {
     if (response.statusCode !== 200) {
       logger.error(`请求失败: code=${response.statusCode}`);
-      return [];
+      throw new Error('帖子加载失败');
     }
 
     let rawList: PosterApiRaw[] = [];
@@ -199,13 +206,19 @@ export class PosterRepository {
         rawList = json;
       } else if (json && Array.isArray(json.data)) {
         rawList = json.data;
+      } else {
+        throw new Error('帖子返回格式异常');
       }
     } catch (e) {
-      logger.error('JSON解析失败', e);
-      return [];
+      throw new Error('帖子返回格式异常');
     }
 
-    return rawList.map(item => this.mapApiToModel(item));
+    return rawList.map(item => {
+      if (!item || !Number.isSafeInteger(item.id) || !item.user || item.user.id === undefined) {
+        throw new Error('帖子返回格式异常');
+      }
+      return this.mapApiToModel(item);
+    });
   }
 
 

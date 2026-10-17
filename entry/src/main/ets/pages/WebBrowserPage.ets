@@ -1,3 +1,4 @@
+import { WebNavigationState, webBackward } from '../components/web/WebNavigationModel';
 import { WebPage } from '../components/web/WebPage';
 import { uiBack, uiGetParams } from '../utils/uiContextBridge';
 import web_webview from '@ohos.web.webview';
@@ -5,6 +6,8 @@ import web_webview from '@ohos.web.webview';
 @Entry
 @Component
 struct WebBrowserPage {
+  private readonly navigation: WebNavigationState = new WebNavigationState();
+  onBackPress(): boolean { return webBackward(this.controller); }
   @State url: string = '';
   @State title: string = '详情';
   private readonly controller: web_webview.WebviewController = new web_webview.WebviewController();
@@ -25,9 +28,7 @@ struct WebBrowserPage {
           .height(24)
           .margin({ right: 16 })
           .onClick(() => {
-            if (this.controller.accessBackward()) {
-              this.controller.backward();
-            } else {
+            if (!webBackward(this.controller)) {
               uiBack(this.getUIContext());
             }
           })
@@ -58,6 +59,7 @@ struct WebBrowserPage {
       if (this.url.length > 0) {
         WebPage({
           url: this.url,
+          navigation: this.navigation,
           allowInitialOrigin: true,
           controller: this.controller,
           onTitleChange: (nextTitle: string) => {

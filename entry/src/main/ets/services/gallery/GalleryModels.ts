@@ -104,6 +104,7 @@ export interface PosterPostRequest {
 }
 
 export interface ImageUploadItem {
+  uploadId?: string;
   uri: string;
   status: 'pending' | 'uploading' | 'success' | 'fail';
   mid?: string;

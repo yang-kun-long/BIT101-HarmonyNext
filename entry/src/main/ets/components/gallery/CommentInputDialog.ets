@@ -1,3 +1,4 @@
+import { commentSendError } from '../../services/gallery/GalleryFilter';
 import { Logger } from '../../utils/Logger';
 // entry/src/main/ets/components/gallery/CommentInputDialog.ets
 import photoAccessHelper from '@ohos.file.photoAccessHelper';
@@ -42,6 +43,7 @@ export struct CommentInputDialog {
       if (photoSelectResult && photoSelectResult.photoUris.length > 0) {
         const newItems: ImageUploadItem[] = photoSelectResult.photoUris.map((uri: string): ImageUploadItem => {
           return {
+            uploadId: Date.now().toString() + Math.random().toString(),
             uri: uri,
             status: 'uploading',
             mid: undefined
@@ -55,22 +57,25 @@ export struct CommentInputDialog {
         newItems.forEach(async (item) => {
           const mid = await galleryService.uploadImage(this.context, item.uri);
 
-          const index = this.images.indexOf(item);
+          const index = this.images.findIndex(current => current.uploadId === item.uploadId);
           if (index !== -1) {
             if (mid) {
               this.images[index] = {
+                uploadId: item.uploadId,
                 uri: item.uri,
                 status: 'success',
                 mid: mid
               } as ImageUploadItem;
             } else {
               this.images[index] = {
+                uploadId: item.uploadId,
                 uri: item.uri,
                 status: 'fail',
                 mid: undefined
               } as ImageUploadItem;
             }
           }
+          this.images = this.images.slice();
         });
       }
     } catch (err) {
@@ -102,6 +107,10 @@ export struct CommentInputDialog {
           .margin({ top: 8 })
       }
 
+      if (commentSendError(this.text, this.images) && this.images.length > 0) {
+        Text(commentSendError(this.text, this.images)).fontSize(12).fontColor($r('sys.color.font_secondary')).margin({ top: 8 })
+      }
+
       // 4. 底部工具栏
       Row() {
         // 匿名开关
@@ -127,11 +136,12 @@ export struct CommentInputDialog {
 
         Button('发送')
           .type(ButtonType.Capsule)
-          .backgroundColor(this.text.trim().length === 0 ? $r('sys.color.ohos_id_color_list_separator') : $r('sys.color.ohos_id_color_primary'))
-          .fontColor(this.text.trim().length === 0 ? $r('sys.color.ohos_id_color_text_tertiary') : Color.White)
-          .enabled(this.text.trim().length > 0)
+          .backgroundColor(commentSendError(this.text, this.images).length > 0 ? $r('sys.color.ohos_id_color_list_separator') : $r('sys.color.ohos_id_color_primary'))
+          .fontColor(commentSendError(this.text, this.images).length > 0 ? $r('sys.color.ohos_id_color_text_tertiary') : Color.White)
+          .enabled(commentSendError(this.text, this.images).length === 0)
           .height(32)
           .onClick(() => {
+            if (commentSendError(this.text, this.images)) return;
             // 提取上传成功的 mids
             const mids = this.images
               .filter(i => i.status === 'success' && i.mid !== undefined)

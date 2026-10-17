@@ -1,3 +1,6 @@
+import { createTileCache } from '../services/map/TileCachePlatform';
+import { TileNetworkSource, isPngTile } from '../services/map/TileCacheService';
+import { normalizeMapViewport } from '../services/map/MapSettingsModel';
 import { DebugCase } from './DebugCase';
 import { MapConstants } from '../services/map/MapConfig';
 import { calculateVisibleTiles, getTileUrl } from '../services/map/TileUtils';
@@ -44,6 +47,20 @@ export class MapDebugCase extends DebugCase {
       this.logError('❌ No tiles calculated! Something is wrong.');
     }
 
+    const viewport = normalizeMapViewport({ x: NaN, y: Infinity, zoom: 99 });
+    this.assertTrue(viewport.x === lx.x && viewport.y === lx.y && viewport.zoom === 19, 'Viewport normalization');
+    const cacheDir = AppStorage.get<string>('cacheDir');
+    this.assertTrue(!!cacheDir, 'Ability cache directory available');
+    const tileUrl = getTileUrl(Math.floor(lx.x * Math.pow(2, 16)), Math.floor(lx.y * Math.pow(2, 16)), 16);
+    const data = await createTileCache(cacheDir as string).get(tileUrl);
+    this.assertTrue(isPngTile(data), 'Network or cached response is PNG');
+    let networkCalls = 0;
+    const offline: TileNetworkSource = { fetch: async (url: string): Promise<ArrayBuffer> => {
+      networkCalls++; throw new Error('Offline cache probe');
+    } };
+    const restored = await createTileCache(cacheDir as string, offline).get(tileUrl);
+    this.assertTrue(isPngTile(restored) && networkCalls === 0, 'Persistent tile available without network');
+    this.logInfo('Map disk cache offline restore SUCCESS, bytes=' + restored.byteLength);
     this.logInfo('=== Map Debug END ===');
   }
 }

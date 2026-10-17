@@ -1,3 +1,6 @@
+import { normalizeMapViewport, normalizeMapZoom, mapViewportScript } from '../../services/map/MapSettingsModel';
+import { getTileCache } from '../../services/map/TileCachePlatform';
+import { tileKey } from '../../services/map/TileCacheService';
 // entry/src/main/ets/components/map/MapCanvas.ets
 import web_webview from '@ohos.web.webview';
 import { common } from '@kit.AbilityKit';
@@ -26,40 +29,43 @@ export struct MapCanvas {
   @StorageLink('last_map_y') lastY: number = MapConstants.LiangXiang.y;
   @StorageLink('last_map_zoom') lastZoom: number = 16;
 
+  private ready: boolean = false;
+  private restoreViewport: string = '';
+  private readonly context: common.UIAbilityContext = this.getUIContext().getHostContext() as common.UIAbilityContext;
+
   @State currentZoom: number = 16;
   @State isSettingsOpen: boolean = false;
 
   aboutToAppear() {
-    this.currentZoom = this.lastZoom;
+    const viewport = normalizeMapViewport({ x: this.lastX, y: this.lastY, zoom: this.lastZoom });
+    this.lastX = viewport.x; this.lastY = viewport.y; this.lastZoom = viewport.zoom;
+    this.currentZoom = viewport.zoom;
+    this.restoreViewport = mapViewportScript(viewport);
   }
 
-  goToLocation(pos: MapPosition) {
-    const zoom = 16;
+  async goToLocation(pos: MapPosition): Promise<void> {
+    if (!this.ready) return;
     try {
-      this.controller.runJavaScript(`flyToPosition(${pos.x}, ${pos.y}, ${zoom})`);
-    } catch (error) {
-      this.logger.error('goToLocation runJavaScript failed:', error);
-    }
-    this.currentZoom = zoom;
+      await this.controller.runJavaScript(mapViewportScript({ x: pos.x, y: pos.y, zoom: 16 }));
+    } catch (error) { this.logger.error('Move map failed', error); }
   }
 
-  setMapZoom(zoom: number) {
+  async setMapZoom(zoom: number): Promise<void> {
+    if (!this.ready) return;
     try {
-      this.controller.runJavaScript(`setZoom(${zoom})`);
-    } catch (error) {
-      this.logger.error('setMapZoom runJavaScript failed:', error);
-    }
+      await this.controller.runJavaScript('setZoom(' + normalizeMapZoom(zoom) + ')');
+    } catch (error) { this.logger.error('Change map zoom failed', error); }
   }
 
   @Builder SettingsPanel() {
     Column() {
       Row() {
-        Text(`缩放倍率: ${this.currentZoom.toFixed(1)}`)
+        Text(`地图缩放级别: ${this.currentZoom.toFixed(1)}`)
           .fontSize(18)
           .fontWeight(FontWeight.Bold)
         Blank()
         Button({ type: ButtonType.Circle }) {
-          Text("×").fontSize(20).fontColor(Color.Black)
+          Text("×").fontSize(20).fontColor($r('sys.color.font_primary'))
         }
         .backgroundColor(Color.Transparent)
         .onClick(() => this.isSettingsOpen = false)
@@ -67,6 +73,8 @@ export struct MapCanvas {
       .width('100%')
       .padding({ bottom: 20 })
 
+      Text('改变地图显示范围；近期瓦片缓存保留 7 天，最多 10 MB')
+        .fontSize(12).fontColor($r('sys.color.font_secondary')).margin({ bottom: 8 })
       Row() {
         Text("1.0").fontSize(12).fontColor(Color.Gray)
         Slider({
@@ -87,9 +95,9 @@ export struct MapCanvas {
       }
     }
     .padding(20)
-    .backgroundColor(Color.White)
+    .backgroundColor($r('sys.color.ohos_id_color_background'))
     .width('100%')
-    .height(150)
+    .constraintSize({ minHeight: 180 })
   }
 
   build() {
@@ -102,19 +110,31 @@ export struct MapCanvas {
         .databaseAccess(true)
         .imageAccess(true)
         .fileAccess(true)
-        .mixedMode(MixedMode.All)
+        .mixedMode(MixedMode.None)
         .zoomAccess(true)
-        .cacheMode(CacheMode.Default)
+        .cacheMode(CacheMode.None)
+        .onPageBegin(() => { this.ready = false; })
         .onControllerAttached(() => {
           this.controller.setCustomUserAgent("BIT101 " + this.controller.getUserAgent());
         })
         .onPageEnd(() => {
-          // 🔥 页面加载完毕，立即恢复上次位置
-          // 这里不再需要注入 JS，因为 html 里已经写好了监听逻辑
-          setTimeout(() => {
-            this.logger.info('Restoring position:', this.lastX, this.lastY, this.lastZoom);
-            this.controller.runJavaScript(`flyToPosition(${this.lastX}, ${this.lastY}, ${this.lastZoom})`);
-          }, 200); // 稍微给一点时间让Leaflet初始化
+          this.controller.runJavaScript(this.restoreViewport)
+            .then(() => { this.ready = true; })
+            .catch((error: Error) => { this.logger.error('Restore map viewport failed', error); });
+        })
+        .onInterceptRequest((event) => {
+          if (!event || event.request.getRequestMethod() !== 'GET' || !tileKey(event.request.getRequestUrl())) return null;
+          const response = new WebResourceResponse();
+          response.setResponseIsReady(false);
+          getTileCache(this.context).get(event.request.getRequestUrl()).then((data: ArrayBuffer) => {
+            response.setResponseData(data);
+            response.setResponseMimeType('image/png');
+            response.setResponseCode(200); response.setReasonMessage('OK');
+          }).catch(() => {
+            response.setResponseData('');
+            response.setResponseCode(503); response.setReasonMessage('Tile unavailable');
+          }).finally(() => { response.setResponseIsReady(true); });
+          return response;
         })
         .onConsole((event) => {
           const msg = event?.message.getMessage() || "";
@@ -126,11 +146,11 @@ export struct MapCanvas {
             try {
               const jsonStr = msg.replace("FromJS:", "");
               const state = JSON.parse(jsonStr) as MapState;
-              if (state.type === 'map_state') {
-                this.currentZoom = state.zoom;
-                this.lastX = state.x;
-                this.lastY = state.y;
-                this.lastZoom = state.zoom;
+              if (state.type === 'map_state' && this.ready) {
+                const viewport = normalizeMapViewport(state);
+                this.currentZoom = viewport.zoom;
+                this.lastX = viewport.x; this.lastY = viewport.y; this.lastZoom = viewport.zoom;
+                this.restoreViewport = mapViewportScript(viewport);
               }
             } catch (e) {
               // 建议这里也打印一下，万一 JSON 解析失败能看见
@@ -168,7 +188,7 @@ export struct MapCanvas {
         .bindSheet($$this.isSettingsOpen, this.SettingsPanel(), {
           height: SheetSize.FIT_CONTENT,
           dragBar: true,
-          backgroundColor: Color.White
+          backgroundColor: $r('sys.color.ohos_id_color_background')
         })
         .onClick(() => this.isSettingsOpen = true)
 

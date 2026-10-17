@@ -1,3 +1,5 @@
+import web_webview from '@ohos.web.webview';
+import { webBackward } from '../components/web/WebNavigationModel';
 import { Logger } from '../utils/Logger';
 import { isAuthedBit101 } from '../services/auth/authGuard';
 // 引入 PageEnum 用于和设置页数据对接
@@ -25,6 +27,8 @@ enum TabKey {
 @Entry
 @Component
 struct Index {
+  private readonly forumController: web_webview.WebviewController = new web_webview.WebviewController();
+  onBackPress(): boolean { return this.current === TabKey.Forum && webBackward(this.forumController); }
   private logger = new Logger('Index');
 
   // 2. 当前选中的 Tab，默认为 卷
@@ -152,7 +156,7 @@ struct Index {
         // 3. Forum (网)
         if (this.isForumLoaded) {
           Column() {
-            ForumPage()
+            ForumPage({ controller: this.forumController })
           }
           .width('100%')
           .height('100%')

@@ -32,7 +32,12 @@
     }).addTo(map);
 
     // 3. 核心功能：跳转到指定位置 (ArkTS 调用)
+    function normalizeZoom(zoom) {
+        return Number.isFinite(zoom) ? Math.round(Math.max(1, Math.min(19, zoom)) * 10) / 10 : 16;
+    }
     window.flyToPosition = function(x, y, zoom) {
+         if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || x > 1 || y < 0 || y > 1) return;
+         zoom = normalizeZoom(zoom);
          // 计算世界总像素宽度 (256 * 2^zoom)
          var totalPixels = 256 * Math.pow(2, zoom);
 
@@ -51,7 +56,7 @@
 
     // 4. 核心功能：设置缩放 (ArkTS Slider 调用)
     window.setZoom = function(zoom) {
-        map.setZoom(zoom);
+        map.setZoom(normalizeZoom(zoom));
     }
 
     // 5. 核心功能：向 ArkTS 汇报当前位置 (用于记忆位置)
@@ -70,6 +75,7 @@
 
     // 绑定事件：移动或缩放结束时汇报
     map.on('moveend zoomend', reportState);
+    window.addEventListener('resize', function() { map.invalidateSize({ pan: false }); });
 </script>
 </body>
 </html>

@@ -47,6 +47,13 @@ struct Settings {
               targetUrl: 'pages/settings/ThemeSettingPage'
             })
 
+            SettingItemCard({
+              title: "话廊设置",
+              subTitle: "内容过滤、隐藏用户和横向滑动",
+              icon: $r('app.media.ic_image'),
+              targetUrl: 'pages/settings/GallerySettingPage'
+            })
+
             // 4. 课程表设置
             SettingItemCard({
               title: "课程表设置",

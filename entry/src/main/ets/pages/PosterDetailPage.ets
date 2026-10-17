@@ -1,3 +1,6 @@
+import { getGallerySettingsStore } from '../services/storage/GallerySettingsStore';
+import { filterComments } from '../services/gallery/GalleryFilter';
+import { FilteredPager, FilteredPageSnapshot } from '../services/gallery/FilteredPager';
 // entry/src/main/ets/pages/PosterDetailPage.ets
 import router from '@ohos.router';
 import promptAction from '@ohos.promptAction';
@@ -37,6 +40,16 @@ struct PosterDetailPage {
   @State loading: boolean = true;
   @State comments: Comment[] = [];
   @State commentsLoading: boolean = false;
+  @State commentsHasMore: boolean = true;
+  @State commentsError: string = '';
+  private unsubscribeSettings: (() => void) | null = null;
+  private commentsPager: FilteredPager<Comment> = new FilteredPager<Comment>(
+    (page: number) => reactionService.getCommentsForPoster(this.postId, this.commentsOrder, page),
+    (items: Comment[]) => filterComments(items, getGallerySettingsStore().snapshot()),
+    (item: Comment) => item.id, (state: FilteredPageSnapshot<Comment>) => {
+      this.comments = filterComments(state.items, getGallerySettingsStore().snapshot()); this.commentsLoading = state.loading;
+      this.commentsHasMore = state.hasMore; this.commentsError = state.error;
+    });
   @State commentMoreActionTarget: Comment | null = null;
   @State showPosterMoreActions: boolean = false;
   @State isTitleVisibleInTopBar: boolean = false;
@@ -218,6 +231,7 @@ struct PosterDetailPage {
     const ok = await reactionService.deleteComment(id);
     if (ok) {
       this.comments = this.removeCommentFromList(this.comments, id);
+      this.commentsPager.replaceItems(this.comments);
       if (this.poster && this.poster.commentNum !== undefined) {
         this.poster.commentNum = Math.max(0, (this.poster.commentNum || 0) - 1);
       }
@@ -290,7 +304,8 @@ struct PosterDetailPage {
       !oldLike,
       oldLike ? oldNum - 1 : oldNum + 1
     );
-    this.comments = [...this.comments]; // 触发刷新
+    this.comments = [...this.comments];
+    this.commentsPager.replaceItems(this.comments); // 触发刷新
 
     this.showToast(oldLike ? '取消点赞中...' : '点赞中...');
 
@@ -299,17 +314,29 @@ struct PosterDetailPage {
     if (res) {
       this.updateCommentLikeInList(this.comments, id, res.like, res.likeNum);
       this.comments = [...this.comments];
+      this.commentsPager.replaceItems(this.comments);
       this.showToast(res.like ? '点赞成功' : '已取消点赞');
     } else {
       // 失败回滚
       this.updateCommentLikeInList(this.comments, id, oldLike, oldNum);
       this.comments = [...this.comments];
+      this.commentsPager.replaceItems(this.comments);
       this.showToast('操作失败，请重试');
     }
   }
 
 
+  aboutToDisappear(): void {
+    this.commentsPager.cancel();
+    if (this.unsubscribeSettings) this.unsubscribeSettings();
+  }
+
   aboutToAppear(): void {
+    this.unsubscribeSettings = getGallerySettingsStore().subscribe(() => {
+      this.comments = filterComments(this.comments, getGallerySettingsStore().snapshot());
+      this.showSubCommentSheet = false;
+      this.loadComments();
+    });
     const params = uiGetParams(this.getUIContext()) as Record<string, Object>;
     const idParam = params?.['id'];
 
@@ -322,12 +349,7 @@ struct PosterDetailPage {
     }
   }
 
-  private async loadComments(): Promise<void> {
-    this.commentsLoading = true;
-    const list = await reactionService.getCommentsForPoster(this.postId, this.commentsOrder);
-    this.comments = list;
-    this.commentsLoading = false;
-  }
+  private async loadComments(): Promise<void> { await this.commentsPager.refresh(); }
   private getCommentsOrderLabel(): string {
     switch (this.commentsOrder) {
       case 'old':
@@ -491,8 +513,11 @@ struct PosterDetailPage {
           }
           .layoutWeight(1)
           .width('100%')
-          .backgroundColor(Color.White)
+          .backgroundColor($r('sys.color.ohos_id_color_background'))
           .align(Alignment.TopStart)
+          .onScrollEdge((edge: Edge) => {
+            if (edge === Edge.Bottom && !this.commentsError) this.commentsPager.loadMore();
+          })
           .onDidScroll(() => {
             const yOffset = this.scroller.currentOffset().yOffset;
             if (yOffset > this.SCROLL_THRESHOLD && !this.isTitleVisibleInTopBar) {
@@ -509,7 +534,7 @@ struct PosterDetailPage {
       }
       .width('100%')
       .height('100%')
-      .backgroundColor(Color.White)
+      .backgroundColor($r('sys.color.ohos_id_color_background'))
 
       // --- 全屏图片预览 (Stack 覆盖) ---
       if (this.isPreviewOpen) {
@@ -545,7 +570,7 @@ struct PosterDetailPage {
               // 自己的帖子：修改 / 删除 / 外部打开 / 举报
               Text('修改')
                 .fontSize(15)
-                .fontColor('#1F2937')
+                .fontColor($r('sys.color.ohos_id_color_text_primary'))
                 .padding({ top: 10, bottom: 10 })
                 .onClick(() => {
                   if (this.poster) {
@@ -561,7 +586,7 @@ struct PosterDetailPage {
 
               Text('删除')
                 .fontSize(15)
-                .fontColor('#EF4444')
+                .fontColor($r('sys.color.ohos_id_color_warning'))
                 .padding({ top: 10, bottom: 10 })
                 .onClick(() => {
                   this.deletePoster();
@@ -569,7 +594,7 @@ struct PosterDetailPage {
 
               Text('外部打开')
                 .fontSize(15)
-                .fontColor('#1F2937')
+                .fontColor($r('sys.color.ohos_id_color_text_primary'))
                 .padding({ top: 10, bottom: 10 })
                 .onClick(() => {
                   this.openPosterExternally();
@@ -578,7 +603,7 @@ struct PosterDetailPage {
 
               Text('举报')
                 .fontSize(15)
-                .fontColor('#1F2937')
+                .fontColor($r('sys.color.ohos_id_color_text_primary'))
                 .padding({ top: 10, bottom: 10 })
                 .onClick(() => {
                   uiPushUrl(this.getUIContext(), {
@@ -594,7 +619,7 @@ struct PosterDetailPage {
               // 别人的帖子：外部打开 / 举报
               Text('外部打开')
                 .fontSize(15)
-                .fontColor('#1F2937')
+                .fontColor($r('sys.color.ohos_id_color_text_primary'))
                 .padding({ top: 10, bottom: 10 })
                 .onClick(() => {
                   this.openPosterExternally();
@@ -603,7 +628,7 @@ struct PosterDetailPage {
 
               Text('举报')
                 .fontSize(15)
-                .fontColor('#1F2937')
+                .fontColor($r('sys.color.ohos_id_color_text_primary'))
                 .padding({ top: 10, bottom: 10 })
                 .onClick(() => {
                   uiPushUrl(this.getUIContext(), {
@@ -619,7 +644,7 @@ struct PosterDetailPage {
 
             Text('取消')
               .fontSize(14)
-              .fontColor('#6B7280')
+              .fontColor($r('sys.color.ohos_id_color_text_secondary'))
               .padding({ top: 12, bottom: 4 })
               .onClick(() => {
                 this.showPosterMoreActions = false;
@@ -627,7 +652,7 @@ struct PosterDetailPage {
           }
           .width('100%')
           .padding({ left: 20, right: 20, top: 16, bottom: 24 })
-          .backgroundColor(Color.White);
+          .backgroundColor($r('sys.color.ohos_id_color_background'));
         }
         .width('100%')
         .height('100%')
@@ -651,7 +676,7 @@ struct PosterDetailPage {
               // 自己的评论：删除 → 复制 → 举报
               Text('删除评论')
                 .fontSize(15)
-                .fontColor('#EF4444')
+                .fontColor($r('sys.color.ohos_id_color_warning'))
                 .padding({ top: 10, bottom: 10 })
                 .onClick(() => {
                   if (this.commentMoreActionTarget) {
@@ -662,7 +687,7 @@ struct PosterDetailPage {
 
               Text('复制内容')
                 .fontSize(15)
-                .fontColor('#1F2937')
+                .fontColor($r('sys.color.ohos_id_color_text_primary'))
                 .padding({ top: 10, bottom: 10 })
                 .onClick(() => {
                   this.copyCommentText(this.commentMoreActionTarget);
@@ -671,7 +696,7 @@ struct PosterDetailPage {
 
               Text('举报')
                 .fontSize(15)
-                .fontColor('#1F2937')
+                .fontColor($r('sys.color.ohos_id_color_text_primary'))
                 .padding({ top: 10, bottom: 10 })
                 .onClick(() => {
                   const target = this.commentMoreActionTarget;
@@ -692,7 +717,7 @@ struct PosterDetailPage {
               // 他人评论：复制 → 举报
               Text('复制内容')
                 .fontSize(15)
-                .fontColor('#1F2937')
+                .fontColor($r('sys.color.ohos_id_color_text_primary'))
                 .padding({ top: 10, bottom: 10 })
                 .onClick(() => {
                   this.copyCommentText(this.commentMoreActionTarget);
@@ -701,7 +726,7 @@ struct PosterDetailPage {
 
               Text('举报')
                 .fontSize(15)
-                .fontColor('#1F2937')
+                .fontColor($r('sys.color.ohos_id_color_text_primary'))
                 .padding({ top: 10, bottom: 10 })
                 .onClick(() => {
                   const target = this.commentMoreActionTarget;
@@ -723,7 +748,7 @@ struct PosterDetailPage {
             // 「取消」这个 Android 没有，如果你觉得好用，可以先保留
             Text('取消')
               .fontSize(14)
-              .fontColor('#6B7280')
+              .fontColor($r('sys.color.ohos_id_color_text_secondary'))
               .padding({ top: 12, bottom: 4 })
               .onClick(() => {
                 this.commentMoreActionTarget = null;
@@ -731,7 +756,7 @@ struct PosterDetailPage {
           }
           .width('100%')
           .padding({ left: 20, right: 20, top: 12, bottom: 20 })
-          .backgroundColor(Color.White);
+          .backgroundColor($r('sys.color.ohos_id_color_background'));
         }
         .width('100%')
         .height('100%')
@@ -753,13 +778,13 @@ struct PosterDetailPage {
             Text('评论排序')
               .fontSize(14)
               .fontWeight(FontWeight.Bold)
-              .fontColor('#111827')
+              .fontColor($r('sys.color.ohos_id_color_text_primary'))
               .margin({ bottom: 12 })
 
             // 最新
             Text('最新')
               .fontSize(15)
-              .fontColor(this.commentsOrder === 'new' ? '#2563EB' : '#1F2937')
+              .fontColor(this.commentsOrder === 'new' ? $r('sys.color.ohos_id_color_text_primary_activated') : $r('sys.color.ohos_id_color_text_primary'))
               .padding({ top: 8, bottom: 8 })
               .onClick(() => {
                 if (this.commentsOrder !== 'new') {
@@ -772,7 +797,7 @@ struct PosterDetailPage {
             // 最旧
             Text('最旧')
               .fontSize(15)
-              .fontColor(this.commentsOrder === 'old' ? '#2563EB' : '#1F2937')
+              .fontColor(this.commentsOrder === 'old' ? $r('sys.color.ohos_id_color_text_primary_activated') : $r('sys.color.ohos_id_color_text_primary'))
               .padding({ top: 8, bottom: 8 })
               .onClick(() => {
                 if (this.commentsOrder !== 'old') {
@@ -785,7 +810,7 @@ struct PosterDetailPage {
             // 高赞
             Text('高赞')
               .fontSize(15)
-              .fontColor(this.commentsOrder === 'like' ? '#2563EB' : '#1F2937')
+              .fontColor(this.commentsOrder === 'like' ? $r('sys.color.ohos_id_color_text_primary_activated') : $r('sys.color.ohos_id_color_text_primary'))
               .padding({ top: 8, bottom: 8 })
               .onClick(() => {
                 if (this.commentsOrder !== 'like') {
@@ -798,7 +823,7 @@ struct PosterDetailPage {
             // 取消
             Text('取消')
               .fontSize(14)
-              .fontColor('#6B7280')
+              .fontColor($r('sys.color.ohos_id_color_text_secondary'))
               .padding({ top: 12, bottom: 4 })
               .onClick(() => {
                 this.showCommentsOrderDialog = false;
@@ -806,7 +831,7 @@ struct PosterDetailPage {
           }
           .width('100%')
           .padding({ left: 20, right: 20, top: 16, bottom: 24 })
-          .backgroundColor(Color.White)
+          .backgroundColor($r('sys.color.ohos_id_color_background'))
         }
         .width('100%')
         .height('100%')
@@ -820,7 +845,7 @@ struct PosterDetailPage {
     .bindSheet(this.showSubCommentSheet, this.SubCommentSheetBuilder, {
       height: SheetSize.LARGE,
       dragBar: true,
-      backgroundColor: Color.White,
+      backgroundColor: $r('sys.color.ohos_id_color_background'),
       onDisappear: () => {
         this.showSubCommentSheet = false;
         this.selectedParentComment = null;
@@ -829,12 +854,12 @@ struct PosterDetailPage {
   }
 
   @Builder LoadingView() {
-    Column() { Text('正在加载帖子...').fontSize(16).fontColor('#9CA3AF') }
+    Column() { Text('正在加载帖子...').fontSize(16).fontColor($r('sys.color.ohos_id_color_text_tertiary')) }
     .width('100%').layoutWeight(1).justifyContent(FlexAlign.Center)
   }
 
   @Builder ErrorView() {
-    Column() { Text('未找到帖子').fontSize(16).fontColor('#9CA3AF') }
+    Column() { Text('未找到帖子').fontSize(16).fontColor($r('sys.color.ohos_id_color_text_tertiary')) }
     .width('100%').layoutWeight(1).justifyContent(FlexAlign.Center)
   }
 
@@ -842,7 +867,7 @@ struct PosterDetailPage {
   TopBar(): void {
     Row() {
       Image($r('app.media.ic_public_back'))
-        .width(24).height(24).fillColor('#1F2937')
+        .width(24).height(24).fillColor($r('sys.color.ohos_id_color_text_primary'))
         .onClick(() => uiBack(this.getUIContext()))
         .margin({ right: 12 });
 
@@ -855,7 +880,7 @@ struct PosterDetailPage {
               onClickUser: () => this.jumpToUser(this.poster?.user)
             })
             Column() {
-              UserNameWithIdentity({ user: this.poster.user, fontSize: 14, fontColor: '#1F2937' })
+              UserNameWithIdentity({ user: this.poster.user, fontSize: 14, fontColor: $r('sys.color.ohos_id_color_text_primary') })
             }
             .alignItems(HorizontalAlign.Start).margin({ left: 8 })
             .onClick(() => this.jumpToUser(this.poster?.user))
@@ -866,7 +891,7 @@ struct PosterDetailPage {
           .visibility(this.isTitleVisibleInTopBar ? Visibility.None : Visibility.Visible)
 
           Text(this.poster.title)
-            .fontSize(17).fontWeight(FontWeight.Bold).fontColor('#1F2937')
+            .fontSize(17).fontWeight(FontWeight.Bold).fontColor($r('sys.color.ohos_id_color_text_primary'))
             .maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
             .width('100%')
             .opacity(this.isTitleVisibleInTopBar ? 1 : 0)
@@ -877,13 +902,13 @@ struct PosterDetailPage {
       .layoutWeight(1).alignContent(Alignment.Start)
 
       Image($r('app.media.ic_public_more'))
-        .width(24).height(24).fillColor('#1F2937').margin({ left: 12 })
+        .width(24).height(24).fillColor($r('sys.color.ohos_id_color_text_primary')).margin({ left: 12 })
         .onClick(() => {
           this.showPosterMoreActions = true;
         });
     }
     .width('100%').height(56).padding({ left: 16, right: 16 })
-    .alignItems(VerticalAlign.Center).backgroundColor(Color.White)
+    .alignItems(VerticalAlign.Center).backgroundColor($r('sys.color.ohos_id_color_background'))
     .shadow({ radius: 3, color: '#0A000000', offsetY: 1 }).zIndex(10)
   }
 
@@ -891,9 +916,9 @@ struct PosterDetailPage {
   BottomBar(): void {
     Row() {
       Row() {
-        Text('快来评论吧').fontSize(14).fontColor('#9CA3AF')
+        Text('快来评论吧').fontSize(14).fontColor($r('sys.color.ohos_id_color_text_tertiary'))
       }
-      .height(36).layoutWeight(1).backgroundColor('#F3F4F6')
+      .height(36).layoutWeight(1).backgroundColor($r('sys.color.ohos_id_color_sub_background'))
       .borderRadius(18).padding({ left: 16 })
       .alignItems(VerticalAlign.Center).margin({ right: 16 })
       .onClick(() => {
@@ -904,37 +929,37 @@ struct PosterDetailPage {
       Row() {
         Image(this.poster?.like ? $r('app.media.ic_public_heart_filled') : $r('app.media.ic_public_heart_outline'))
           .width(26).height(26)
-          .fillColor(this.poster?.like ? '#EF4444' : '#6B7280')
+          .fillColor(this.poster?.like ? $r('sys.color.ohos_id_color_warning') : $r('sys.color.ohos_id_color_text_secondary'))
           .onClick(() => {
             this.togglePosterLike();
           })
           .animation({ duration: 300, curve: curves.springCurve(10, 1, 228, 30) })
 
         Text(this.formatNumber(this.poster?.likeNum || 0))
-          .fontSize(15).fontWeight(FontWeight.Medium).fontColor('#1F2937').margin({ left: 4 });
+          .fontSize(15).fontWeight(FontWeight.Medium).fontColor($r('sys.color.ohos_id_color_text_primary')).margin({ left: 4 });
       }
       .alignItems(VerticalAlign.Center)
     }
     .width('100%').height(60).padding({ left: 12, right: 16 })
-    .backgroundColor(Color.White).border({ width: { top: 0.5 }, color: '#E5E7EB' })
+    .backgroundColor($r('sys.color.ohos_id_color_background')).border({ width: { top: 0.5 }, color: $r('sys.color.ohos_id_color_list_separator') })
   }
 
   @Builder
   PosterContent(p: PosterDetail): void {
     Column() {
       Text(p.title)
-        .fontSize(22).fontWeight(FontWeight.Bold).fontColor('#111827')
+        .fontSize(22).fontWeight(FontWeight.Bold).fontColor($r('sys.color.ohos_id_color_text_primary'))
         .lineHeight(30).margin({ bottom: 8 })
         .copyOption(CopyOptions.LocalDevice);
 
       if (p.claim && p.claim.id !== 0) {
         Text(`创作者声明：${p.claim.text}`)
-          .fontSize(14).fontWeight(FontWeight.Bold).fontColor('#EF4444').margin({ bottom: 8 });
+          .fontSize(14).fontWeight(FontWeight.Bold).fontColor($r('sys.color.ohos_id_color_warning')).margin({ bottom: 8 });
       }
 
       if (p.text) {
         LinkableText({
-          text: p.text, fontSize: 16, fontColor: '#1F2937', lineHeight: 26
+          text: p.text, fontSize: 16, fontColor: $r('sys.color.ohos_id_color_text_primary'), lineHeight: 26
         }).margin({ bottom: 12 }).width('100%')
       }
 
@@ -947,7 +972,7 @@ struct PosterDetailPage {
           ForEach(p.tags, (tag: string) => {
             Text('#' + tag)
               .fontSize(15)
-              .fontColor('#2563EB')
+              .fontColor($r('sys.color.ohos_id_color_text_primary_activated'))
               .margin({ right: 12, bottom: 6 })
               .onClick(() => {
                 this.copyTagText(tag);
@@ -959,9 +984,9 @@ struct PosterDetailPage {
 
 
       Text(`最后编辑于：${this.getTimeText(p)}`)
-        .fontSize(12).fontColor('#9CA3AF').margin({ top: 4, bottom: 16 });
+        .fontSize(12).fontColor($r('sys.color.ohos_id_color_text_tertiary')).margin({ top: 4, bottom: 16 });
 
-      Divider().color('#F3F4F6').strokeWidth(8).margin({ left: -16, right: -16 });
+      Divider().color($r('sys.color.ohos_id_color_sub_background')).strokeWidth(8).margin({ left: -16, right: -16 });
 
       this.CommentsSection(p);
     }
@@ -975,7 +1000,7 @@ struct PosterDetailPage {
         GridItem() {
           Image(this.getImageUrl(img.url))
             .width('100%').aspectRatio(1).objectFit(ImageFit.Cover)
-            .borderRadius(6).backgroundColor('#F3F4F6')
+            .borderRadius(6).backgroundColor($r('sys.color.ohos_id_color_sub_background'))
             .onClick(() => {
               this.logger.info(`[PostImage] Click index=${index}`);
               this.openImageViewer(index, images);
@@ -995,7 +1020,7 @@ struct PosterDetailPage {
           GridItem() {
             Image(this.getImageUrl(img.url))
               .width('100%').aspectRatio(1).objectFit(ImageFit.Cover)
-              .borderRadius(4).backgroundColor('#F3F4F6')
+              .borderRadius(4).backgroundColor($r('sys.color.ohos_id_color_sub_background'))
               .onClick(() => {
                 this.logger.info(`[CommentImage] Click index=${index}`);
                 this.openImageViewer(index, images);
@@ -1013,11 +1038,11 @@ struct PosterDetailPage {
     Column() {
       Row() {
         Text(`评论 ${p.commentNum || 0}`)
-          .fontSize(16).fontWeight(FontWeight.Bold).fontColor('#111827');
+          .fontSize(16).fontWeight(FontWeight.Bold).fontColor($r('sys.color.ohos_id_color_text_primary'));
         Blank();
         Row() {
           Text(this.getCommentsOrderLabel())
-            .fontSize(13).fontColor('#6B7280');
+            .fontSize(13).fontColor($r('sys.color.ohos_id_color_text_secondary'));
         }
         .onClick(() => {
           this.showCommentsOrderDialog = true;
@@ -1026,20 +1051,23 @@ struct PosterDetailPage {
       .width('100%').height(48).alignItems(VerticalAlign.Center);
 
       if (this.commentsLoading && this.comments.length === 0) {
-        Text('加载评论中...').fontSize(14).fontColor('#9CA3AF').margin({ top: 20 });
+        Text('加载评论中...').fontSize(14).fontColor($r('sys.color.ohos_id_color_text_tertiary')).margin({ top: 20 });
+      } else if (this.commentsError && this.comments.length === 0) {
+        Text(this.commentsError).padding(24).onClick(() => { this.commentsPager.retry(); })
       } else if (this.comments.length === 0) {
         Column() {
           Image($r('app.media.ic_public_empty_comment'))
-            .width(40).height(40).fillColor('#D1D5DB').margin({ bottom: 8 });
-          Text('这里没有评论呢').fontSize(14).fontColor('#9CA3AF');
+            .width(40).height(40).fillColor($r('sys.color.ohos_id_color_text_tertiary')).margin({ bottom: 8 });
+          Text('这里没有评论呢').fontSize(14).fontColor($r('sys.color.ohos_id_color_text_tertiary'));
         }
         .width('100%').padding({ top: 32, bottom: 32 }).alignItems(HorizontalAlign.Center);
       } else {
         ForEach(this.comments, (c: Comment) => {
           this.CommentItem(c);
         });
-        Text('没有更多评论了')
-          .fontSize(12).fontColor('#D1D5DB').width('100%')
+        Text(this.commentsLoading ? '加载评论中...' : this.commentsError || (this.commentsHasMore ? '加载更多评论' : '没有更多评论了'))
+          .onClick(() => { if (this.commentsError) this.commentsPager.retry(); else this.commentsPager.loadMore(); })
+          .fontSize(12).fontColor($r('sys.color.ohos_id_color_text_tertiary')).width('100%')
           .textAlign(TextAlign.Center).padding(24);
       }
     }
@@ -1051,21 +1079,21 @@ struct PosterDetailPage {
     Row() {
       Image(this.getCommentAvatarUrl(c))
         .width(36).height(36)
-        .borderRadius(18).backgroundColor('#F3F4F6')
+        .borderRadius(18).backgroundColor($r('sys.color.ohos_id_color_sub_background'))
         .objectFit(ImageFit.Cover).margin({ right: 12 })
         .onClick(() => this.jumpToUser(c.user))
 
       Column() {
         Row() {
           Text(this.getCommentNickname(c))
-            .fontSize(14).fontWeight(FontWeight.Bold).fontColor('#4B5563').layoutWeight(1);
+            .fontSize(14).fontWeight(FontWeight.Bold).fontColor($r('sys.color.ohos_id_color_text_secondary')).layoutWeight(1);
 
           Row() {
             Image(c.like ? $r('app.media.ic_public_heart_filled') : $r('app.media.ic_public_heart_outline'))
-              .width(14).height(14).fillColor(c.like ? '#EF4444' : '#9CA3AF')
+              .width(14).height(14).fillColor(c.like ? $r('sys.color.ohos_id_color_warning') : $r('sys.color.ohos_id_color_text_tertiary'))
               .animation({ duration: 300, curve: Curve.FastOutSlowIn })
             Text(this.formatNumber(c.likeNum))
-              .fontSize(12).fontColor('#6B7280').margin({ left: 4 });
+              .fontSize(12).fontColor($r('sys.color.ohos_id_color_text_secondary')).margin({ left: 4 });
           }
           .onClick(() => {
             this.toggleCommentLike(c);
@@ -1074,7 +1102,7 @@ struct PosterDetailPage {
         .width('100%').alignItems(VerticalAlign.Center);
 
         Text(c.text)
-          .fontSize(15).fontColor('#1F2937').lineHeight(22).margin({ top: 4 })
+          .fontSize(15).fontColor($r('sys.color.ohos_id_color_text_primary')).lineHeight(22).margin({ top: 4 })
           .onClick(() => {
             this.replyContext = { type: 'comment', mainCommentId: c.id, replyComment: c };
             this.dialogController.open();
@@ -1084,17 +1112,17 @@ struct PosterDetailPage {
 
         Row() {
           Text(this.getCommentTimeText(c))
-            .fontSize(12).fontColor('#9CA3AF').margin({ right: 12 });
+            .fontSize(12).fontColor($r('sys.color.ohos_id_color_text_tertiary')).margin({ right: 12 });
 
           Text('回复')
-            .fontSize(12).fontColor('#4B5563').fontWeight(FontWeight.Bold)
+            .fontSize(12).fontColor($r('sys.color.ohos_id_color_text_secondary')).fontWeight(FontWeight.Bold)
             .onClick(() => {
               this.replyContext = { type: 'comment', mainCommentId: c.id, replyComment: c };
               this.dialogController.open();
             });
 
           Text('更多')
-            .fontSize(12).fontColor('#9CA3AF').margin({ left: 16 })
+            .fontSize(12).fontColor($r('sys.color.ohos_id_color_text_tertiary')).margin({ left: 16 })
             .onClick(() => {
               this.commentMoreActionTarget = c;
             });
@@ -1109,7 +1137,7 @@ struct PosterDetailPage {
 
             if (c.commentNum > c.sub.length) {
               Text(`查看共 ${c.commentNum} 条回复 >`)
-                .fontSize(13).fontColor('#2563EB').padding({ top: 8, bottom: 4 })
+                .fontSize(13).fontColor($r('sys.color.ohos_id_color_text_primary_activated')).padding({ top: 8, bottom: 4 })
                 .fontWeight(FontWeight.Medium)
                 .onClick(() => {
                   this.selectedParentComment = c;
@@ -1117,9 +1145,9 @@ struct PosterDetailPage {
                 });
             }
           }
-          .width('100%').backgroundColor('#F9FAFB').borderRadius(8).padding(8).margin({ top: 4 });
+          .width('100%').backgroundColor($r('sys.color.ohos_id_color_sub_background')).borderRadius(8).padding(8).margin({ top: 4 });
         }
-        Divider().color('#E5E7EB').margin({ top: 12 });
+        Divider().color($r('sys.color.ohos_id_color_list_separator')).margin({ top: 12 });
       }
       .layoutWeight(1).alignItems(HorizontalAlign.Start);
     }
@@ -1155,22 +1183,22 @@ struct PosterDetailPage {
   SubCommentItem(parentComment: Comment, subComment: Comment): void {
     Row() {
       Image(this.getCommentAvatarUrl(subComment))
-        .width(24).height(24).borderRadius(12).backgroundColor('#E5E7EB')
+        .width(24).height(24).borderRadius(12).backgroundColor($r('sys.color.ohos_id_color_list_separator'))
         .margin({ right: 8 }).objectFit(ImageFit.Cover)
         .onClick(() => this.jumpToUser(subComment.user));
 
       Column() {
         Row() {
           Text(this.getCommentNickname(subComment))
-            .fontSize(14).fontWeight(FontWeight.Bold).fontColor('#4B5563').layoutWeight(1);
+            .fontSize(14).fontWeight(FontWeight.Bold).fontColor($r('sys.color.ohos_id_color_text_secondary')).layoutWeight(1);
 
           Row() {
             Image(subComment.like ? $r('app.media.ic_public_heart_filled') : $r('app.media.ic_public_heart_outline'))
               .width(14).height(14)
-              .fillColor(subComment.like ? '#EF4444' : '#9CA3AF')
+              .fillColor(subComment.like ? $r('sys.color.ohos_id_color_warning') : $r('sys.color.ohos_id_color_text_tertiary'))
               .animation({ duration: 300, curve: Curve.FastOutSlowIn })
             Text(this.formatNumber(subComment.likeNum))
-              .fontSize(12).fontColor('#6B7280').margin({ left: 4 });
+              .fontSize(12).fontColor($r('sys.color.ohos_id_color_text_secondary')).margin({ left: 4 });
           }
           .onClick(() => {
             this.toggleCommentLike(subComment);
@@ -1180,13 +1208,13 @@ struct PosterDetailPage {
 
         Text() {
           if (this.isLevel3(parentComment, subComment)) {
-            Span('回复 ').fontSize(15).fontColor('#1F2937')
+            Span('回复 ').fontSize(15).fontColor($r('sys.color.ohos_id_color_text_primary'))
             Span(`@${subComment.replyUser!.nickname}`)
-              .fontSize(15).fontColor('#2563EB')
+              .fontSize(15).fontColor($r('sys.color.ohos_id_color_text_primary_activated'))
               .onClick(() => this.jumpToUser(subComment.replyUser ?? undefined))
-            Span('：').fontSize(15).fontColor('#1F2937')
+            Span('：').fontSize(15).fontColor($r('sys.color.ohos_id_color_text_primary'))
           }
-          Span(subComment.text).fontSize(15).fontColor('#1F2937')
+          Span(subComment.text).fontSize(15).fontColor($r('sys.color.ohos_id_color_text_primary'))
         }
         .lineHeight(24).margin({ top: 4 })
         .onClick(() => {

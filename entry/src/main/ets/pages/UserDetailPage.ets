@@ -1,3 +1,4 @@
+import { getGallerySettingsStore } from '../services/storage/GallerySettingsStore';
 import { Logger } from '../utils/Logger';
 // entry/src/main/ets/pages/UserDetailPage.ets
 import { UserRepository, UserInfoResponse } from '../services/user/userRepository';
@@ -12,6 +13,9 @@ import { isAuthedBit101 } from '../services/auth/authGuard';
 @Component
 struct UserDetailPage {
   private logger: Logger = new Logger('UserDetailPage');
+  @State hidden: boolean = false;
+  @State hidingBusy: boolean = false;
+  private unsubscribeSettings: (() => void) | null = null;
   @State uid: number = -1;
   @State isLoading: boolean = true;
   @State userInfo: UserInfoResponse | null = null;
@@ -29,10 +33,28 @@ struct UserDetailPage {
   @State showSmallTitle: boolean = false; // 是否显示小标题
   private scroller: Scroller = new Scroller();
 
+  aboutToDisappear(): void { if (this.unsubscribeSettings) this.unsubscribeSettings(); }
+  onPageShow(): void { this.hidden = getGallerySettingsStore().snapshot().hiddenUids.includes(String(this.uid)); }
+  private async toggleHidden(): Promise<void> {
+    if (this.hidingBusy || this.uid <= 0) return;
+    this.hidingBusy = true;
+    const next = getGallerySettingsStore().snapshot();
+    next.hiddenUids = this.hidden ? next.hiddenUids.filter(id => id !== String(this.uid))
+      : next.hiddenUids.concat(String(this.uid));
+    try {
+      await getGallerySettingsStore().save(next);
+      this.hidden = getGallerySettingsStore().snapshot().hiddenUids.includes(String(this.uid));
+      uiShowToast(this.getUIContext(), { message: this.hidden ? '已隐藏该用户，关注流仍保留' : '已取消隐藏' });
+    } catch (_) { uiShowToast(this.getUIContext(), { message: '隐藏设置未保存，请重试' }); }
+    finally { this.hidingBusy = false; }
+  }
+
   aboutToAppear() {
+    this.unsubscribeSettings = getGallerySettingsStore().subscribe(() => { this.onPageShow(); });
     const params = uiGetParams(this.getUIContext()) as Record<string, Object>;
     if (params && params['uid']) {
       this.uid = params['uid'] as number;
+      this.onPageShow();
       this.fetchData();
     }
   }
@@ -274,6 +296,11 @@ struct UserDetailPage {
             .fontSize(14)
             .fontColor(Color.Gray)
             .margin({ top: 4, bottom: 16 })
+        }
+
+        if (!this.userInfo.own && this.uid > 0) {
+          Button(this.hidden ? '取消隐藏此用户' : '隐藏此用户').enabled(!this.hidingBusy)
+            .margin({ bottom: 12 }).onClick(() => { this.toggleHidden(); })
         }
 
         FollowInfo({

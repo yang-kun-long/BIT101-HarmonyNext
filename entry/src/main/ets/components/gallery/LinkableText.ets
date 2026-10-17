@@ -11,7 +11,7 @@ export struct LinkableText {
 
   // 字体样式配置，方便外部控制大小和颜色
   fontSize: number | string | Resource = 16;
-  fontColor: ResourceColor = '#333333';
+  fontColor: ResourceColor = $r('sys.color.ohos_id_color_text_primary');
   lineHeight: number | string | Resource = 24;
 
   build() {
@@ -21,8 +21,8 @@ export struct LinkableText {
         if (seg.isUrl) {
           // === 链接部分 ===
           Span(seg.content)
-            .fontColor('#007DFF') // 链接显示蓝色
-            .decoration({ type: TextDecorationType.Underline, color: '#007DFF' }) // 下划线
+            .fontColor($r('sys.color.ohos_id_color_text_primary_activated')) // 链接显示蓝色
+            .decoration({ type: TextDecorationType.Underline, color: $r('sys.color.ohos_id_color_text_primary_activated') }) // 下划线
             .onClick(() => {
               // 💡 点击链接，跳转到 WebView 页面
               this.logger.info('点击了链接:', seg.content);

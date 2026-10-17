@@ -1,3 +1,4 @@
+import { RcpRequestOptions, RcpResponseData } from '../../core/network/rcpSession';
 // entry/src/main/ets/services/gallery/ReactionService.ts
 import { Logger } from '../../utils/Logger';
 import { bit101Session } from '../../core/network/bit101Session';
@@ -18,7 +19,15 @@ interface PostLikeResp {
   likeNum: number;
 }
 
-class ReactionService {
+export interface ReactionHttpSource {
+  get(path: string, options?: RcpRequestOptions): Promise<RcpResponseData>;
+  post(path: string, body: Record<string, Object>): Promise<RcpResponseData>;
+  fetch(method: string, path: string): Promise<RcpResponseData>;
+}
+
+export class ReactionService {
+  private http: ReactionHttpSource;
+  constructor(source?: ReactionHttpSource) { this.http = source ?? bit101Session; }
   private commentsPath = '/reaction/comments';
   private likePath = '/reaction/like';
   private logger = new Logger('ReactionService');
@@ -46,11 +55,11 @@ class ReactionService {
   // ✅ [新增] 发送评论方法
   async postComment(req: PostCommentReq): Promise<Comment | null> {
     try {
-      this.logger.info(`Sending comment req: ${JSON.stringify(req)}`);
+      this.logger.info('Sending comment');
 
       // 发送 POST 请求
       // 使用 as unknown as Record... 规避类型检查，直接透传对象
-      const resp = await bit101Session.post(this.commentsPath, req as unknown as Record<string, Object>);
+      const resp = await this.http.post(this.commentsPath, req as unknown as Record<string, Object>);
 
       if (resp.statusCode === 200 && resp.bodyText) {
         const json = JSON.parse(resp.bodyText);
@@ -68,7 +77,7 @@ class ReactionService {
       this.logger.info(`[deleteComment] id=${id}`);
 
       // ✅ 直接用你已经有的 fetch，method = 'DELETE'
-      const resp = await bit101Session.fetch('DELETE', `${this.commentsPath}/${id}`);
+      const resp = await this.http.fetch('DELETE', `${this.commentsPath}/${id}`);
 
       if (resp.statusCode === 200) {
         return true;
@@ -87,7 +96,7 @@ class ReactionService {
       this.logger.info(`[like] POST ${this.likePath}, obj=${obj}`);
 
       const body = { obj } as Record<string, Object>;
-      const resp = await bit101Session.post(this.likePath, body);
+      const resp = await this.http.post(this.likePath, body);
 
       if (resp.statusCode === 200 && resp.bodyText) {
         const json = JSON.parse(resp.bodyText);
@@ -116,35 +125,22 @@ class ReactionService {
     return this.postLike(`comment${id}`);
   }
 
-  private async getComments(
-    obj: string,
-    order?: string,
-    page?: number
-  ): Promise<Comment[]> {
-    try {
-      const query: Record<string, string | number> = { obj };
-      if (order) query['order'] = order;
-      if (page !== undefined) query['page'] = page;
-
-      const resp = await bit101Session.get(this.commentsPath, { query });
-
-      if (resp.statusCode !== 200 || !resp.bodyText) {
-        return [];
-      }
-
-      const json = JSON.parse(resp.bodyText);
-      const rawList: any[] = Array.isArray(json)
-        ? json
-        : (json?.data ?? []);
-
-      return rawList.map((raw) => this.safeParseComment(raw));
-    } catch (e) {
-      this.logger.error('getComments error', e);
-      return [];
-    }
+  private async getComments(obj: string, order?: string, page?: number): Promise<Comment[]> {
+    const query: Record<string, string | number> = { obj };
+    if (order) query['order'] = order;
+    query['page'] = page ?? 0;
+    const resp = await this.http.get(this.commentsPath, { query });
+    if (resp.statusCode !== 200 || !resp.bodyText) throw new Error('评论加载失败');
+    const json = JSON.parse(resp.bodyText);
+    const rawList = Array.isArray(json) ? json : json?.data;
+    if (!Array.isArray(rawList)) throw new Error('评论返回格式异常');
+    return rawList.map(raw => this.safeParseComment(raw));
   }
 
   private safeParseComment(raw: any): Comment {
+    if (!raw || !Number.isSafeInteger(raw.id) || !raw.user || raw.user.id === undefined) {
+      throw new Error('评论返回格式异常');
+    }
     const rawUser = raw.user || {};
     const avatarRaw = rawUser.avatar || {};
     const avatarUrl =

@@ -1,3 +1,4 @@
+import { initializeGallerySettings } from '../services/storage/GallerySettingsStore';
 import { AbilityConstant, ConfigurationConstant, UIAbility, Want } from '@kit.AbilityKit';
 import { window } from '@kit.ArkUI';
 import { Logger } from '../utils/Logger';
@@ -120,6 +121,8 @@ export default class EntryAbility extends UIAbility {
 
   private async loadInitialContent(windowStage: window.WindowStage): Promise<void> {
     await this.initPersistentStorage();
+    try { await initializeGallerySettings(this.context); }
+    catch (error) { this.logger.error('Failed to load gallery settings', error); }
     try {
       await initializeWindowTheme(this.context, windowStage.getMainWindowSync());
     } catch (error) {

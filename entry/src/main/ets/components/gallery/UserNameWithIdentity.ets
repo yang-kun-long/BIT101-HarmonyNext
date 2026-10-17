@@ -5,7 +5,7 @@ import { GalleryUser } from '../../services/gallery/GalleryModels';
 export struct UserNameWithIdentity {
   @Prop user: GalleryUser | null = null;
   @Prop fontSize: number = 16;
-  @Prop fontColor: ResourceColor = '#1F2937';
+  @Prop fontColor: ResourceColor = $r('sys.color.ohos_id_color_text_primary');
 
   build() {
     Row({ space: 6 }) {

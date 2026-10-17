@@ -25,7 +25,7 @@ export class Logger {
    * 将你想 屏蔽(黑名单时) 或 关注(白名单时) 的模块名填入这里
    */
   private static readonly TARGET_MODULES: string[] = [
-    'WebPage',
+    'WebPage', 'MapCanvas',
     'PosterRepository',
     'PosterCard',
     'GalleryService',  // 查看 uploadImage 和 postPoster 的日志 (关键)

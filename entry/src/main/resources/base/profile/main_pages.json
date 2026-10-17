@@ -14,6 +14,7 @@
     "pages/settings/AccountPage",
     "pages/settings/PagesSettingPage",
     "pages/settings/ThemeSettingPage",
+    "pages/settings/GallerySettingPage",
     "pages/settings/CalendarSettingPage",
     "pages/settings/DDLSettingPage",
     "pages/settings/FreeClassroomSettingPage",
