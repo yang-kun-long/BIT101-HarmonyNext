@@ -1,3 +1,5 @@
+import { unreadStore } from '../services/message/UnreadStore';
+import { badgeText } from '../services/message/MessageModels';
 import { Logger } from '../utils/Logger';
 // entry/src/main/ets/pages/MePage.ets
 import router from '@ohos.router';
@@ -16,6 +18,8 @@ export default struct MePage {
   private logger: Logger = new Logger('MePage');
   // 登录 / 加载状态
   @State loading: boolean = true;
+  @State unreadTotal: number = 0;
+  private stopUnread: () => void = () => {};
   @State err: string = '';
   @State authed: boolean = false;
 
@@ -42,11 +46,12 @@ export default struct MePage {
   private relationRequest: number = 0;
 
   aboutToAppear() {
+    this.stopUnread = unreadStore.observe(state => { this.unreadTotal = state.total; });
     this.stopObservingRelations = observeUserRelations(() => { this.refreshRelationCounts(); });
     this.bootstrap();
   }
 
-  aboutToDisappear(): void { this.stopObservingRelations(); }
+  aboutToDisappear(): void { this.stopObservingRelations(); this.stopUnread(); }
 
   private async refreshRelationCounts(): Promise<void> {
     if (!this.authed) return;
@@ -75,11 +80,13 @@ export default struct MePage {
     this.authed = await this.tokenStore.isLoggedInBit101();
 
     if (!this.authed) {
+      unreadStore.reset();
       this.loading = false;
       return;
     }
 
     try {
+      unreadStore.refresh();
       // 0 = 当前登录用户
       const data = await this.userRepo.getUserInfo('0');
       this.userInfo = data;
@@ -138,6 +145,7 @@ export default struct MePage {
   }
 
   private async logout() {
+    unreadStore.reset();
     await this.tokenStore.clear();
     this.authed = false;
     this.userInfo = null;
@@ -259,6 +267,10 @@ export default struct MePage {
             .fontColor(Color.Gray)
             .margin({ top: 4, bottom: 16 })
         }
+
+        Button('消息' + (badgeText(this.unreadTotal) ? ` · ${badgeText(this.unreadTotal)}` : ''))
+          .margin({ bottom: 16 })
+          .onClick(() => { uiPushUrl(this.getUIContext(), { url: 'pages/MessagePage' }).catch(() => { uiShowToast(this.getUIContext(), { message: '无法打开消息，请重试' }); }); })
 
         FollowInfo({
           followerNum: this.userInfo.follower_num,

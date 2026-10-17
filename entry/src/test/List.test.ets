@@ -1,3 +1,4 @@
+import messageTest from './Message.test';
 import mapSettingsTest from './MapSettings.test';
 import webNavigationTest from './WebNavigation.test';
 import galleryFilterTest from './GalleryFilter.test';
@@ -76,4 +77,5 @@ export default function testsuite() {
   pageSettingsTest();
   themeSettingsTest();
   followListTest();
+  messageTest();
 }

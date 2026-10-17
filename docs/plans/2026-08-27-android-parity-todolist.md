@@ -275,17 +275,20 @@
 
 **Todo:**
 
-- [ ] 为 `/messages/unread_num`、`/messages/unread_nums`、`/messages?type=&last_id=` 建立严格模型和分页游标测试。
-- [ ] 实现点赞、评论、关注、系统四个 tab，每类独立缓存、刷新、加载更多和错误状态。
-- [ ] 复刻 Android 的目标解析规则：`poster{id}` 进入帖子，`user{id}` 进入用户，关注消息 fallback 到来源用户。
-- [ ] 在“我”页增加消息入口和总未读角标；0 不显示，超过展示上限时使用 `99+`。
-- [ ] 打开/刷新消息后重新拉取分类型和总未读数，避免角标停留旧值。
-- [ ] 为 loading、空列表、失败、分页末尾分别实现稳定状态，不把单条消息垂直居中。
+- [x] 为 `/messages/unread_num`、`/messages/unread_nums`、`/messages?type=&last_id=` 建立严格模型和分页游标测试。
+- [x] 实现点赞、评论、关注、系统四个 tab，每类独立缓存、刷新、加载更多和错误状态。
+- [x] 复刻 Android 的目标解析规则：`poster{id}` 进入帖子，`user{id}` 进入用户，关注消息 fallback 到来源用户。
+- [x] 在“我”页增加消息入口和总未读角标；0 不显示，超过展示上限时使用 `99+`。
+- [x] 打开/刷新消息后重新拉取分类型和总未读数，避免角标停留旧值。
+- [x] 为 loading、空列表、失败、分页末尾分别实现稳定状态，不把单条消息垂直居中。
 - [ ] 真机覆盖四类消息至少各一条；无法构造的类型保留 API fixture 测试证据。
+
+**Progress (2026-10-17):** 新增 MessageRepository、严格 snake_case 消息/未读模型、独立分类分页状态机、共享进程内 UnreadStore 和 MessagePage。按 Android 顺序展示点赞/评论/关注/系统，支持横滑及点击切换、分类缓存、刷新、空态、加载更多和错误重试；GET 成功后重新获取总数及分类未读数。“我”页新增消息入口，零值隐藏计数、超过 99 显示 99+，退出/游客状态清理未读。跳转优先 link_obj，再 obj，再关注来源用户；不执行任意外部链接。游标分页去重、重复游标停止、刷新/退出后丢弃旧响应，401 跳统一登录。新增 9 项回归，全套 295 项成功（Failure=0、Error=0、Ignore=0）；debug/release 签名构建通过，release 在 Huawei_Phone（127.0.0.1:5555）覆盖安装启动成功，未发现应用崩溃日志。证据为 entry/build/message-tests.log、message-debug.log、message-release.log、message-run.log、message-crash.log。当前仅完成安装启动，消息页手势、真实账号四类消息、入口布局和角标变化尚未完成设备交互验收，Task 7 不整体标记完成。
 
 **Acceptance:** 四类消息可分页浏览并跳到正确对象；“我”页角标与服务端一致；切 tab 不重复丢失已加载数据。
 
 **Commit:** `feat(message): add native message center`
+
 
 ### Task 8 [P1]: 实现关注/粉丝列表并补齐用户页动作
 
