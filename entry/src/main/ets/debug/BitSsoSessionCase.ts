@@ -2,12 +2,13 @@
 
 import BitSsoSession from '../services/lexue/BitSsoSession';
 import { DebugCase } from './DebugCase';
-import { TEST_USERNAME, TEST_PASSWORD } from './local.secret';
+import { loadDebugCredentials } from './DebugCredentials';
 
 export class BitSsoSessionCase extends DebugCase {
   readonly name = 'BitSsoSession basic login test';
 
   async run(): Promise<void> {
+    const { TEST_USERNAME, TEST_PASSWORD } = loadDebugCredentials();
     const sso = new BitSsoSession({
       debug: true,   // 开启内部调试日志
       useWebvpn: false,

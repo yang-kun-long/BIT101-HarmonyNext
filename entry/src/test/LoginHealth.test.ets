@@ -28,6 +28,26 @@ import {
 
 export default function loginHealthTest() {
   describe('Login health service', () => {
+    it('restores explicit school expiry then retries the operation once', 0, async () => {
+      let calls = 0; let checks = 0; let refreshes = 0;
+      const result = await doOperationRequiresLogin<string>(async () => {
+        calls++; if (calls === 1) throw new Error('expired'); return 'ok';
+      }, async () => {
+        checks++; return buildLoginHealthSummary(
+          { ok: true, status: 'valid', message: '' },
+          { ok: checks > 1, status: checks > 1 ? 'valid' : 'invalid', message: '' });
+      }, 'core', async () => { refreshes++; return 'SUCCESS'; });
+      expect(result).assertEqual('ok'); expect(calls).assertEqual(2); expect(refreshes).assertEqual(1);
+    });
+    it('never refreshes unknown network state or clears it on BUSY', 0, async () => {
+      let refreshes = 0; let calls = 0;
+      try { await doOperationRequiresLogin<string>(async () => { calls++; throw new Error('offline'); },
+        async () => buildLoginHealthSummary({ ok: true, status: 'valid', message: '' },
+          { ok: false, status: 'unknown', message: '' }), 'core',
+        async () => { refreshes++; return 'BUSY'; }); } catch (_) {}
+      expect(calls).assertEqual(1); expect(refreshes).assertEqual(0);
+    });
+
     it('classifies authentication failures for UI and retry policy', 0, () => {
       expect(classifyAuthFailure(new ApiError('unauthorized', 401))).assertEqual('invalid_credentials');
       expect(classifyAuthFailure(new ApiError('too many requests', 429))).assertEqual('rate_limited');

@@ -1,5 +1,5 @@
 import { DebugCase } from './DebugCase';
-import { TEST_PASSWORD, TEST_USERNAME } from './local.secret';
+import { loadDebugCredentials } from './DebugCredentials';
 import { createBitSsoSessionAuto } from '../services/lexue/BitSsoAuto';
 import LexueCalendarClient from '../services/lexue/LexueCalendarClient';
 import { parseLexueIcs, LexueCalendarEvent } from '../services/lexue/LexueCalendarParser';
@@ -22,10 +22,11 @@ export class LexueDdlExtractionCase extends DebugCase {
   readonly name = 'Lexue DDL extraction parity diagnosis';
 
   async run(): Promise<void> {
+    const { TEST_USERNAME, TEST_PASSWORD } = loadDebugCredentials();
     this.logInfo('START');
 
     if (!TEST_USERNAME || !TEST_PASSWORD) {
-      this.fail('Missing TEST_USERNAME / TEST_PASSWORD in local.secret.ts');
+      this.fail('Missing TEST_USERNAME / TEST_PASSWORD in debug-credentials.json');
     }
 
     const sessionData = await createBitSsoSessionAuto({

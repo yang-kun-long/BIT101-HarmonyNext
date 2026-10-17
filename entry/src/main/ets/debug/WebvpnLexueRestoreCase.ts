@@ -1,5 +1,5 @@
 import { DebugCase } from './DebugCase';
-import { TEST_PASSWORD, TEST_USERNAME } from './local.secret';
+import { loadDebugCredentials } from './DebugCredentials';
 import BitSsoSession from '../services/lexue/BitSsoSession';
 import { LexueCookieStore } from '../services/storage/LexueCookieStore';
 import { extractLexueSesskey, isRestoredLexueExportUsable } from '../services/lexue/BitSsoSessionState';
@@ -12,12 +12,13 @@ export class WebvpnLexueRestoreCase extends DebugCase {
   readonly name = 'WebVPN Lexue restore';
 
   async run(): Promise<void> {
+    const { TEST_USERNAME, TEST_PASSWORD } = loadDebugCredentials();
     this.logInfo('=== WebvpnLexueRestoreCase START ===');
 
     if (!TEST_USERNAME || !TEST_PASSWORD) {
-      this.logInfo('Missing TEST_USERNAME / TEST_PASSWORD in local.secret.ts');
+      this.logInfo('Missing TEST_USERNAME / TEST_PASSWORD in debug-credentials.json');
       this.logInfo('=== WebvpnLexueRestoreCase ABORT ===');
-      this.fail('Missing TEST_USERNAME / TEST_PASSWORD in local.secret.ts');
+      this.fail('Missing TEST_USERNAME / TEST_PASSWORD in debug-credentials.json');
     }
 
     const cookieStore = new LexueCookieStore('webvpn');

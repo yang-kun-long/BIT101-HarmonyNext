@@ -1,7 +1,7 @@
 // entry/src/main/ets/debug/BitSsoLexueWebvpnCase.ts
 
 import { DebugCase } from './DebugCase';
-import { TEST_USERNAME, TEST_PASSWORD } from './local.secret';
+import { loadDebugCredentials } from './DebugCredentials';
 import BitSsoSession from '../services/lexue/BitSsoSession';
 import LexueCalendarClient from '../services/lexue/LexueCalendarClient';
 import { globalSmsChallengeCoordinator } from '../services/auth/SmsChallengeCoordinator';
@@ -10,6 +10,7 @@ export class BitSsoLexueWebvpnCase extends DebugCase {
   readonly name = 'Bit SSO + Lexue (via WebVPN)';
 
   async run(): Promise<void> {
+    const { TEST_USERNAME, TEST_PASSWORD } = loadDebugCredentials();
     this.logInfo('=== BitSsoLexueWebvpnCase START ===');
 
     const username = TEST_USERNAME;

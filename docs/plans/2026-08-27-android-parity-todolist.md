@@ -232,7 +232,7 @@
 
 **Commit:** `feat(auth): support school sms verification`
 
-### Task 6 [P0/P1]: 安全凭据与过期会话自动恢复
+### Task 6 [P0/P1]: 安全凭据与过期会话自动恢复（实现完成，真机验收后置）
 
 **Files:**
 
@@ -247,14 +247,14 @@
 
 **Todo:**
 
-- [ ] 先用 HarmonyOS 官方安全存储/HUKS 能力完成最小 spike：密钥不可导出，preferences 中只保存密文、IV/nonce 和版本。
-- [ ] 实现 `save/get/clear`；凭据不得进入 AppStorage、普通 preferences、日志、dumpSnapshot 或备份。
-- [ ] 登录页明确告知并提供“安全保存用于自动恢复”开关；默认策略由产品确认，不能隐式降级成明文。
-- [ ] `LoginRefreshCoordinator` 实现 `SUCCESS/FAILED/INTERACTION_REQUIRED/BUSY`，并发时复用或快速返回。
-- [ ] 网络层仅在明确认证失败时触发一次刷新并重试一次，禁止无限重试。
-- [ ] 错误密码清凭据；网络超时、限流、服务端临时错误和 SMS 需求保留凭据。
-- [ ] 登出同时清理凭据、BIT101 token、学校 Cookie 和 Web 会话数据。
-- [ ] 将 `debug/local.secret.ts` 及其 DebugCase 依赖移入真正的 debug-only source set 或构建期生成流程，确保 Release HAP 不包含测试凭据字面量（本轮已完成 Release 运行时门禁验证，凭据隔离实现延期）。
+- [x] 先用 HarmonyOS 官方安全存储/HUKS 能力完成最小 spike：密钥不可导出，备份排除的缓存文件中只保存密文、nonce 和版本（缓存清理后需重新登录）。
+- [x] 实现 `save/get/clear`；凭据不得进入 AppStorage、普通 preferences、日志、dumpSnapshot 或备份。
+- [x] 登录页明确告知并提供“安全保存用于自动恢复”开关；默认策略由产品确认，不能隐式降级成明文。
+- [x] `LoginRefreshCoordinator` 实现 `SUCCESS/FAILED/INTERACTION_REQUIRED/BUSY`，并发时复用或快速返回。
+- [x] 网络层仅在明确认证失败时触发一次刷新并重试一次，禁止无限重试。
+- [x] 错误密码清凭据；网络超时、限流、服务端临时错误和 SMS 需求保留凭据。
+- [x] 登出同时清理凭据、BIT101 token、学校 Cookie 和 Web 会话数据。
+- [x] 将 `debug/local.secret.ts` 及其 DebugCase 依赖移出源码树并改为 debug 专用设备文件运行时读取，确保 Release HAP 不包含测试凭据字面量（本轮已完成 Release 运行时门禁验证，凭据隔离实现延期）。
 
 **Acceptance:** 会话过期后普通 API 操作最多自动修复一次；设备存储中搜不到明文密码；登出后无法恢复旧凭据。
 
@@ -267,6 +267,8 @@
 **Task 6 登录接入进展（2026-10-17）:** 登录页新增默认关闭的安全保存开关，成功登录后先清旧账号凭据，再按选择保存；失败明确提示。初始化共享凭据仓库及非交互后台 LoginCoordinator。HttpClient 仅对 HTTPS bit101.flwfdd.xyz、带 fake-cookie 的明确 401 响应触发恢复，成功后换新 cookie 只重试一次；短信/验证码要求手动登录，BUSY 不清状态。手动登录和 TokenStore.clear 等待正在进行的刷新结束，避免刷新晚到覆盖退出；TokenStore.clear 同时删除安全凭据，“我”页登出改用统一学校/Lexue 会话清理。新增保存选择测试，全套 301 项通过；debug 签名构建通过。CredentialCase 在模拟器实际验证密文文件写入、解密读取、无明文字段及 clear，通过后恢复 NONE；日志 entry/build/credential-file-log.txt。最终 release 构建及安装日志为 credential-login-release.log / credential-login-run.log。仍待 WebView 全量登出清理、真实账号过期恢复/短信验收、跨进程文件恢复与 Release 测试凭据构建隔离；学校 RCP 网络路径未统一接入自动刷新，Task 6 继续保留未完成。
 
 **Task 6 Web 登出进展（2026-10-18）:** 统一登出新增 WebLogout：先通知并等待全部存活 WebPage 停止加载、撤销异步会话工作、清空历史/滚动恢复并卸载 Web，再清理 WebCookieManager 和 WebStorage。清理失败明确抛错，避免假报成功；通过修订号阻止登出前异步 session.load 在登出后重新创建 Web。新增 2 项清理事件回归，全套 303 项通过（Failure=0、Error=0、Ignore=0）；debug/release 签名构建通过，release 模拟器安装启动通过。日志：entry/build/web-logout-tests.log、web-logout-build.log、web-logout-release.log、web-logout-run.log。未验证真实账号 Web 登录态退出效果，Release 测试凭据隔离及学校网络刷新仍未完成，Task 6 不整体勾选。
+
+**收尾（2026-10-18）:** 用户明确真机测试后置。学校课表/考试、DDL、空教室设置的统一操作入口，仅在健康检查明确 invalid 时尝试已保存凭据恢复，成功后复查健康并最多重试一次；unknown/degraded 不触发恢复。新增两项学校恢复回归，全套 305 项通过（Failure=0、Error=0、Ignore=0）。全部调试账号 Case 改为运行时读取应用 filesDir/debug-credentials.json，读取前强制校验 debug 构建；本机 local.secret.ts 移至源码树外 .local-debug/ 并忽略，未提交也未输出真实值。最终签名 release HAP 逐成员扫描，未发现两个本机凭据字面量（UTF-8/UTF-16LE）或 local.secret 引用。release 签名构建通过；日志 task6-final-release.log、task6-final-tests.log。Task 6 按实现及自动化口径完成；真实账号失效恢复、短信、跨进程凭据恢复及完整登出交互集中后置，不冒充已验收。存储采用缓存文件而非 preferences，以排除系统备份；缓存被淘汰后要求重新登录。
 
 ### Task 7 [P1]: 实现原生消息中心和未读角标
 
@@ -535,7 +537,7 @@
 ### Milestone B: 认证可恢复（P0-B）
 
 - [ ] Task 5 SMS 二次验证
-- [ ] Task 6 安全凭据与自动恢复
+- [x] Task 6 安全凭据与自动恢复（实现完成，真机验收后置）
 
 ### Milestone C: 社区闭环（P1-A）
 

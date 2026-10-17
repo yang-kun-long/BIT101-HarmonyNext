@@ -5,7 +5,7 @@ import BitSsoSession from '../services/lexue/BitSsoSession';
 import LexueCalendarClient from '../services/lexue/LexueCalendarClient';
 import { parseLexueIcs, LexueCalendarEvent } from '../services/lexue/LexueCalendarParser';
 import { LexueCalendarStore } from '../services/storage/LexueCalendarStore';
-import { TEST_USERNAME, TEST_PASSWORD } from './local.secret';
+import { loadDebugCredentials } from './DebugCredentials';
 import { createBitSsoSessionAuto, BitSsoLoginMode } from '../services/lexue/BitSsoAuto';
 /**
  * 开关：当前调试用例是走校内直连，还是走 WebVPN
@@ -37,15 +37,16 @@ export class LexueCalendarSyncCase extends DebugCase {
   readonly name = 'Lexue 日历导出 + 解析 + 持久化 测试';
 
   async run(): Promise<void> {
+    const { TEST_USERNAME, TEST_PASSWORD } = loadDebugCredentials();
     this.logInfo('=== LexueCalendarSyncCase START ===');
     this.logInfo('[mode] USE_WEBVPN =', USE_WEBVPN);
 
     // ---------- step 0: 检查调试账号 ----------
     if (!TEST_USERNAME || !TEST_PASSWORD) {
       this.logInfo('[step 0] 未配置 TEST_USERNAME / TEST_PASSWORD');
-      this.logInfo('请在 entry/src/main/ets/debug/local.secret.ts 中配置调试账号后再运行。');
+      this.logInfo('请在 device-local debug-credentials.json 中配置调试账号后再运行。');
       this.logInfo('=== LexueCalendarSyncCase ABORT ===');
-      this.fail('Missing TEST_USERNAME / TEST_PASSWORD in local.secret.ts');
+      this.fail('Missing TEST_USERNAME / TEST_PASSWORD in debug-credentials.json');
     }
 
     this.logInfo('[step 0] 使用调试账号:', {

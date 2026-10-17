@@ -15,3 +15,5 @@ LOG.txt
 /BIT101-Android/
 /screenshot/
 /.mcp.json
+
+/.local-debug/

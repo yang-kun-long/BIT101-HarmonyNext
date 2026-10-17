@@ -20,12 +20,13 @@
  */
 
 import { DebugCase } from './DebugCase';
-import { TEST_PASSWORD, TEST_USERNAME } from './local.secret';
+import { loadDebugCredentials } from './DebugCredentials';
 
 export class ExampleDebugCase extends DebugCase {
   readonly name = 'Example / Template debug case';
 
   async run(): Promise<void> {
+    const { TEST_USERNAME, TEST_PASSWORD } = loadDebugCredentials();
     // 这里只是演示：简单输出几行日志
     const now = new Date();
 

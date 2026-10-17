@@ -2,12 +2,13 @@
 import BitSsoSession from '../services/lexue/BitSsoSession';
 import LexueCalendarClient from '../services/lexue/LexueCalendarClient';
 import { DebugCase } from './DebugCase';
-import { TEST_USERNAME, TEST_PASSWORD } from './local.secret';
+import { loadDebugCredentials } from './DebugCredentials';
 
 export class BitSsoLexueCase extends DebugCase {
   readonly name = 'BitSso + Lexue calendar test';
 
   async run(): Promise<void> {
+    const { TEST_USERNAME, TEST_PASSWORD } = loadDebugCredentials();
     const sso = new BitSsoSession({ debug: true });
 
     try {

@@ -4,8 +4,8 @@ import { DebugCase } from './DebugCase';
 import BitSsoSession from '../services/lexue/BitSsoSession';
 import LexueCalendarClient from '../services/lexue/LexueCalendarClient';
 import { LexueCalendarStore } from '../services/storage/LexueCalendarStore';
-// ⚠️ 按你 local.secret.ts 的实际导出改名字
-import { TEST_USERNAME, TEST_PASSWORD } from './local.secret';
+// ⚠️ 按你 debug-credentials.json 的实际导出改名字
+import { loadDebugCredentials } from './DebugCredentials';
 
 /**
  * LexueCalendarFastPathCase
@@ -28,14 +28,15 @@ export class LexueCalendarFastPathCase extends DebugCase {
   readonly name = 'Lexue 日历订阅URL缓存 / 快速路径 测试';
 
   async run(): Promise<void> {
+    const { TEST_USERNAME, TEST_PASSWORD } = loadDebugCredentials();
     this.logInfo('=== LexueCalendarFastPathCase START ===');
 
     // ---------- step 0: 检查调试账号 ----------
     if (!TEST_USERNAME || !TEST_PASSWORD) {
       this.logInfo('[step 0] 未配置 TEST_USERNAME / TEST_PASSWORD');
-      this.logInfo('请在 entry/src/main/ets/debug/local.secret.ts 中配置调试账号后再运行。');
+      this.logInfo('请在 device-local debug-credentials.json 中配置调试账号后再运行。');
       this.logInfo('=== LexueCalendarFastPathCase ABORT ===');
-      this.fail('Missing TEST_USERNAME / TEST_PASSWORD in local.secret.ts');
+      this.fail('Missing TEST_USERNAME / TEST_PASSWORD in debug-credentials.json');
     }
 
     const baseUrl = 'https://lexue.bit.edu.cn';

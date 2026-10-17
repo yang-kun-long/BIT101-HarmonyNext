@@ -3,8 +3,8 @@
 import { DebugCase } from './DebugCase';
 import BitSsoSession from '../services/lexue/BitSsoSession';
 import { LexueCookieStore } from '../services/storage/LexueCookieStore';
-// ⚠️ 按你自己的 local.secret.ts 实际导出改名字
-import { TEST_PASSWORD, TEST_USERNAME } from './local.secret';
+// ⚠️ 按你自己的 debug-credentials.json 实际导出改名字
+import { loadDebugCredentials } from './DebugCredentials';
 
 /**
  * LexueCookiePersistCase
@@ -30,14 +30,15 @@ export class LexueCookiePersistCase extends DebugCase {
   readonly name = 'Lexue cookie 持久化 & 恢复测试';
 
   async run(): Promise<void> {
+    const { TEST_USERNAME, TEST_PASSWORD } = loadDebugCredentials();
     this.logInfo('=== LexueCookiePersistCase START ===');
 
     // ---------- step 0: 检查调试账号 ----------
     if (!TEST_USERNAME || !TEST_PASSWORD) {
       this.logInfo('[step 0] 未配置 TEST_USERNAME / TEST_PASSWORD');
-      this.logInfo('请在 entry/src/main/ets/debug/local.secret.ts 中配置调试账号后再运行。');
+      this.logInfo('请在 device-local debug-credentials.json 中配置调试账号后再运行。');
       this.logInfo('=== LexueCookiePersistCase ABORT ===');
-      this.fail('Missing TEST_USERNAME / TEST_PASSWORD in local.secret.ts');
+      this.fail('Missing TEST_USERNAME / TEST_PASSWORD in debug-credentials.json');
     }
 
     this.logInfo('[step 0] 使用调试账号:', {

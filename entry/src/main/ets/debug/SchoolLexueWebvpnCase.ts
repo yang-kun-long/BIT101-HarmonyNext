@@ -1,5 +1,5 @@
 import { DebugCase } from './DebugCase';
-import { TEST_PASSWORD, TEST_USERNAME } from './local.secret';
+import { loadDebugCredentials } from './DebugCredentials';
 import SimpleCookieJar from '../core/network/cookieJar';
 import RcpSession from '../core/network/rcpSession';
 import { SchoolAuthService } from '../services/school/SchoolAuthService';
@@ -13,12 +13,13 @@ export class SchoolLexueWebvpnCase extends DebugCase {
   readonly name = 'School Lexue via WebVPN';
 
   async run(): Promise<void> {
+    const { TEST_USERNAME, TEST_PASSWORD } = loadDebugCredentials();
     this.logInfo('=== SchoolLexueWebvpnCase START ===');
 
     if (!TEST_USERNAME || !TEST_PASSWORD) {
-      this.logInfo('Missing TEST_USERNAME / TEST_PASSWORD in local.secret.ts');
+      this.logInfo('Missing TEST_USERNAME / TEST_PASSWORD in debug-credentials.json');
       this.logInfo('=== SchoolLexueWebvpnCase ABORT ===');
-      this.fail('Missing TEST_USERNAME / TEST_PASSWORD in local.secret.ts');
+      this.fail('Missing TEST_USERNAME / TEST_PASSWORD in debug-credentials.json');
     }
 
     const auth = new SchoolAuthService({ debug: true });

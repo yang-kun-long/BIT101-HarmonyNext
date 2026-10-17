@@ -9,6 +9,8 @@ import { SchoolCookieStore } from '../storage/SchoolCookieStore';
 import { TokenStore } from '../storage/tokenStore';
 import { classifyAuthFailure } from './AuthFailure';
 import { clearWebLoginData } from './WebLogout';
+import { refreshSavedLogin } from './AutomaticLogin';
+import { RefreshResult } from './LoginRefreshCoordinator';
 
 const WEBVPN_LEXUE_BASE =
   'https://webvpn.bit.edu.cn/https/77726476706e69737468656265737421fcf25989227e6a596a468ca88d1b203b';
@@ -79,11 +81,17 @@ export async function doOperationRequiresLogin<T>(
   operation: LoginRequiredOperation<T>,
   checkLogin: LoginRequiredHealthCheck,
   requirement: LoginHealthRequirement = 'all',
+  refresh: () => Promise<RefreshResult> = refreshSavedLogin,
 ): Promise<T> {
   try {
     return await operation();
   } catch (_) {
-    const summary: LoginHealthSummary = await checkLogin();
+    let summary: LoginHealthSummary = await checkLogin();
+    if (!canRetryForRequirement(summary, requirement) &&
+      (summary.bit101.status === 'invalid' || summary.school.status === 'invalid' ||
+        (requirement !== 'core' && summary.jxzx.status === 'invalid'))) {
+      if (await refresh() === 'SUCCESS') summary = await checkLogin();
+    }
     if (!canRetryForRequirement(summary, requirement)) {
       throw new Error(failureMessageForRequirement(summary, requirement));
     }

@@ -1,5 +1,5 @@
 import { DebugCase } from './DebugCase';
-import { TEST_PASSWORD, TEST_USERNAME } from './local.secret';
+import { loadDebugCredentials } from './DebugCredentials';
 import { AuthRepository } from '../services/auth/authRepository';
 import { loginBit101AndVerifyWebvpn } from '../services/auth/bit101LoginFlow';
 import { TokenStore } from '../services/storage/tokenStore';
@@ -9,6 +9,7 @@ export class TimetableWebvpnCase extends DebugCase {
   readonly name = 'Timetable via BIT101 WebVPN verify cookie';
 
   async run(): Promise<void> {
+    const { TEST_USERNAME, TEST_PASSWORD } = loadDebugCredentials();
     this.logInfo('=== TimetableWebvpnCase START ===');
 
     const auth = new AuthRepository();
@@ -16,7 +17,7 @@ export class TimetableWebvpnCase extends DebugCase {
 
     try {
       if (!TEST_USERNAME || !TEST_PASSWORD) {
-        this.fail('Missing TEST_USERNAME / TEST_PASSWORD in local.secret.ts');
+        this.fail('Missing TEST_USERNAME / TEST_PASSWORD in debug-credentials.json');
       }
 
       this.logInfo('run BIT101 login + webvpn verify, username =', TEST_USERNAME);

@@ -1,5 +1,5 @@
 import { DebugCase } from './DebugCase';
-import { TEST_PASSWORD, TEST_USERNAME } from './local.secret';
+import { loadDebugCredentials } from './DebugCredentials';
 import { SchoolAuthService } from '../services/school/SchoolAuthService';
 import {
   buildClassroomDayRows,
@@ -33,10 +33,11 @@ export class FreeClassroomCase extends DebugCase {
   readonly name = 'Free classroom JW API smoke';
 
   async run(): Promise<void> {
+    const { TEST_USERNAME, TEST_PASSWORD } = loadDebugCredentials();
     this.logInfo('=== FreeClassroomCase START ===');
 
     if (!TEST_USERNAME || !TEST_PASSWORD) {
-      this.fail('Missing TEST_USERNAME / TEST_PASSWORD in local.secret.ts');
+      this.fail('Missing TEST_USERNAME / TEST_PASSWORD in debug-credentials.json');
     }
 
     const termCode = guessCurrentSchoolTermCode();

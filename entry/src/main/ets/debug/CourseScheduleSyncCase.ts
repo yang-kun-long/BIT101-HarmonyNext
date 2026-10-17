@@ -1,5 +1,5 @@
 import { DebugCase } from './DebugCase';
-import { TEST_PASSWORD, TEST_USERNAME } from './local.secret';
+import { loadDebugCredentials } from './DebugCredentials';
 import { AuthRepository } from '../services/auth/authRepository';
 import { loginBit101AndVerifyWebvpn } from '../services/auth/bit101LoginFlow';
 import { getDefaultPeriodTimes } from '../services/jw/periodTimes';
@@ -20,10 +20,11 @@ export class CourseScheduleSyncCase extends DebugCase {
   readonly name = 'Course schedule sync smoke';
 
   async run(): Promise<void> {
+    const { TEST_USERNAME, TEST_PASSWORD } = loadDebugCredentials();
     this.logInfo('=== CourseScheduleSyncCase START ===');
 
     if (!TEST_USERNAME || !TEST_PASSWORD) {
-      this.fail('Missing TEST_USERNAME / TEST_PASSWORD in local.secret.ts');
+      this.fail('Missing TEST_USERNAME / TEST_PASSWORD in debug-credentials.json');
     }
 
     const filesDir = appFilesDir();
