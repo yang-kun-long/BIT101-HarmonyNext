@@ -1,3 +1,4 @@
+import { Logger } from '../utils/Logger';
 // entry/src/main/ets/pages/UserDetailPage.ets
 import { UserRepository, UserInfoResponse } from '../services/user/userRepository';
 import { PosterRepository } from '../services/gallery/PosterRepository';
@@ -9,6 +10,7 @@ import { uiBack, uiGetParams, uiPushUrl, uiReplaceUrl, uiShowToast } from '../ut
 @Entry
 @Component
 struct UserDetailPage {
+  private logger: Logger = new Logger('UserDetailPage');
   @State uid: number = -1;
   @State isLoading: boolean = true;
   @State userInfo: UserInfoResponse | null = null;
@@ -110,7 +112,7 @@ struct UserDetailPage {
       this.hasMore = newPosters.length >= 10;
 
     } catch (err) {
-      console.error('加载帖子失败', err);
+      this.logger.error('加载帖子失败', err);
     } finally {
       this.isPostersLoading = false;
     }

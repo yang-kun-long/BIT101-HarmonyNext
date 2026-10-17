@@ -1,3 +1,4 @@
+import { Logger } from '../utils/Logger';
 import promptAction from '@ohos.promptAction';
 import { GalleryImage } from '../services/gallery/GalleryModels';
 import { photoAccessHelper } from '@kit.MediaLibraryKit';
@@ -8,6 +9,7 @@ import { uiShowToast } from '../utils/uiContextBridge';
 
 @Component
 export struct ImageViewer {
+  private logger: Logger = new Logger('ImageViewer');
   @Prop images: GalleryImage[] = [];
   initialIndex: number = 0;
 
@@ -51,7 +53,7 @@ export struct ImageViewer {
 
     } catch (err) {
       const error = err as BusinessError;
-      console.error(`[ImageViewer] 保存失败: ${error.message}, code: ${error.code}`);
+      this.logger.error(`[ImageViewer] 保存失败: ${error.message}, code: ${error.code}`);
       uiShowToast(this.getUIContext(), { message: '保存失败: ' + error.message });
     }
   }

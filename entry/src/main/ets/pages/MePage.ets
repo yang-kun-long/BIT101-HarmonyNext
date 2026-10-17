@@ -1,3 +1,4 @@
+import { Logger } from '../utils/Logger';
 // entry/src/main/ets/pages/MePage.ets
 import router from '@ohos.router';
 import promptAction from '@ohos.promptAction';
@@ -11,6 +12,7 @@ import { uiPushUrl, uiShowToast } from '../utils/uiContextBridge';
 
 @Component
 export default struct MePage {
+  private logger: Logger = new Logger('MePage');
   // 登录 / 加载状态
   @State loading: boolean = true;
   @State err: string = '';
@@ -109,7 +111,7 @@ export default struct MePage {
       }
       this.hasMore = newPosters.length >= 10;
     } catch (e) {
-      console.error('[MePage] loadPosters error', e);
+      this.logger.error('[MePage] loadPosters error', e);
     } finally {
       this.isPostersLoading = false;
     }

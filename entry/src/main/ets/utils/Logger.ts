@@ -1,5 +1,6 @@
 // entry/src/main/ets/utils/Logger.ts.
 import hilog from '@ohos.hilog';
+import { applicationLogBuffer } from '../services/log/LogBuffer';
 
 // 定义日志模式类型
 type LogFilterMode = 'BLOCK_LIST' | 'ALLOW_LIST';
@@ -48,7 +49,9 @@ export class Logger {
     'AboutPage',
     'AccountPage',
     'UserRepository',
-    'LoginHealthService'
+    'LoginHealthService',
+    'LogExportService', 'EntryFormAbility', 'EntryBackupAbility', 'ImageViewer',
+    'ImagePickerGrid', 'CommentInputDialog', 'MoreCommentsSheet', 'UserDetailPage', 'MePage'
     // --- 可以在这里填入下方 ALL_MODULES 里的名字 ---
     // 'ScheduleGrid',
     // 'SchedulePage',
@@ -114,6 +117,15 @@ export class Logger {
     CourseTermRepository: 'CourseTermRepository',
     SystemCalendarService: 'SystemCalendarService',
     UserRepository: 'UserRepository',
+    LogExportService: 'LogExportService',
+    EntryFormAbility: 'EntryFormAbility',
+    EntryBackupAbility: 'EntryBackupAbility',
+    ImageViewer: 'ImageViewer',
+    ImagePickerGrid: 'ImagePickerGrid',
+    CommentInputDialog: 'CommentInputDialog',
+    MoreCommentsSheet: 'MoreCommentsSheet',
+    UserDetailPage: 'UserDetailPage',
+    MePage: 'MePage',
 
     // [Storage - 本地存储]
     SemesterStore: 'SemesterStore',
@@ -158,25 +170,30 @@ export class Logger {
 
   debug(...args: any[]) {
     if (!this.shouldLog()) return;
-    hilog.debug(Logger.DOMAIN, this.getFullTag(), this.formatLog(args));
+    const message = applicationLogBuffer.append('DEBUG', this.moduleName, this.formatLog(args));
+    hilog.debug(Logger.DOMAIN, this.getFullTag(), '%{public}s', message);
   }
 
   info(...args: any[]) {
     if (!this.shouldLog()) return;
-    hilog.info(Logger.DOMAIN, this.getFullTag(), this.formatLog(args));
+    const message = applicationLogBuffer.append('INFO', this.moduleName, this.formatLog(args));
+    hilog.info(Logger.DOMAIN, this.getFullTag(), '%{public}s', message);
   }
 
   warn(...args: any[]) {
     if (!this.shouldLog()) return;
-    hilog.warn(Logger.DOMAIN, this.getFullTag(), this.formatLog(args));
+    const message = applicationLogBuffer.append('WARN', this.moduleName, this.formatLog(args));
+    hilog.warn(Logger.DOMAIN, this.getFullTag(), '%{public}s', message);
   }
 
   error(...args: any[]) {
-    hilog.error(Logger.DOMAIN, this.getFullTag(), this.formatLog(args));
+    const message = applicationLogBuffer.append('ERROR', this.moduleName, this.formatLog(args));
+    hilog.error(Logger.DOMAIN, this.getFullTag(), '%{public}s', message);
   }
 
   fatal(...args: any[]) {
-    hilog.fatal(Logger.DOMAIN, this.getFullTag(), this.formatLog(args));
+    const message = applicationLogBuffer.append('FATAL', this.moduleName, this.formatLog(args));
+    hilog.fatal(Logger.DOMAIN, this.getFullTag(), '%{public}s', message);
   }
 
   private getFullTag(): string {

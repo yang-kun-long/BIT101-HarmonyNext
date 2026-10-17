@@ -5,6 +5,8 @@ import { uiBack, uiShowToast } from '../../utils/uiContextBridge';
 import { Logger } from '../../utils/Logger';
 import { UpdateChecker } from '../../components/settings/UpdateChecker';
 import { createAboutSettingsStore } from '../../services/storage/AboutSettingsStore';
+import { LogExportService } from '../../services/log/LogExportService';
+import { LogShareTarget } from '../../services/log/LogShareTarget';
 
 const PROJECT_NAME: string = 'BIT101-HarmonyNext';
 const PROJECT_URL: string = 'https://github.com/yang-kun-long/BIT101-HarmonyNext';
@@ -25,6 +27,8 @@ struct AboutPage {
   @State updateRequestId: number = 0;
   @State isSavingSettings: boolean = false;
   @State settingsReady: boolean = false;
+  @State isExportingLogs: boolean = false;
+  private logExportService: LogExportService | null = null;
   @State licensesText: string = "正在加载开源声明...";
 
   // --- 弹窗控制器 ---
@@ -125,6 +129,16 @@ struct AboutPage {
           Column() {
             SettingsGroup({ title: "联系我们" }) {
               Column() {
+                SettingItem({
+                  title: "导出诊断日志",
+                  subTitle: "分享本次运行的最近日志，敏感字段已省略",
+                  valueText: this.isExportingLogs ? "正在导出…" : "",
+                  enable: !this.isExportingLogs,
+                  onItemClick: () => { this.exportLogs(); }
+                })
+
+                Divider().color($r('sys.color.ohos_id_color_list_separator')).margin({ left: 16 })
+
                 SettingItem({
                   title: "GitHub",
                   subTitle: PROJECT_NAME,
@@ -257,6 +271,23 @@ struct AboutPage {
       uiShowToast(this.getUIContext(), { message: '保存更新设置失败，请重试' });
     } finally {
       this.isSavingSettings = false;
+    }
+  }
+
+  private async exportLogs(): Promise<void> {
+    if (this.isExportingLogs) return;
+    this.isExportingLogs = true;
+    try {
+      if (this.logExportService === null) {
+        const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
+        this.logExportService = new LogExportService(new LogShareTarget(context));
+      }
+      await this.logExportService.exportAndShare(this.versionName);
+    } catch (_) {
+      this.logger.error('Diagnostic log export failed');
+      uiShowToast(this.getUIContext(), { message: '日志导出失败，请重试' });
+    } finally {
+      this.isExportingLogs = false;
     }
   }
 

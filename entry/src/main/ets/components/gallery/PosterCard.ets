@@ -1,3 +1,4 @@
+import { Logger } from '../../utils/Logger';
 // entry/src/main/ets/components/gallery/PosterCard.ets
 import { Poster, GalleryImage } from '../../services/gallery/GalleryModels';
 import { TimeUtils } from '../../utils/TimeUtils';
@@ -11,6 +12,7 @@ import { uiPushUrl, uiShowToast } from '../../utils/uiContextBridge';
 
 @Component
 export struct PosterCard {
+  private logger: Logger = new Logger('PosterCard');
   @Prop poster: Poster;
 
   // 外部传入的点击回调
@@ -36,7 +38,7 @@ export struct PosterCard {
         uid: parseInt(targetUid) // 确保传过去的是数字
       }
     }).catch((err: Error) => {
-      console.error(`跳转失败, message: ${err.message}`);
+      this.logger.error(`跳转失败, message: ${err.message}`);
     });
   }
 

@@ -343,12 +343,15 @@
 - Create: `entry/src/main/ets/services/version/VersionService.ts`
 - Create: `entry/src/main/ets/services/storage/AboutSettingsStore.ts`
 - Create: `entry/src/main/ets/services/log/LogExportService.ts`
+- Create: `entry/src/main/ets/services/log/LogBuffer.ts`
+- Create: `entry/src/main/ets/services/log/LogShareTarget.ts`
 - Modify: `entry/src/main/ets/pages/settings/AboutPage.ets`
 - Modify: `entry/src/main/ets/entryability/EntryAbility.ets`
 - Modify: `entry/src/main/ets/utils/Logger.ts`
 - Modify: all production files reported by `rg -n "console\\." entry/src/main/ets --glob '!**/debug/**'`
 - Create: `entry/src/test/VersionModels.test.ets`
 - Create: `entry/src/test/AboutSettings.test.ets`
+- Create: `entry/src/test/LogExport.test.ets`
 
 **Todo:**
 
@@ -356,11 +359,14 @@
 - [x] 实现手动检查、启动自动检查、忽略普通版本和最低版本强制更新策略（设备交互待验收）。
 - [x] 持久化 `autoDetectUpgrade`、`ignoredVersion` 和最后成功检查时间；失败时显示真实失败，不提示“已是最新”。
 - [ ] 通过系统浏览器/应用市场打开更新 URL；强制更新对话框不可被普通忽略，但必须处理无可用 URL。
-- [ ] 设计 HarmonyOS 可获得的应用日志导出方式；导出前对 cookie、token、学号、手机号和 URL query 中敏感字段脱敏。
-- [ ] 通过系统分享发送文本日志；失败时提示用户并保留可重试入口。
-- [ ] 将生产模块中的 `console.*` 迁移到 Logger，并把新模块同时注册到 `TARGET_MODULES`/`ALL_MODULES` 或完成 Logger 配置重构。
+- [x] 设计 HarmonyOS 可获得的应用日志导出方式；导出前对 cookie、token、学号、手机号和 URL query 中敏感字段脱敏。
+- [x] 接入系统分享文本日志；失败时提示用户并保留可重试入口（分享面板与接收端文件仍待设备验收）。
+- [x] 将生产模块中的 `console.*` 迁移到 Logger，并把新模块同时注册到 `TARGET_MODULES`/`ALL_MODULES`。
+- [ ] 设备验收：复现一次错误后进入“关于 → 导出诊断日志”，检查系统分享面板、取消/重试和接收端 UTF-8 文本内容，确认不含凭据。
 
 **Progress (2026-10-17):** 已新增 `VersionModels`、可注入的 `VersionService`、`AboutSettingsStore` 和共享 `UpdateChecker`，接入 Index 启动检查及关于页手动检查。自动检查开关、忽略版本和最后成功检查时间持久化；普通版本可稍后/忽略，低于最低版本时禁止普通忽略；失败或平台不明时不再假报“最新”。仅接受显式 `harmonyos`/`ohos`/`openharmony` 响应，默认 Android 契约无平台字段时返回“暂未提供鸿蒙版更新信息”；这是客户端保护，尚未确认后端提供鸿蒙通道。新增 12 项解析/更新策略/请求/设置恢复与写入失败测试；完整本地测试 228 项通过（Failure=0, Error=0），`devecocli` debug/release 签名构建通过。当前无活动设备，弹窗、设置开关重启恢复和系统浏览器跳转仍需设备验收。真实鸿蒙更新地址、无 URL 时的后续引导和日志导出继续保留未完成状态，Task 10 尚未整体完成。
+
+**日志进展（2026-10-17）:** 关于页新增“导出诊断日志”，Logger 在写入前统一脱敏，并保留最多 300 条、98304 个 UTF-16 字符的内存日志（单条最多 4096 字符）；包含凭据字段的整条消息省略，HTTP URL、长号码等单独替换。沿用 debug 白名单/release 仅 error/fatal 的策略，导出范围明确为本次运行，不包含历史进程或系统日志。点击后生成缓存目录中的单个 UTF-8 文本文件，以 Share Kit 应用文件 URI 拉起系统分享；未在后台发送日志，写入/分享失败可重试，重复导出会合并。剩余生产 `console.*` 及备份 Ability 的直接 HiLog 已迁到 Logger，新模块已注册。新增 8 项回归覆盖凭据/嵌套 JSON/URL/号码脱敏、容量限制、release 门禁、快照、空日志、失败重试和并发导出；完整本地测试 236 项通过（Failure=0, Error=0），debug/release 签名构建通过。当前 `devecocli device list` 无活动设备，分享面板和接收端文件待验收；Task 10 仍受真实鸿蒙更新通道和设备验证限制，尚未整体完成。
 
 **Acceptance:** 后端返回新版本时展示真实版本/说明/链接；自动检查开关重启后保留；分享出的日志不含凭据。
 

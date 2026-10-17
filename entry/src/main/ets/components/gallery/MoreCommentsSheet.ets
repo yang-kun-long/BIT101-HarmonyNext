@@ -1,3 +1,4 @@
+import { Logger } from '../../utils/Logger';
 import { Comment, GalleryImage, GalleryUser } from '../../services/gallery/GalleryModels';
 import { reactionService } from '../../services/gallery/ReactionService';
 import { TimeUtils } from '../../utils/TimeUtils';
@@ -10,6 +11,7 @@ import { uiPushUrl, uiShowToast } from '../../utils/uiContextBridge';
 
 @Component
 export struct MoreCommentsSheet {
+  private logger: Logger = new Logger('MoreCommentsSheet');
   // 核心参数
   @Prop parentComment: Comment;
   @State subCommentsOrder: string = 'new';
@@ -57,7 +59,7 @@ export struct MoreCommentsSheet {
       this.hasMore = newItems.length > 0;
 
     } catch (e) {
-      console.error('[MoreComments] 加载失败', e);
+      this.logger.error('[MoreComments] 加载失败', e);
     } finally {
       this.isLoading = false;
     }
@@ -131,7 +133,7 @@ export struct MoreCommentsSheet {
         throw new Error('Server returned failure');
       }
     } catch (e) {
-      console.error('[MoreComments] Like failed', e);
+      this.logger.error('[MoreComments] Like failed', e);
       // 3. 失败回滚
       this.subComments[index].like = oldLike;
       this.subComments[index].likeNum = oldNum;

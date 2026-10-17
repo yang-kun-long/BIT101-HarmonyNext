@@ -1,3 +1,4 @@
+import { Logger } from '../utils/Logger';
 // entry/src/main/ets/entryformability/EntryFormAbility.ets
 import { FormExtensionAbility, formBindingData, formInfo, formProvider } from '@kit.FormKit';
 import { Want } from '@kit.AbilityKit';
@@ -124,6 +125,7 @@ async function buildTodayPayload(filesDir: string): Promise<TodayPayload> {
 
 /** —— Ability —— */
 export default class EntryFormAbility extends FormExtensionAbility {
+  private logger: Logger = new Logger('EntryFormAbility');
   private filesDir: string = '';
 
   onCreate(want: Want): formBindingData.FormBindingData {
@@ -135,29 +137,29 @@ export default class EntryFormAbility extends FormExtensionAbility {
   }
 
   async onUpdate(formId: string): Promise<void> {
-    console.info('[FORM] onUpdate start');
+    this.logger.info('[FORM] onUpdate start');
     const payload: TodayPayload = await buildTodayPayload(this.filesDir);
     try {
       await formProvider.updateForm(formId, formBindingData.createFormBindingData(payload));
-      console.info('[FORM] onUpdate ok, items=', payload.items.length, ' focus=', payload.focusIndex);
+      this.logger.info('[FORM] onUpdate ok, items=', payload.items.length, ' focus=', payload.focusIndex);
     } catch (e) {
-      console.error('[FORM] onUpdate updateForm failed: ', (e as Error).message);
+      this.logger.error('[FORM] onUpdate updateForm failed: ', (e as Error).message);
     }
   }
 
 
   async onEvent(formId: string, message: string): Promise<void> {
-    console.info('[FORM] onEvent formId=', formId, ' msg=', message);
+    this.logger.info('[FORM] onEvent formId=', formId, ' msg=', message);
     if (message === 'REFRESH_TODAY') await this.onUpdate(formId);
     try {
       if (message === 'REFRESH_TODAY') {
         await this.onUpdate(formId);
-        console.info('[FORM] onEvent refreshed ok');
+        this.logger.info('[FORM] onEvent refreshed ok');
       } else {
-        console.info('[FORM] onEvent ignored message');
+        this.logger.info('[FORM] onEvent ignored message');
       }
     } catch (e) {
-      console.error('[FORM] onEvent error: ', (e as Error).message);
+      this.logger.error('[FORM] onEvent error: ', (e as Error).message);
     }
   }
 

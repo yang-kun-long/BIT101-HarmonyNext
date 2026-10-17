@@ -1,3 +1,4 @@
+import { Logger } from '../../utils/Logger';
 // entry/src/main/ets/components/gallery/ImagePickerGrid.ets
 import photoAccessHelper from '@ohos.file.photoAccessHelper';
 import promptAction from '@ohos.promptAction';
@@ -8,6 +9,7 @@ import { uiShowToast } from '../../utils/uiContextBridge';
 
 @Component
 export struct ImagePickerGrid {
+  private logger: Logger = new Logger('ImagePickerGrid');
   @Link images: ImageUploadItem[];
   maxCount: number = 9;
 
@@ -69,7 +71,7 @@ export struct ImagePickerGrid {
         });
       }
     } catch (err) {
-      console.error('PhotoViewPicker failed', err);
+      this.logger.error('PhotoViewPicker failed', err);
     }
   }
 

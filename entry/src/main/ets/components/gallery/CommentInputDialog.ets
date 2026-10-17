@@ -1,3 +1,4 @@
+import { Logger } from '../../utils/Logger';
 // entry/src/main/ets/components/gallery/CommentInputDialog.ets
 import photoAccessHelper from '@ohos.file.photoAccessHelper';
 import promptAction from '@ohos.promptAction';
@@ -9,6 +10,7 @@ import { uiShowToast } from '../../utils/uiContextBridge';
 
 @CustomDialog
 export struct CommentInputDialog {
+  private logger: Logger = new Logger('CommentInputDialog');
   controller: CustomDialogController;
 
   title: string = '发表评论';
@@ -72,7 +74,7 @@ export struct CommentInputDialog {
         });
       }
     } catch (err) {
-      console.error('PhotoViewPicker failed', err);
+      this.logger.error('PhotoViewPicker failed', err);
     }
   }
 
