@@ -3,6 +3,7 @@ import SimpleCookieJar, { CookieDump } from '../../core/network/cookieJar';
 import { Logger } from '../../utils/Logger';
 import { LexueCookieStore } from '../storage/LexueCookieStore';
 import { SchoolCookieStore } from '../storage/SchoolCookieStore';
+import { TokenStore } from '../storage/tokenStore';
 import type { SchoolLoginMode } from '../school/SchoolAuthTypes';
 import type { CourseScheduleItem } from '../schoolSchedule/ScheduleModels';
 import {
@@ -34,12 +35,23 @@ export interface CourseScheduleApiRow {
   KKDWDM_DISPLAY?: string;
 }
 
-interface CourseScheduleApiResponse {
+export interface CourseScheduleApiResponse {
   datas?: {
     cxxszhxqkb?: {
       rows?: CourseScheduleApiRow[];
     };
   };
+}
+
+export function mapCourseScheduleApiResponse(
+  payload: CourseScheduleApiResponse,
+  fallbackTerm: string,
+): CourseScheduleItem[] {
+  const rows = payload.datas?.cxxszhxqkb?.rows;
+  if (!Array.isArray(rows)) {
+    throw new Error('getCourses response missing course rows');
+  }
+  return mapCourseScheduleApiRows(rows, fallbackTerm);
 }
 
 export interface CourseScheduleApiRepositoryOptions {
@@ -68,7 +80,10 @@ function parseJson<T>(text: string, label: string): T {
   try {
     return JSON.parse(text) as T;
   } catch (e) {
-    throw new Error(`${label} response is not JSON: ${String(e)}`);
+    const preview = (text || '').replace(/\s+/g, ' ').slice(0, 220);
+    const html = /^\s*<(?:!doctype\s+html|html|head|body)\b/i.test(text || '');
+    const suffix = html ? '; teaching-center session is not authenticated' : ` (${preview})`;
+    throw new Error(`${label} response is not JSON${suffix}: ${String(e)}`);
   }
 }
 
@@ -92,7 +107,9 @@ function weeksFromBitset(value: string): string {
 function buildCourseId(row: CourseScheduleApiRow, term: string, weeks: string): string {
   const number = row.KCH || row.KCM || 'course';
   const weekKey = weeks.replace(/\]\[/g, '-').replace(/\[/g, '').replace(/\]/g, '');
-  return `${term}:${number}:${row.SKXQ || 0}:${row.KSJC || 0}:${row.JSJC || 0}:${weekKey}`;
+  const slot = `${term}:${number}:${row.SKXQ || 0}:${row.KSJC || 0}:${row.JSJC || 0}:${weekKey}`;
+  return slot + ':' + encodeURIComponent((row.SKJS || '').trim()) + ':' +
+    encodeURIComponent((row.JASMC || '').trim()) + ':' + encodeURIComponent((row.XXXQMC || '').trim());
 }
 
 export function mapCourseScheduleApiRows(
@@ -100,6 +117,7 @@ export function mapCourseScheduleApiRows(
   fallbackTerm: string,
 ): CourseScheduleItem[] {
   const out: CourseScheduleItem[] = [];
+  const seenIds: Record<string, boolean> = {};
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
     const term = row.XNXQDM || fallbackTerm;
@@ -111,8 +129,16 @@ export function mapCourseScheduleApiRows(
       continue;
     }
     const weeks = weeksFromBitset(row.SKZC || '');
+    if (weeks.length === 0) {
+      continue;
+    }
+    const id = buildCourseId(row, term, weeks);
+    if (seenIds[id]) {
+      continue;
+    }
+    seenIds[id] = true;
     out.push({
-      id: buildCourseId(row, term, weeks),
+      id,
       term,
       name,
       teacher: row.SKJS || '',
@@ -169,6 +195,25 @@ export class CourseScheduleApiRepository {
     if (dump) {
       this.jar.restoreFromDump(dump);
     }
+    // LoginCoordinator also persists the WebVPN bootstrap Cookie header in
+    // TokenStore. Convert it into the jar so the teaching-center requests
+    // work even when no domain-aware dump was written yet.
+    if (this.mode === 'webvpn') {
+      const header = await new TokenStore().getWebvpnCookie();
+      this.jar.restoreFromCookieHeaderForHosts(header, [
+        this.baseUrl + '/',
+        'https://webvpn.bit.edu.cn/',
+        'https://jxzxehallapp.bit.edu.cn/',
+      ]);
+    }
+    if (this.debug) {
+      const domains: string[] = [];
+      const snapshot = this.jar.dump();
+      for (let i = 0; i < snapshot.length; i++) {
+        if (domains.indexOf(snapshot[i].domain) < 0) domains.push(snapshot[i].domain);
+      }
+      logger.info('restored cookies count=', snapshot.length, 'domains=', domains.join(','), 'mode=', this.mode);
+    }
   }
 
   getCookieDump(): CookieDump {
@@ -176,13 +221,25 @@ export class CourseScheduleApiRepository {
   }
 
   private async warmup(): Promise<void> {
-    await this.client.get('/jwapp/sys/funauthapp/api/getAppConfig/wdkbby-5959167891382285.do');
-    await this.client.get('/jwapp/i18n.do', {
+    // Course.getCourses on Android assumes the application index has first
+    // initialized the teaching-center session and WebVPN rewrite context.
+    const index = await this.client.get('/jwapp/sys/wdkbby/*default/index.do', {
+      headers: {
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Referer': this.baseUrl + '/',
+      },
+    });
+    if (this.debug) logger.info('course app index HTTP', index.statusCode, 'mode=', this.mode, 'base=', this.baseUrl);
+    assertOk(index, 'course app index');
+    const config = await this.client.get('/jwapp/sys/funauthapp/api/getAppConfig/wdkbby-5959167891382285.do');
+    if (this.debug) logger.info('course app config HTTP', config.statusCode);
+    const i18n = await this.client.get('/jwapp/i18n.do', {
       query: {
         appName: 'wdkbby',
         EMAP_LANG: 'zh',
       },
     });
+    if (this.debug) logger.info('course app i18n HTTP', i18n.statusCode);
   }
 
   async getCourses(term: string): Promise<CourseScheduleItem[]> {
@@ -193,7 +250,11 @@ export class CourseScheduleApiRepository {
     await this.restoreCookiesFromStorage();
     await this.warmup();
     const resp = await this.client.post(
-      '/jwapp/sys/wdkbby/modules/xskcb/cxxszhxqkb.do',
+      // Android Course.getCourses keeps the WebVPN host marker on this
+      // rewritten endpoint; it is required by some WebVPN gateways.
+      this.mode === 'webvpn'
+        ? '/jwapp/sys/wdkbby/modules/xskcb/cxxszhxqkb.do?vpn-12-o2-jxzxehallapp.bit.edu.cn'
+        : '/jwapp/sys/wdkbby/modules/xskcb/cxxszhxqkb.do',
       toFormUrlEncoded({ XNXQDM: trimmed }),
       {
         headers: {
@@ -201,12 +262,13 @@ export class CourseScheduleApiRepository {
         },
       },
     );
+    if (this.debug) logger.info('getCourses HTTP', resp.statusCode, 'term=', trimmed);
     assertOk(resp, 'getCourses');
     const parsed = parseJson<CourseScheduleApiResponse>(resp.bodyText, 'getCourses');
-    const rows = parsed.datas?.cxxszhxqkb?.rows || [];
+    const courses = mapCourseScheduleApiResponse(parsed, trimmed);
     if (this.debug) {
-      logger.info('course count =', rows.length, 'term =', trimmed);
+      logger.info('course count =', courses.length, 'term =', trimmed);
     }
-    return mapCourseScheduleApiRows(rows, trimmed);
+    return courses;
   }
 }

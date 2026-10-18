@@ -136,6 +136,17 @@ export class CourseScheduleSettingsStore {
     return next;
   }
 
+  async saveTermInfo(term: string, firstDayISO: string): Promise<void> {
+    const pref = await this.getPref();
+    await guardAsyncStorage('CourseScheduleSettingsStore.saveTermInfo', async () => {
+      await pref.put(KEY_CURRENT_TERM, term);
+      await pref.put(KEY_FIRST_DAY_ISO, firstDayISO);
+      await pref.flush();
+    });
+    AppStorage.setOrCreate(COURSE_SCHEDULE_APP_CURRENT_TERM, term);
+    AppStorage.setOrCreate(COURSE_SCHEDULE_APP_FIRST_DAY_ISO, firstDayISO);
+  }
+
   async saveFirstDayISO(value: string): Promise<ScheduleDisplaySettings> {
     const current = await this.load();
     const next = normalizeScheduleDisplaySettings({ ...current, firstDayISO: value });

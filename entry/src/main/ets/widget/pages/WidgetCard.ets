@@ -1,145 +1,87 @@
-// entry/src/main/ets/widgets/WidgetCard.ets
+// Form UI only receives data; local cache access stays in EntryFormAbility.
+import type { WidgetCourseCard, WidgetCourseDeck } from '../../services/schoolSchedule/ScheduleWidgetModel';
 
-// ✅ 不要 import formProvider / postCardAction
-// ✅ 在 ArkTS 中声明全局函数签名，避免“对象字面量当类型”等检查报错
-interface RouterParams {
-  courseId: string;
-  courseName: string;
-  action: string;
-}
-interface RouterEvent {
-  action: 'router' | 'message' | 'call';
-  abilityName?: string;
-  bundleName?: string;
-  moduleName?: string;
-  uri?: string;
-  params: RouterParams;
-}
-// 按官方签名声明（component 用 object；不要用 any/unknown）
-declare function postCardAction(component: object, action: RouterEvent): void;
+const storage: LocalStorage = new LocalStorage();
 
-interface Course {
-  id?: string;
-  name: string;
-  time: string;
-  room?: string;
-}
-interface NavParams {
-  courseId?: string;
-  courseName?: string;
-  action?: string;
-}
-
-@Entry
+@Entry(storage)
 @Component
-export default struct WidgetCard {
-  // 由 FormBindingData 注入
-  @State title: string = '今日课程';
-  @State courses: Course[] = [];
-  @State emptyText: string = '今天没有课～';
+struct WidgetCard {
+  @LocalStorageProp('deck') @Watch('resetFocus') deck: WidgetCourseDeck = {
+    cards: [], focusIndex: 0, cacheReady: false, emptyText: '先在应用内获取课表'
+  };
+  @State private selectedIndex: number = 0;
 
-  private readonly actionType: 'router' = 'router';
-  private readonly abilityName: string = 'EntryAbility';
-  private readonly fullWidthPercent: string = '100%';
-  private readonly fullHeightPercent: string = '100%';
-
-  private buildEvent(payload?: NavParams): RouterEvent {
-    const params: RouterParams = {
-      courseId: payload && payload.courseId ? payload.courseId : '',
-      courseName: payload && payload.courseName ? payload.courseName : '',
-      action: payload && payload.action ? payload.action : ''
-    };
-    const evt: RouterEvent = {
-      action: this.actionType,       // 'router'
-      abilityName: this.abilityName, // 你的 UIAbility 名称
-      params: params
-    };
-    return evt;
+  aboutToAppear(): void {
+    this.resetFocus();
   }
 
-  private launchToDetail(payload?: NavParams): void {
-    const evt: RouterEvent = this.buildEvent(payload);
-    // ✅ 直接调用全局 postCardAction（无任何 import/命名空间）
-    postCardAction(this, evt);
+  private resetFocus(): void {
+    this.selectedIndex = Math.max(0, Math.min(this.deck.focusIndex, this.deck.cards.length - 1));
+  }
+
+  private stackColor(depth: number): string {
+    const index = (this.selectedIndex + depth) % this.deck.cards.length;
+    return this.deck.cards[index]?.color || '#4F46E5';
+  }
+
+  private openSchedule(): void {
+    postCardAction(this, { action: 'router', abilityName: 'EntryAbility', params: { action: 'openSchedule', tab: '0' } });
+  }
+
+  @Builder
+  CourseFace(card: WidgetCourseCard, index: number) {
+    Column({ space: 5 }) {
+      Row() {
+        Text(card.heading).fontSize(12).fontWeight(FontWeight.Medium).fontColor('#E6FFFFFF').layoutWeight(1)
+        Text(card.status).fontSize(10).fontWeight(FontWeight.Medium).fontColor(Color.White)
+          .padding({ left: 7, right: 7, top: 3, bottom: 3 }).borderRadius(7).backgroundColor('#24FFFFFF')
+      }.width('100%')
+      Text(card.name).fontSize(21).fontWeight(FontWeight.Bold).fontColor(Color.White)
+        .width('100%').maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
+      Text(card.room).fontSize(12).fontColor('#E6FFFFFF').width('100%')
+        .maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
+      Blank().layoutWeight(1)
+      Row({ space: 8 }) {
+        Text(card.time).fontSize(17).fontWeight(FontWeight.Medium).fontColor(Color.White)
+        Text(card.sections).fontSize(10).fontColor('#D9FFFFFF').layoutWeight(1)
+        if (this.deck.cards.length > 1) {
+          Text((index + 1) + ' / ' + this.deck.cards.length).fontSize(10).fontColor('#CCFFFFFF')
+        }
+      }.width('100%')
+    }.width('100%').height('100%').padding({ left: 16, right: 16, top: 11, bottom: 11 })
+      .alignItems(HorizontalAlign.Start).borderRadius(18).backgroundColor(card.color)
+      .onClick(() => this.openSchedule())
+      .accessibilityText(card.heading + '，' + card.name + '，' + card.time + '，' + card.room + '，' + card.status)
   }
 
   build() {
-    Column() {
-      // 标题
-      Text(this.title)
-        .fontSize($r('app.float.font_size'))
-        .fontWeight(FontWeight.Medium)
-        .fontColor($r('sys.color.font'))
-        .margin({ bottom: 6 })
-
-      // 课程列表 / 空状态
-      if (this.courses && this.courses.length > 0) {
-        ForEach(
-          this.courses.slice(0, 4),
-          (c: Course) => {
-            Row() {
-              // 左：时间
-              Column() {
-                Text(c.time)
-                  .fontSize(14)
-                  .fontColor($r('sys.color.font_secondary'))
-              }
-              .width('30%')
-
-              // 右：课程名 + 教室
-              Column() {
-                Text(c.name)
-                  .fontSize(16)
-                  .fontWeight(FontWeight.Medium)
-                  .fontColor($r('sys.color.font'))
-                  .maxLines(1)
-                  .textOverflow({ overflow: TextOverflow.Ellipsis })
-                if (c.room) {
-                  Text(c.room)
-                    .fontSize(12)
-                    .fontColor($r('sys.color.font_secondary'))
-                    .maxLines(1)
-                    .textOverflow({ overflow: TextOverflow.Ellipsis })
-                }
-              }
-              .width('70%')
-            }
-            .padding({ top: 8, bottom: 8 })
-            .onClick(() => {
-              const p: NavParams = {
-                courseId: c.id ? c.id : '',
-                courseName: c.name
-              };
-              this.launchToDetail(p);
-            })
-          },
-          (c: Course) => c.id ? c.id : (c.time + '-' + c.name) // key
-        )
-      } else {
-        Row() {
-          Text(this.emptyText)
-            .fontSize(14)
-            .fontColor($r('sys.color.font_secondary'))
+    Stack({ alignContent: Alignment.Top }) {
+      if (this.deck.cards.length > 0) {
+        if (this.deck.cards.length > 2) {
+          Column().width('88%').height('94%').borderRadius(18)
+            .backgroundColor(this.stackColor(2)).opacity(0.35).align(Alignment.Bottom)
+            .animation({ duration: 280, curve: Curve.EaseInOut })
         }
-        .height(48)
+        if (this.deck.cards.length > 1) {
+          Column().width('94%').height('97%').borderRadius(18)
+            .backgroundColor(this.stackColor(1)).opacity(0.65).align(Alignment.Bottom)
+            .animation({ duration: 280, curve: Curve.EaseInOut })
+        }
+        Swiper() {
+          ForEach(this.deck.cards, (card: WidgetCourseCard, index: number) => {
+            this.CourseFace(card, index)
+          }, (card: WidgetCourseCard) => card.id)
+        }.width('100%').height(this.deck.cards.length > 1 ? 'calc(100% - 12vp)' : '100%')
+          .vertical(true).index(this.selectedIndex).loop(false).indicator(false)
+          .curve(Curve.EaseInOut).itemSpace(10)
+          .onChange((index: number) => { this.selectedIndex = index; })
+      } else {
+        Column({ space: 8 }) {
+          Text(this.deck.cacheReady ? '今天' : '课程卡片').fontSize(13).fontColor('#CCFFFFFF')
+          Text(this.deck.emptyText).fontSize(18).fontWeight(FontWeight.Medium).fontColor(Color.White)
+        }.width('100%').height('100%').justifyContent(FlexAlign.Center)
+          .borderRadius(18).backgroundColor('#475569').onClick(() => this.openSchedule())
       }
-
-      // 底部：查看全部
-      Row() {
-        Text('查看全部课表')
-          .fontSize(12)
-          .fontColor($r('sys.color.font_secondary'))
-      }
-      .justifyContent(FlexAlign.Center)
-      .height(32)
-      .onClick(() => {
-        const p: NavParams = { action: 'openSchedule' };
-        this.launchToDetail(p);
-      })
-    }
-    .width(this.fullWidthPercent)
-    .height(this.fullHeightPercent)
-    .padding(12)
-    .backgroundColor($r('sys.color.comp_background_primary'))
+    }.width('100%').height('100%').clip(true)
   }
 }

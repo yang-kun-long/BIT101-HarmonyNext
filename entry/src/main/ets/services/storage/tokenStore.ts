@@ -19,6 +19,7 @@ const KEY_USERNAME = 'current_username';
 const KEY_FAKE_COOKIE = 'bit101_fake_cookie';
 // 教务(WebVPN)使用的会话 cookie（只有 verify 成功后才写入）
 const KEY_WEBVPN_COOKIE = 'webvpn_cookie';
+const KEY_SCHOOL_MODE = 'school_login_mode';
 
 export interface LoginSessionState {
   accessToken: string | null;
@@ -160,6 +161,21 @@ export class TokenStore {
     });
   }
 
+  async saveSchoolLoginMode(mode: string): Promise<void> {
+    const pref = await this.getPref();
+    await guardAsyncStorage('TokenStore.saveSchoolLoginMode', async () => {
+      await pref.put(KEY_SCHOOL_MODE, mode);
+      await pref.flush();
+    });
+  }
+
+  async getSchoolLoginMode(): Promise<string | null> {
+    const pref = await this.getPref();
+    return await guardAsyncStorage('TokenStore.getSchoolLoginMode', async () =>
+      (await pref.get(KEY_SCHOOL_MODE, null)) as string | null,
+    );
+  }
+
   async clearBit101Session(): Promise<void> {
     const pref = await this.getPref();
     await guardAsyncStorage('TokenStore.clearBit101Session', async () => {
@@ -174,6 +190,7 @@ export class TokenStore {
     const pref = await this.getPref();
     await guardAsyncStorage('TokenStore.clearSchoolSession', async () => {
       await pref.delete(KEY_WEBVPN_COOKIE);
+      await pref.delete(KEY_SCHOOL_MODE);
       await pref.flush();
     });
   }
@@ -234,6 +251,7 @@ export class TokenStore {
       await pref.delete(KEY_USERNAME);
       await pref.delete(KEY_FAKE_COOKIE);
       await pref.delete(KEY_WEBVPN_COOKIE);
+      await pref.delete(KEY_SCHOOL_MODE);
       await pref.flush();
     });
   }

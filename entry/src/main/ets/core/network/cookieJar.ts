@@ -194,6 +194,30 @@ export class SimpleCookieJar implements CookieJarLike {
 
     this.cookies = restored;
   }
+
+  /** Restore a plain Cookie request header (name=value; name2=value2).
+   * Login verification persists the WebVPN bootstrap cookie as a header
+   * string, while the school repositories use the domain-aware jar.
+   */
+  restoreFromCookieHeader(header: string | null | undefined, url: string): void {
+    if (!header || header.trim().length === 0) return;
+    const parts = header.split(';');
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i].trim();
+      const eq = part.indexOf('=');
+      if (eq <= 0) continue;
+      const name = part.slice(0, eq).trim();
+      const value = part.slice(eq + 1).trim();
+      if (name.length === 0 || value.length === 0) continue;
+      this.updateFromSetCookie(url, name + '=' + value + '; Path=/');
+    }
+  }
+
+  restoreFromCookieHeaderForHosts(header: string | null | undefined, urls: string[]): void {
+    for (let i = 0; i < urls.length; i++) {
+      this.restoreFromCookieHeader(header, urls[i]);
+    }
+  }
   /**
    * 调试用：返回当前 cookie 快照
    */

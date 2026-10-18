@@ -4,12 +4,18 @@ import fileIo from '@ohos.file.fs'
 
 import { TimetableRepository, CalendarEvent } from '../services/jw/timetableRepository'
 import { TokenStore } from '../services/storage/tokenStore'
+import { SchoolCookieStore } from '../services/storage/SchoolCookieStore'
+import { LexueCookieStore } from '../services/storage/LexueCookieStore'
+import { CourseScheduleApiRepository } from '../services/jw/courseScheduleApiRepository'
+import { CourseTermRepository } from '../services/jw/courseTermRepository'
 import { SemesterRepository, SemesterId } from '../services/jw/semesterRepository'
 import { layoutsFromInstances } from '../services/jw/layoutFromInstances'
 import type { CourseInstance, FilesCtx, RawIcsEvent } from '../services/storage/semesterStore'
 import type { ToInstancesDeps } from '../services/jw/normalize'
 import { PeriodTimesStore } from '../services/jw/periodTimesStore'
 import type { PeriodTime } from '../services/jw/periodTimes'
+import type { SchoolLoginMode } from '../services/school/SchoolAuthTypes'
+import { detectSchoolLoginMode } from '../services/school/SchoolNetworkProbe'
 
 
 // 导入新的工具和组件
@@ -22,7 +28,10 @@ import { CourseDetailDialog } from '../components/schedule/CourseDetailDialog'
 import { ExamDetailDialog } from '../components/schedule/ExamDetailDialog'
 import { CustomScheduleDetailDialog } from '../components/schedule/CustomScheduleDetailDialog'
 import { AddEditCustomScheduleDialog } from '../components/schedule/AddEditCustomScheduleDialog'
-import { uiPushUrl } from '../utils/uiContextBridge'
+import { uiPushUrl, uiShowToast } from '../utils/uiContextBridge'
+import { buildCourseColorMap } from '../services/schoolSchedule/ScheduleColors'
+import { publishScheduleWidgets } from '../services/schoolSchedule/ScheduleWidgetPublisher'
+import { CourseScheduleSettingsStore } from '../services/storage/CourseScheduleSettingsStore'
 import { visibleWeekdayNumbers } from '../services/schoolSchedule/ScheduleSettingsModels'
 import {
   buildWeekScheduleDisplayItems,
@@ -101,13 +110,14 @@ export default struct SchedulePage {
   @State colGap: number = 0
   @State courseColWidth: number = 0
   @State leftColWidth: number = 0
+  private availableWidth: number = 0
   @State courseColors: Record<string, string> = {}
   @State weekNoTextComputed: string = '1'
   @StorageProp('filesDir') filesDirFromApp: string = ''
   @StorageProp('cacheDir') cacheDirFromApp: string = ''
   @StorageProp('tempDir') tempDirFromApp: string = ''
-  @StorageProp('course_schedule_show_saturday') showSaturdaySetting: boolean = true
-  @StorageProp('course_schedule_show_sunday') showSundaySetting: boolean = true
+  @StorageProp('course_schedule_show_saturday') @Watch('onWeekendVisibilityChanged') showSaturdaySetting: boolean = true
+  @StorageProp('course_schedule_show_sunday') @Watch('onWeekendVisibilityChanged') showSundaySetting: boolean = true
   @StorageProp('course_schedule_show_border') showBorderSetting: boolean = false
   @StorageProp('course_schedule_show_highlight_today') showHighlightTodaySetting: boolean = true
   @StorageProp('course_schedule_show_divider') showDividerSetting: boolean = true
@@ -122,6 +132,7 @@ export default struct SchedulePage {
   private store = new TokenStore()
   private semRepo?: SemesterRepository
   private timesStore?: PeriodTimesStore
+  private scheduleLoadInFlight: boolean = false
 
   // --- 生命周期 ---
   aboutToAppear(): void {
@@ -137,67 +148,128 @@ export default struct SchedulePage {
 
   // --- 核心数据加载逻辑 (保留) ---
   private async loadLocalFirst(forceRefresh: boolean) {
-    this.logger.debug('loadLocalFirst: Start.', 'forceRefresh=', forceRefresh, 'weekStartISO=', this.weekStartISO);
-    this.loading = true
     this.err = ''
-    this.weekLayouts = []
-    this.hasWebvpn = await this.store.isLoggedInWebvpn()
-
-    if (!this.hasWebvpn) {
-      this.logger.warn('未登录教务（缺少 WebVPN 会话）');
-      this.loading = false
-      this.err = '未登录教务（缺少 WebVPN 会话）'
-      return
-    }
     const filesDir = this.getFilesDir()
     if (!filesDir || filesDir.length === 0) {
       this.loading = false; this.err = '无法获取应用文件目录'; return
     }
-    if (!this.semRepo) {
-      this.initSemesterRepoIfNeeded()
-      if (!this.semRepo) { this.loading = false; this.err = '学期仓库初始化失败'; return }
+    const localScheduleStore = new ScheduleLocalStore({ filesDir });
+    const cachedInfo = localScheduleStore.loadScheduleInfo();
+    let term = this.currentTermSetting.trim() || cachedInfo?.term || '';
+    let firstDay = this.firstDaySetting.trim() ||
+      (cachedInfo?.term === term ? cachedInfo.firstDayISO : '');
+    const hasCache = term.length > 0 && firstDay.length > 0 && localScheduleStore.hasCachedCourses(term);
+    // No async work before cache rendering: page/tab/week switches stay local.
+    if (hasCache) {
+      this.renderSchedule(localScheduleStore, term, firstDay);
+      this.loading = false;
+      this.logger.info('schedule cache hit term=', term);
+      if (!forceRefresh) return;
     }
-
+    if (this.scheduleLoadInFlight) return;
+    this.loading = !hasCache && this.weekLayouts.length === 0;
+    this.scheduleLoadInFlight = true;
     try {
-      const semIdStr: string = this.currentSemesterId();
-      const sem: SemesterId = { id: semIdStr };
-      const result = await this.semRepo.getSemester(sem, forceRefresh);
-
-      const weekInstances: CourseInstance[] = this.semRepo.filterWeekInstances(result.semester, this.weekStartISO);
-      this.courseColors = (result.semester && result.semester.courseColors) ? result.semester.courseColors : {};
-      this.logger.debug('Checking firstWeekISO. Current value:', this.firstWeekISO);
-      if (!this.firstWeekISO || this.firstWeekISO.length === 0) {
-        this.logger.debug('firstWeekISO is empty, calculating...');
-
-        if (result && result.semester && result.semester.instances && result.semester.instances.length > 0) {
-          const insts: CourseInstance[] = result.semester.instances;
-          let minISO: string = insts[0].weekStartISO;
-          for (let i = 1; i < insts.length; i++) {
-            if (insts[i].weekStartISO < minISO) minISO = insts[i].weekStartISO;
-          }
-          this.firstWeekISO = minISO;
-          this.logger.info('Calculated firstWeekISO from instances:', this.firstWeekISO);
-        } else {
-          // 如果没有课程数据，就*姑且*用当前周作为第一周
-          this.firstWeekISO = this.weekStartISO;
-          this.logger.warn('No instances, setting firstWeekISO to weekStartISO:', this.firstWeekISO);
-        }
-      } else {
-        this.logger.debug('firstWeekISO already set, skipping calculation.');
+      const mode = await this.resolveSchoolMode();
+      this.hasWebvpn = mode === 'webvpn';
+      if (term.length === 0) {
+        term = await new CourseTermRepository({ mode, debug: true }).getCurrentTerm();
       }
-
-      this.updateWeekNoText()
-
-      const layouts = layoutsFromInstances(this.weekStartISO, weekInstances);
-      const legacyLayouts = this.mapLayoutsWithDate(layouts);
-      this.weekLayouts = this.buildScheduleLayouts(weekInstances, legacyLayouts);
+      if (term.length === 0) {
+        throw new Error('未获取到当前学期');
+      }
+      if (firstDay.length === 0) {
+        firstDay = await new CourseTermRepository({ mode, debug: true }).getFirstDay(term);
+      }
+      if (forceRefresh || !localScheduleStore.hasCachedCourses(term)) {
+        const source = new CourseScheduleApiRepository({ mode, debug: true });
+        const courses = await source.getCourses(term);
+        localScheduleStore.saveCourses(courses);
+      }
+      localScheduleStore.saveScheduleInfo({ term, firstDayISO: firstDay });
+      this.renderSchedule(localScheduleStore, term, firstDay);
+      this.loading = false;
+      await new CourseScheduleSettingsStore().saveTermInfo(term, firstDay);
+      publishScheduleWidgets(filesDir);
     } catch (e) {
       const msg: string = (e instanceof Error) ? e.message : String(e);
-      this.err = msg;
+      if (hasCache) {
+        uiShowToast(this.getUIContext(), { message: '刷新失败，已保留本地课表' });
+      } else {
+        this.err = msg;
+      }
       this.logger.error('getSemester failed:', msg);
     } finally {
       this.loading = false;
+      this.scheduleLoadInFlight = false;
     }
+  }
+
+  private renderSchedule(store: ScheduleLocalStore, term: string, firstDay: string): void {
+    const courses = store.loadCourses().filter((item: CourseScheduleItem) => item.term === term);
+    this.firstWeekISO = firstDay;
+    this.courseColors = buildCourseColorMap(courses.map((item: CourseScheduleItem) =>
+      utils.makeCourseColorKey(item.name, item.teacher)));
+    this.logger.info('render local schedule courses=', courses.length, 'colorKeys=', Object.keys(this.courseColors).length);
+    const displayItems = buildWeekScheduleDisplayItems({
+      weekStartISO: this.weekStartISO,
+      weekNumber: computeWeekNumber(firstDay, this.weekStartISO),
+      periodTimes: this.periodTimes,
+      showExamInfo: this.showExamInfoSetting,
+      courses,
+      exams: store.loadExams().filter((item: ExamScheduleItem) => item.term === term),
+      customSchedules: this.mergeCustomSchedules(store.loadCustomSchedules(), this.customScheduleMemory),
+    });
+    this.weekLayouts = this.layoutsFromDisplayItems(displayItems);
+    this.updateWeekNoText();
+  }
+
+  private async resolveSchoolMode(): Promise<SchoolLoginMode> {
+    // The generic webvpn_cookie is also written by the BIT101 verification
+    // step for inner-network logins, so it cannot identify the school mode.
+    // Use the mode-specific authenticated cookie dump first.
+    try {
+      const persistedMode = await this.store.getSchoolLoginMode();
+      if (persistedMode === 'inner' || persistedMode === 'webvpn') {
+        this.logger.info('resolveSchoolMode: using persisted mode', persistedMode);
+        return persistedMode as SchoolLoginMode;
+      }
+      const webvpnDump = await new SchoolCookieStore('webvpn').loadCookieDump();
+      if (webvpnDump && webvpnDump.length > 0) {
+        this.logger.info('resolveSchoolMode: using persisted webvpn school cookies');
+        return 'webvpn';
+      }
+      const webvpnLexueDump = await new LexueCookieStore('webvpn').loadCookieDump();
+      if (webvpnLexueDump && webvpnLexueDump.length > 0) {
+        this.logger.info('resolveSchoolMode: using persisted webvpn lexue cookies');
+        return 'webvpn';
+      }
+      const innerDump = await new SchoolCookieStore('inner').loadCookieDump();
+      if (innerDump && innerDump.length > 0) {
+        this.logger.info('resolveSchoolMode: using persisted inner school cookies');
+        return 'inner';
+      }
+      const innerLexueDump = await new LexueCookieStore('inner').loadCookieDump();
+      if (innerLexueDump && innerLexueDump.length > 0) {
+        this.logger.info('resolveSchoolMode: using persisted inner lexue cookies');
+        return 'inner';
+      }
+      // Backward compatibility for sessions created before school_login_mode
+      // and SchoolCookieStore were introduced. A non-empty verification
+      // cookie is the only persisted school signal in those installations;
+      // it must win over the network probe (which reports inner merely
+      // because the campus hostname is DNS-resolvable).
+      const tokenCookie = await this.store.getWebvpnCookie();
+      if (tokenCookie && tokenCookie.length > 0) {
+        this.logger.info('resolveSchoolMode: using legacy token webvpn cookie');
+        return 'webvpn';
+      }
+    } catch (error) {
+      this.logger.warn('resolveSchoolMode storage probe failed', error);
+    }
+    const detected = await detectSchoolLoginMode({ debug: true });
+    this.logger.info('resolveSchoolMode: network detected', detected);
+    return detected;
   }
 
   // --- 布局计算 (保留) ---
@@ -232,6 +304,10 @@ export default struct SchedulePage {
     } else {
       this.logger.debug('recomputeWidthMetrics: State NOT changed. Ignoring. c=', c);
     }
+  }
+
+  private onWeekendVisibilityChanged(): void {
+    this.recomputeWidthMetrics(this.availableWidth)
   }
 
   private recomputeMetrics(availableHeight: number): void {
@@ -809,7 +885,6 @@ export default struct SchedulePage {
   }
   private async refreshWeek(): Promise<void> {
     await this.loadLocalFirst(true)
-    setTimeout(() => { this.loadLocalFirst(false) }, 16)
   }
 
 
@@ -890,6 +965,7 @@ export default struct SchedulePage {
       .onAreaChange((_, rect: Area) => {
         const w = Number(rect.width);
         this.logger.debug('onAreaChange (Column): Fired.', `w=${w}`);
+        this.availableWidth = w;
         this.recomputeWidthMetrics(w);
 
         // ❌ 修复：从这里【删除】高度计算

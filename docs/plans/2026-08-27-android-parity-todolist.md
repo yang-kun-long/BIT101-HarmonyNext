@@ -364,6 +364,8 @@
 
 - [ ] 模拟器优先验收设置重启恢复、横滑与点击切换、隐藏/取消隐藏后的列表与评论变化、主评论跨页及纯图片评论发送；真机后置：真实账号数据和后端交互。
 
+- [x] 模拟器自动化验收已通过：设置页、登录页往返、五个话廊开关即时变更/重开恢复；本地与设备回归门禁分别为 316 项和 98 项，真实账号数据、发帖/评论写操作和真机仍后置。
+
 **Progress (2026-10-17):** 新增 GallerySettingsStore（默认值、落盘成功后发布变更、写入失败保留旧设置）、话廊设置页和用户主页隐藏/取消隐藏入口。对照 Android DefaultPosterRepo / GalleryIndexViewModel / PosterViewModel：推荐/最热/最新传总开关对应的 hide_bot，搜索同时依赖搜索子开关；关注流不应用本地 UID/匿名过滤。帖子、主评论和更多回复共用可注入 FilteredPager：过滤后继续请求直到补足一页或服务端空页，ID 去重，失败保留数据与游标、点击重试，刷新/排序切换和离页取消旧请求。主评论显式从 page=0 开始，滚动到底继续加载，不再固定声称已到底；子评论和严格回复过滤同样生效。设置变更刷新已挂载列表；横滑默认开启，关闭后标签点击仍可切换。评论支持纯图片，上传中/失败有明确提示；图片上传改用稳定 uploadId 定位，规避 ArkUI 代理对象引用导致上传状态卡住。
 
 **Validation (2026-10-17):** 新增 GalleryFilter / GallerySettings / GalleryComments 三组 14 项回归，覆盖字段映射、请求参数、非 2xx/异常响应、设置恢复及失败、关注流例外、递归严格过滤、跨页补足、去重、失败重试、并发/取消、排序刷新及纯图片请求体；完整本地测试 272 项通过（Failure=0, Error=0）。devecocli debug/release 均通过 ArkTS 编译和 PackageHap/PackingCheck，但 SignHap 报 11014003 keystore password was incorrect；当前配置解密密码经本机 keytool 验证也无法打开对应 keystore。未修改机器签名配置、未卸载应用，Huawei_Phone（127.0.0.1:5555）上的本轮 UI/账号验收未执行。Task 9 保留设备验收未完成。

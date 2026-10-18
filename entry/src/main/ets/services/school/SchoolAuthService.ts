@@ -91,6 +91,13 @@ export class SchoolAuthService {
     return this.jar.dump();
   }
 
+  /** Restore an existing authenticated SSO/session dump before target bootstrap. */
+  restoreCookieDump(dump: CookieDump | null | undefined): void {
+    if (dump && dump.length > 0) {
+      this.jar.restoreFromDump(dump);
+    }
+  }
+
   getSessionState(mode: SchoolLoginMode, portalService?: string, effectiveUrl?: string): SchoolSessionState {
     return {
       mode,
@@ -271,9 +278,26 @@ export class SchoolAuthService {
 
   async loginInnerTarget(targetUrl: string, targetName: string, username: string, password: string): Promise<SchoolLoginResult> {
     const targetService = await this.resolveInnerTargetService(targetUrl);
-    const tgtUrl = await this.casClient.getTgt(username, password);
-    this.lastTgtUrl = tgtUrl;
-    const st = await this.casClient.getSt(tgtUrl, targetService);
+    let st: string;
+    // Reuse the authenticated CAS session first. Requesting a second TGT
+    // can return 403 even though the original login is valid.
+    const hasSsoCookie = this.jar.dump().some((cookie) =>
+      cookie.domain.indexOf("sso.bit.edu.cn") >= 0 && cookie.value.length > 0,
+    );
+    if (hasSsoCookie) {
+      try {
+        st = await this.getServiceTicketFromSsoSession(targetService);
+      } catch (error) {
+        logger.warn("existing SSO session did not issue target ticket, retrying TGT flow", error);
+        const tgtUrl = await this.casClient.getTgt(username, password);
+        this.lastTgtUrl = tgtUrl;
+        st = await this.casClient.getSt(tgtUrl, targetService);
+      }
+    } else {
+      const tgtUrl = await this.casClient.getTgt(username, password);
+      this.lastTgtUrl = tgtUrl;
+      st = await this.casClient.getSt(tgtUrl, targetService);
+    }
     const jumpUrl = appendTicketToServiceUrl(targetService, st);
     logger.info('loginInnerTarget targetName =', targetName, 'targetService =', targetService);
 

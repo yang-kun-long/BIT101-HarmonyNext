@@ -1,5 +1,5 @@
 // entry/src/main/ets/services/auth/authRepository.ts
-import { HttpClient, ApiError } from '../../core/network/httpClient';
+import { HttpClient, ApiError, HttpRequest, HttpResponse } from '../../core/network/httpClient';
 import { encryptPassword } from './encryptPassword';
 import { TokenStore } from '../storage/tokenStore';
 import { md5HexLower } from './encryptPassword';
@@ -29,13 +29,24 @@ export interface VerifyResult {
   sessionCookie?: string;
 }
 
+function readVerifyField(body: Record<string, unknown> | string, key: string): string {
+  if (typeof body !== 'object' || body === null) return '';
+  const value = (body as Record<string, unknown>)[key];
+  return value === undefined || value === null ? '' : String(value);
+}
+
 export interface AuthRepositoryOptions {
   baseUrl?: string; // 默认生产地址
   userAgent?: string;
+  http?: AuthHttpSource;
+}
+
+export interface AuthHttpSource {
+  request<T>(req: HttpRequest): Promise<HttpResponse<T>>;
 }
 
 export class AuthRepository {
-  private http: HttpClient;
+  private http: AuthHttpSource;
   private tokenStore: TokenStore;
 
   constructor(opts?: AuthRepositoryOptions) {
@@ -46,7 +57,7 @@ export class AuthRepository {
       'Origin': baseUrl,
       'Referer': baseUrl + '/',
     };
-    this.http = new HttpClient(baseUrl, headers);
+    this.http = opts?.http ?? new HttpClient(baseUrl, headers);
     this.tokenStore = new TokenStore();
   }
   // 登录 BIT101 侧（md5 小写）
@@ -58,6 +69,36 @@ export class AuthRepository {
 
   async loginBit101Staged(params: { sid: string; password: string }): Promise<string> {
     return await this.requestBit101Login(params);
+  }
+
+  /** The server issues fake_cookie through /user/register after WebVPN verification. */
+  async registerBit101Staged(
+    params: { password: string },
+    verify: VerifyResult,
+  ): Promise<string> {
+    const token = readVerifyField(verify.body, 'token');
+    const code = readVerifyField(verify.body, 'code');
+    if (!verify.ok || !token || !code) throw new Error('BIT101 register: verify token/code missing');
+    const res = await this.http.request<Bit101LoginResp>({
+      url: '/user/register',
+      method: 'POST',
+      json: {
+        password: md5HexLower(params.password || ''),
+        token,
+        code,
+        loginMode: true,
+      },
+    });
+    const body: any = typeof res.data === 'object' ? res.data : JSON.parse(res.text);
+    const fake = body?.fake_cookie ?? body?.fakeCookie ?? body?.data?.fake_cookie ?? body?.data?.fakeCookie;
+    if (typeof fake !== 'string' || fake.trim().length === 0) throw new Error('BIT101 register: fake_cookie missing');
+    return fake;
+  }
+
+  async registerBit101(params: { password: string }, verify: VerifyResult): Promise<string> {
+    const fake = await this.registerBit101Staged(params, verify);
+    await this.tokenStore.saveFakeCookie(fake);
+    return fake;
   }
 
   private async requestBit101Login(params: { sid: string; password: string }): Promise<string> {
@@ -207,8 +248,9 @@ export class AuthRepository {
   async loginBoth(params: { sid: string; password: string; captcha?: string }):
     Promise<{ bit101FakeCookie: string; webvpnCookie: string; webvpn: VerifyResult }> {
 
-    const fake = await this.loginBit101(params);          // 1) BIT101 fake_cookie
-    const webvpn = await this.loginViaWebVpnVerify(params); // 2) WebVPN verify
+    const webvpn = await this.loginViaWebVpnVerify(params);
+    if (!webvpn.ok) throw new ApiError('WebVPN verification failed', webvpn.status);
+    const fake = await this.registerBit101(params, webvpn);
 
     // 从 Store 里拿最终写入的 cookie（确保 verify 成功后才有意义）
     const webvpnCookie = (await this.tokenStore.getWebvpnCookie()) || '';

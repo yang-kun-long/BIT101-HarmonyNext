@@ -1,6 +1,6 @@
 import { describe, it, expect } from '@ohos/hypium';
 import { defaultGallerySettings } from '../main/ets/services/storage/GallerySettingsStore';
-import { filterPosters, filterComments, hideBotForMode } from '../main/ets/services/gallery/GalleryFilter';
+import { filterPosters, filterUserPosters, filterComments, hideBotForMode } from '../main/ets/services/gallery/GalleryFilter';
 import { Poster, Comment } from '../main/ets/services/gallery/GalleryModels';
 import { PosterHttpSource, PosterRepository } from '../main/ets/services/gallery/PosterRepository';
 import { RcpRequestOptions, RcpResponseData } from '../main/ets/core/network/rcpSession';
@@ -54,6 +54,15 @@ export default function galleryFilterTest() {
       settings.strict = true;
       expect(filterComments(comments, settings)[0].sub.length).assertEqual(0);
       expect(comments[0].sub.length).assertEqual(2);
+    });
+
+    it('filters hidden and anonymous posts in a user post history', 0, () => {
+      const items: Poster[] = JSON.parse('[{"id":1,"user":{"id":"42"},"anonymous":false},{"id":2,"user":{"id":"3"},"anonymous":true},{"id":3,"user":{"id":"3"},"anonymous":false}]');
+      const settings = defaultGallerySettings();
+      settings.hideAnonymous = true;
+      expect(filterUserPosters(items, settings).map(item => item.id).join(',')).assertEqual('1,3');
+      settings.hiddenUids = ['42'];
+      expect(filterUserPosters(items, settings).map(item => item.id).join(',')).assertEqual('3');
     });
 
     it('uses Android hide_bot semantics and exact pagination/search parameters', 0, async () => {

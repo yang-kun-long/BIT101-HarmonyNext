@@ -1,4 +1,5 @@
 import { describe, it, expect } from '@ohos/hypium';
+import { buildCourseColorMap } from '../main/ets/services/schoolSchedule/ScheduleColors';
 import {
   buildWeekScheduleDisplayItems,
   calendarEventsToCourseScheduleItems,
@@ -18,7 +19,9 @@ import {
 import {
   getCourseBaseUrlForMode,
   mapCourseScheduleApiRows,
+  mapCourseScheduleApiResponse,
 } from '../main/ets/services/jw/courseScheduleApiRepository';
+import type { CourseScheduleApiRow } from '../main/ets/services/jw/courseScheduleApiRepository';
 import type {
   CourseScheduleItem,
   CustomScheduleItem,
@@ -127,6 +130,19 @@ class FakeCourseSource implements CourseScheduleSource {
 
 export default function courseScheduleRepositoryTest() {
   describe('Course schedule repository helpers', () => {
+    it('keeps course colors distinct and stable across reordered recurring slots', 0, () => {
+      const keys = ['math|alice', 'physics|bob', 'chemistry|carol', 'history|dan'];
+      const colors = buildCourseColorMap(keys);
+      const reordered = buildCourseColorMap([keys[3], keys[1], keys[0], keys[2], keys[0]]);
+      expect(Object.keys(reordered).length).assertEqual(4);
+      for (let i = 0; i < keys.length; i++) {
+        expect(colors[keys[i]]).assertEqual(reordered[keys[i]]);
+        for (let j = i + 1; j < keys.length; j++) {
+          expect(colors[keys[i]] !== colors[keys[j]]).assertTrue();
+        }
+      }
+    });
+
     const periodTimes: PeriodTime[] = [
       { start: '08:00', end: '08:45' },
       { start: '08:50', end: '09:35' },
@@ -341,7 +357,8 @@ export default function courseScheduleRepositoryTest() {
 
       expect(courses.length).assertEqual(1);
       expect(courses[0].term).assertEqual('2025-2026-2');
-      expect(courses[0].id).assertEqual('2025-2026-2:100101101:3:8:10:4');
+      expect(courses[0].id).assertEqual('2025-2026-2:100101101:3:8:10:4:' +
+        encodeURIComponent('刘文芳') + ':' + encodeURIComponent('理教楼407') + ':' + encodeURIComponent('中关村校区'));
       expect(courses[0].name).assertEqual('化学工程基础A (I)');
       expect(courses[0].teacher).assertEqual('刘文芳');
       expect(courses[0].classroom).assertEqual('理教楼407');
@@ -359,6 +376,40 @@ export default function courseScheduleRepositoryTest() {
       expect(courses[0].department).assertEqual('化学与化工学院');
     });
 
+    it('drops invalid native rows and de-duplicates repeated course slots', 0, () => {
+      const rows: CourseScheduleApiRow[] = [
+        { XNXQDM: '2025-2026-2', KCM: '同一课程', KCH: 'C1', SKZC: '1000', SKXQ: 1, KSJC: 1, JSJC: 2 },
+        { XNXQDM: '2025-2026-2', KCM: '同一课程', KCH: 'C1', SKZC: '1000', SKXQ: 1, KSJC: 1, JSJC: 2 },
+        { XNXQDM: '2025-2026-2', KCM: '无周次', KCH: 'C2', SKZC: '0000', SKXQ: 2, KSJC: 1, JSJC: 2 },
+        { XNXQDM: '2025-2026-2', KCM: '非法星期', KCH: 'C3', SKZC: '1000', SKXQ: 0, KSJC: 1, JSJC: 2 },
+      ];
+      const courses = mapCourseScheduleApiRows(rows, '2025-2026-2');
+      expect(courses.length).assertEqual(1);
+      expect(courses[0].id).assertEqual('2025-2026-2:C1:1:1:2:1:::');
+    });
+
+    it('rejects a malformed native course response but accepts a valid empty result', 0, () => {
+      let failed = false;
+      try { mapCourseScheduleApiResponse({}, '2025-2026-2'); } catch (_) { failed = true; }
+      expect(failed).assertTrue();
+      const courses = mapCourseScheduleApiResponse({ datas: { cxxszhxqkb: { rows: [] } } }, '2025-2026-2');
+      expect(courses.length).assertEqual(0);
+    });
+
+    it('keeps distinct teachers rooms and campuses in identical course slots', 0, () => {
+      const base: CourseScheduleApiRow = { KCM: '实验课', KCH: 'C1', SKZC: '1000', SKXQ: 1, KSJC: 1, JSJC: 2,
+        SKJS: '教师甲', JASMC: '101', XXXQMC: '校区甲' };
+      const otherTeacher: CourseScheduleApiRow = { KCM: '实验课', KCH: 'C1', SKZC: '1000', SKXQ: 1, KSJC: 1, JSJC: 2,
+        SKJS: '教师乙', JASMC: '101', XXXQMC: '校区甲' };
+      const otherRoom: CourseScheduleApiRow = { KCM: '实验课', KCH: 'C1', SKZC: '1000', SKXQ: 1, KSJC: 1, JSJC: 2,
+        SKJS: '教师甲', JASMC: '102', XXXQMC: '校区甲' };
+      const otherCampus: CourseScheduleApiRow = { KCM: '实验课', KCH: 'C1', SKZC: '1000', SKXQ: 1, KSJC: 1, JSJC: 2,
+        SKJS: '教师甲', JASMC: '101', XXXQMC: '校区乙' };
+      const items = mapCourseScheduleApiRows([base, base, otherTeacher, otherRoom, otherCampus], '2025-2026-2');
+      expect(items.length).assertEqual(4);
+      expect(new Set(items.map((item: CourseScheduleItem) => item.id)).size).assertEqual(4);
+    });
+
     it('refreshes courses from Android native source and persists local courses', 0, async () => {
       const store = new MemoryScheduleStore();
       const source = new FakeCourseSource();
@@ -374,6 +425,22 @@ export default function courseScheduleRepositoryTest() {
       expect(refreshed.length).assertEqual(1);
       expect(store.courses.length).assertEqual(1);
       expect(store.courses[0].id).assertEqual('native-c1');
+    });
+
+    it('keeps the previous local courses when native refresh fails', 0, async () => {
+      const store = new MemoryScheduleStore();
+      store.courses = [course('old-c1', 1, 1, 2, '[1]')];
+      class FailingCourseSource implements CourseScheduleSource {
+        async getCourses(_term: string): Promise<CourseScheduleItem[]> {
+          throw new Error('school service unavailable');
+        }
+      }
+      const repo = new CourseScheduleRepository({ localStore: store, courseSource: new FailingCourseSource() });
+      let failed = false;
+      try { await repo.refreshCourses('2025-2026-2', '2026-02-23', periodTimes); } catch (_) { failed = true; }
+      expect(failed).assertTrue();
+      expect(store.courses.length).assertEqual(1);
+      expect(store.courses[0].id).assertEqual('old-c1');
     });
 
     it('refreshes exams from source and persists local exams', 0, async () => {

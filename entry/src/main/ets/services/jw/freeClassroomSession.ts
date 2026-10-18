@@ -14,14 +14,25 @@ export async function prepareFreeClassroomSession(
   debug: boolean = false,
 ): Promise<void> {
   const auth = new SchoolAuthService({ debug });
+  // Reuse the authenticated school/CAS session created by the main login.
+  // Android keeps one cookie jar across target bootstrap; a fresh jar here
+  // causes a second TGT request (often rejected with HTTP 403).
+  const existingStore = new SchoolCookieStore(mode);
+  const existingDump = await existingStore.loadCookieDump();
+  auth.restoreCookieDump(existingDump);
   const targetUrl = mode === 'inner'
     ? `${JXZXEHALLAPP_INNER_BASE}/jwapp/sys/kxjasbyMobile/*default/index.do`
     : `${JXZXEHALLAPP_WEBVPN_BASE}/jwapp/sys/kxjasbyMobile/*default/index.do`;
   const target = mode === 'inner'
     ? await auth.loginInnerTarget(targetUrl, 'jxzxehallapp', username, password)
     : await (async () => {
-      await auth.loginWebvpnPortal(username, password);
-      return await auth.loginWebvpnTarget(targetUrl, 'jxzxehallapp');
+      try {
+        return await auth.loginWebvpnTarget(targetUrl, 'jxzxehallapp');
+      } catch (error) {
+        logger.warn('existing WebVPN session target bootstrap failed, retrying portal login', error);
+        await auth.loginWebvpnPortal(username, password);
+        return await auth.loginWebvpnTarget(targetUrl, 'jxzxehallapp');
+      }
     })();
   const store = new SchoolCookieStore(mode);
   await store.saveCookieDump(auth.getCookieDump());

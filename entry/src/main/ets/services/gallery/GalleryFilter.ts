@@ -11,6 +11,11 @@ export function filterPosters(items: Poster[], mode: string, settings: GallerySe
     !(settings.hideAnonymous && item.anonymous));
 }
 
+/** Applies the same local visibility rules to a user's public post history. */
+export function filterUserPosters(items: Poster[], settings: GallerySettings): Poster[] {
+  return filterPosters(items, 'user', settings);
+}
+
 export function filterComments(items: Comment[], settings: GallerySettings): Comment[] {
   return items.filter(item => !settings.hiddenUids.includes(item.user.id) &&
     !(settings.strict && item.replyUser && settings.hiddenUids.includes(item.replyUser.id)))

@@ -16,6 +16,25 @@ const ROOT_DIR = 'bit101/school_schedule';
 const COURSES_FILE = 'courses.json';
 const EXAMS_FILE = 'exams.json';
 const CUSTOM_FILE = 'custom_schedules.json';
+const SCHEDULE_INFO_FILE = 'schedule_info.json';
+
+export interface ScheduleCacheInfo {
+  term: string;
+  firstDayISO: string;
+}
+
+export function parseScheduleCacheInfo(text: string): ScheduleCacheInfo | null {
+  try {
+    const record = asRecord(JSON.parse(text) as Object);
+    if (!record) return null;
+    const term = readString(record, 'term');
+    const firstDayISO = readString(record, 'firstDayISO');
+    if (!/^[0-9]{4}-[0-9]{4}-[12]$/.test(term) || !isValidDateISO(firstDayISO)) return null;
+    return { term, firstDayISO };
+  } catch (_) {
+    return null;
+  }
+}
 
 export interface CustomScheduleFormInput {
   title: string;
@@ -302,6 +321,27 @@ export class ScheduleLocalStore {
 
   saveCourses(items: CourseScheduleItem[]): void {
     this.writeJson(this.path(COURSES_FILE), items);
+  }
+
+  loadScheduleInfo(): ScheduleCacheInfo | null {
+    return parseScheduleCacheInfo(this.readText(this.path(SCHEDULE_INFO_FILE)));
+  }
+
+  saveScheduleInfo(info: ScheduleCacheInfo): void {
+    this.writeJson(this.path(SCHEDULE_INFO_FILE), info);
+  }
+
+  hasCachedCourses(term: string): boolean {
+    if (!this.exists(this.path(COURSES_FILE))) return false;
+    try {
+      const rows = JSON.parse(fs.readTextSync(this.path(COURSES_FILE))) as Object;
+      if (!Array.isArray(rows)) return false;
+      // An empty successful response is also a cache hit, for the recorded term.
+      if (rows.length === 0) return this.loadScheduleInfo()?.term === term;
+      return parseCourseScheduleItemsJson(JSON.stringify(rows)).some((item) => item.term === term);
+    } catch (_) {
+      return false;
+    }
   }
 
   loadExams(): ExamScheduleItem[] {

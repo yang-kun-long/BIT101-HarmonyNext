@@ -3,7 +3,9 @@ import SimpleCookieJar, { CookieDump } from '../../core/network/cookieJar';
 import { Logger } from '../../utils/Logger';
 import { LexueCookieStore } from '../storage/LexueCookieStore';
 import { SchoolCookieStore } from '../storage/SchoolCookieStore';
+import { TokenStore } from '../storage/tokenStore';
 import type { SchoolLoginMode } from '../school/SchoolAuthTypes';
+import { SchoolAuthService } from '../school/SchoolAuthService';
 import {
   JXZXEHALLAPP_INNER_BASE,
   JXZXEHALLAPP_WEBVPN_BASE,
@@ -55,7 +57,10 @@ function parseJson<T>(text: string, label: string): T {
   try {
     return JSON.parse(text) as T;
   } catch (e) {
-    throw new Error(`${label} response is not JSON: ${String(e)}`);
+    const preview = (text || '').replace(/\s+/g, ' ').slice(0, 220);
+    const html = /^\s*<(?:!doctype\s+html|html|head|body)\b/i.test(text || '');
+    const suffix = html ? '; teaching-center session is not authenticated' : ` (${preview})`;
+    throw new Error(`${label} response is not JSON${suffix}: ${String(e)}`);
   }
 }
 
@@ -90,6 +95,18 @@ export function mapCurrentTermResponse(resp: CurrentTermApiResponse): string {
     const term = rows[i].DM || '';
     if (isTermCode(term)) {
       return term;
+    }
+  }
+  const root: any = resp as any;
+  const candidates: any[] = [root?.data, root?.rows, root?.currentTerm, root?.term];
+  for (let i = 0; i < candidates.length; i++) {
+    const value = candidates[i];
+    if (typeof value === 'string' && isTermCode(value)) return value;
+    if (Array.isArray(value)) {
+      for (let j = 0; j < value.length; j++) {
+        const candidate = typeof value[j] === 'string' ? value[j] : String(value[j]?.DM || value[j]?.term || value[j]?.code || '');
+        if (isTermCode(candidate)) return candidate;
+      }
     }
   }
   return '';
@@ -156,24 +173,80 @@ export class CourseTermRepository {
     if (dump) {
       this.jar.restoreFromDump(dump);
     }
+    if (this.mode === 'webvpn') {
+      const header = await new TokenStore().getWebvpnCookie();
+      this.jar.restoreFromCookieHeaderForHosts(header, [
+        this.baseUrl + '/',
+        'https://webvpn.bit.edu.cn/',
+        'https://jxzxehallapp.bit.edu.cn/',
+      ]);
+    }
+    if (this.debug) {
+      const domains: string[] = [];
+      const snapshot = this.jar.dump();
+      for (let i = 0; i < snapshot.length; i++) {
+        if (domains.indexOf(snapshot[i].domain) < 0) domains.push(snapshot[i].domain);
+      }
+      logger.info('TERM_STORE count=', snapshot.length, 'domains=', domains.join(','), 'mode=', this.mode);
+    }
   }
 
   private async warmup(): Promise<void> {
-    await this.client.get('/jwapp/sys/funauthapp/api/getAppConfig/wdkbby-5959167891382285.do');
-    await this.client.get('/jwapp/i18n.do', {
+    await this.ensureTeachingCenterSession();
+    const index = await this.client.get('/jwapp/sys/wdkbby/*default/index.do', {
+      headers: {
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Referer': this.baseUrl + '/',
+      },
+    });
+    if (this.debug) logger.info('term app index HTTP', index.statusCode, 'mode=', this.mode, 'base=', this.baseUrl);
+    assertOk(index, 'course app index');
+    const config = await this.client.get('/jwapp/sys/funauthapp/api/getAppConfig/wdkbby-5959167891382285.do');
+    if (this.debug) logger.info('term app config HTTP', config.statusCode);
+    const i18n = await this.client.get('/jwapp/i18n.do', {
       query: {
         appName: 'wdkbby',
         EMAP_LANG: 'zh',
       },
     });
+    if (this.debug) logger.info('term app i18n HTTP', i18n.statusCode);
+  }
+
+  private async ensureTeachingCenterSession(): Promise<void> {
+    const stored = await new SchoolCookieStore(this.mode).loadCookieDump();
+    if (!stored || stored.length === 0) return;
+    const auth = new SchoolAuthService({ debug: this.debug, userAgent: USER_AGENT });
+    auth.restoreCookieDump(stored);
+    if (this.debug) logger.info('teaching-center bootstrap stored cookie names=', stored.map((item) => item.name).join(','));
+    const targetUrl = `${this.baseUrl}/jwapp/sys/wdkbby/*default/index.do`;
+    try {
+      if (this.mode === 'inner') {
+        await auth.loginInnerTarget(targetUrl, 'jxzxehall', '', '');
+      } else {
+        await auth.loginWebvpnTarget(targetUrl, 'jxzxehall');
+      }
+      const repaired = auth.getCookieDump();
+      this.jar.restoreFromDump(repaired);
+      await new SchoolCookieStore(this.mode).saveCookieDump(repaired);
+      if (this.debug) logger.info('teaching-center session ready cookies=', repaired.length);
+    } catch (error) {
+      if (this.debug) logger.warn('teaching-center session bootstrap failed', error);
+    }
   }
 
   async getCurrentTerm(): Promise<string> {
     await this.restoreCookiesFromStorage();
     await this.warmup();
     const resp = await this.client.get('/jwapp/sys/wdkbby/modules/jshkcb/dqxnxq.do');
+    if (this.debug) logger.info('TERM_RESULT status=', resp.statusCode, 'bodyLen=', (resp.bodyText || '').length);
     assertOk(resp, 'getCurrentTerm');
-    const term = mapCurrentTermResponse(parseJson<CurrentTermApiResponse>(resp.bodyText, 'getCurrentTerm'));
+    const parsed = parseJson<CurrentTermApiResponse>(resp.bodyText, 'getCurrentTerm');
+    if (this.debug) {
+      const root = parsed as any;
+      const dataKeys = root && root.datas && typeof root.datas === 'object' ? Object.keys(root.datas).join(',') : '';
+      logger.info('TERM_SHAPE dataKeys=', dataKeys);
+    }
+    const term = mapCurrentTermResponse(parsed);
     if (term.length === 0) {
       throw new Error('current term is empty');
     }
@@ -187,6 +260,7 @@ export class CourseTermRepository {
     await this.restoreCookiesFromStorage();
     await this.warmup();
     const resp = await this.client.get('/jwapp/sys/wdkbby/modules/jshkcb/xnxqcx.do');
+    if (this.debug) logger.info('term list HTTP', resp.statusCode, 'body=', (resp.bodyText || '').replace(/\s+/g, ' ').slice(0, 240));
     assertOk(resp, 'getTermList');
     const terms = mapTermListResponse(parseJson<TermListApiResponse>(resp.bodyText, 'getTermList'));
     if (this.debug) {

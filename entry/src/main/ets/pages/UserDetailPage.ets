@@ -3,6 +3,8 @@ import { Logger } from '../utils/Logger';
 // entry/src/main/ets/pages/UserDetailPage.ets
 import { UserRepository, UserInfoResponse } from '../services/user/userRepository';
 import { PosterRepository } from '../services/gallery/PosterRepository';
+import { filterUserPosters } from '../services/gallery/GalleryFilter';
+import { FilteredPager, FilteredPageSnapshot } from '../services/gallery/FilteredPager';
 import { GalleryUser, Poster } from '../services/gallery/GalleryModels';
 import { AvatarWithName, FollowInfo, UserInfoButton } from '../components/user/UserInfoComponents';
 import { PosterCard } from '../components/gallery/PosterCard';
@@ -23,18 +25,45 @@ struct UserDetailPage {
   @State posters: Poster[] = [];
 
   // 分页状态
-  @State currentPage: number = 0;
   @State hasMore: boolean = true;
+  @State postersError: string = '';
   @State isPostersLoading: boolean = false;
   @State followingBusy: boolean = false;
+  private posterRepo: PosterRepository = new PosterRepository();
+  private postersPager: FilteredPager<Poster> = new FilteredPager<Poster>(
+    (page: number) => {
+      if (getGallerySettingsStore().snapshot().hiddenUids.includes(String(this.uid))) {
+        return Promise.resolve<Poster[]>([]);
+      }
+      const requestUid = this.userInfo && this.userInfo.own ? 0 : this.uid;
+      return this.posterRepo.getPostersOfUser(requestUid, page);
+    },
+    (items: Poster[]) => filterUserPosters(items, getGallerySettingsStore().snapshot()),
+    (item: Poster) => item.id, (state: FilteredPageSnapshot<Poster>) => {
+      this.posters = filterUserPosters(state.items, getGallerySettingsStore().snapshot());
+      this.isPostersLoading = state.loading;
+      this.hasMore = state.hasMore;
+      this.postersError = state.error;
+    });
 
   // --- 🌟 滚动与导航栏状态 ---
   @State navOpacity: number = 0; // 导航栏背景透明度 (0.0 - 1.0)
   @State showSmallTitle: boolean = false; // 是否显示小标题
   private scroller: Scroller = new Scroller();
 
-  aboutToDisappear(): void { if (this.unsubscribeSettings) this.unsubscribeSettings(); }
-  onPageShow(): void { this.hidden = getGallerySettingsStore().snapshot().hiddenUids.includes(String(this.uid)); }
+  aboutToDisappear(): void {
+    if (this.unsubscribeSettings) this.unsubscribeSettings();
+    this.unsubscribeSettings = null;
+    this.postersPager.cancel();
+  }
+  onPageShow(): void {
+    const settings = getGallerySettingsStore().snapshot();
+    this.hidden = settings.hiddenUids.includes(String(this.uid));
+    this.posters = filterUserPosters(this.posters, settings);
+    if (this.uiUser) {
+      this.loadPosters(false);
+    }
+  }
   private async toggleHidden(): Promise<void> {
     if (this.hidingBusy || this.uid <= 0) return;
     this.hidingBusy = true;
@@ -99,46 +128,11 @@ struct UserDetailPage {
 
 
   async loadPosters(isLoadMore: boolean) {
-    if (this.isPostersLoading) return;
-    if (isLoadMore && this.posters.length === 0) return;
-    if (isLoadMore && !this.hasMore) return;
-
-    this.isPostersLoading = true;
-
-    // ❌ [修复 2] 修正分页逻辑
-    // 刷新时(isLoadMore=false) 必须请求第 0 页
-    // 加载更多时，请求当前页 + 1
-    const pageToFetch = isLoadMore ? this.currentPage + 1 : 0;
-
-    try {
-      const posterRepo = new PosterRepository();
-
-      // ✅ [修复 3] 核心修改：如果是自己，uid 传 0
-      let requestUid = this.uid;
-      // 依赖于 fetchData 中已经获取了 userInfo 并且有了 own 字段
-      if (this.userInfo && this.userInfo.own) {
-        requestUid = 0;
-      }
-
-      // 使用计算后的 requestUid 发请求
-      const newPosters = await posterRepo.getPostersOfUser(requestUid, pageToFetch);
-
-      if (isLoadMore) {
-        this.posters = [...this.posters, ...newPosters];
-      } else {
-        this.posters = newPosters;
-      }
-
-      if (newPosters.length > 0) {
-        this.currentPage = pageToFetch;
-      }
-      // 简单判断是否有更多
-      this.hasMore = newPosters.length >= 10;
-
-    } catch (err) {
-      this.logger.error('加载帖子失败', err);
-    } finally {
-      this.isPostersLoading = false;
+    if (!this.uiUser) return;
+    if (isLoadMore) {
+      if (!this.postersError) await this.postersPager.loadMore();
+    } else {
+      await this.postersPager.refresh();
     }
   }
 
@@ -321,6 +315,8 @@ struct UserDetailPage {
       if (this.isPostersLoading) {
         LoadingProgress().width(20).height(20).margin({ right: 8 })
         Text("正在加载...").fontSize(14).fontColor($r('sys.color.ohos_id_color_text_secondary'))
+      } else if (this.postersError) {
+        Text(this.postersError).fontSize(14).onClick(() => { this.postersPager.retry(); })
       } else if (!this.hasMore && this.posters.length > 0) {
         Text("没有更多了 -").fontSize(12).fontColor($r('sys.color.ohos_id_color_text_tertiary'))
       }
@@ -361,7 +357,7 @@ struct UserDetailPage {
               }
             }
           })
-        } else if (!this.isPostersLoading) {
+        } else if (!this.isPostersLoading && !this.postersError) {
           ListItem() {
             Text("暂无动态")
               .width('100%')

@@ -37,6 +37,7 @@ import versionModelsTest from './VersionModels.test';
 import aboutSettingsTest from './AboutSettings.test';
 import logExportTest from './LogExport.test';
 import pageSettingsTest from './PageSettings.test';
+import scheduleWidgetTest from './ScheduleWidget.test';
 import themeSettingsTest from './ThemeSettings.test';
 import followListTest from './FollowList.test';
 
@@ -77,6 +78,7 @@ export default function testsuite() {
   aboutSettingsTest();
   logExportTest();
   pageSettingsTest();
+  scheduleWidgetTest();
   themeSettingsTest();
   followListTest();
   messageTest();

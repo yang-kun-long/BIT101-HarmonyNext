@@ -3,6 +3,7 @@ import {
   deleteCustomSchedule,
   createValidatedCustomSchedule,
   parseCourseScheduleItemsJson,
+  parseScheduleCacheInfo,
   parseCustomScheduleItemsJson,
   parseExamScheduleItemsJson,
   upsertCustomSchedule,
@@ -28,6 +29,15 @@ function buildCustom(id: string, title: string): CustomScheduleItem {
 
 export default function courseScheduleLocalStoreTest() {
   describe('Course schedule local store helpers', () => {
+    it('restores semester metadata and rejects missing or corrupt cache info', 0, () => {
+      const info = parseScheduleCacheInfo('{"term":"2026-2027-1","firstDayISO":"2026-08-31"}');
+      expect(info?.term).assertEqual('2026-2027-1');
+      expect(info?.firstDayISO).assertEqual('2026-08-31');
+      expect(parseScheduleCacheInfo('[]') === null).assertTrue();
+      expect(parseScheduleCacheInfo('{bad') === null).assertTrue();
+      expect(parseScheduleCacheInfo('{"term":"2026-2027-1"}') === null).assertTrue();
+    });
+
     it('parses course JSON defensively', 0, () => {
       const valid: CourseScheduleItem[] = parseCourseScheduleItemsJson(
         '[{"id":"c1","term":"2025-2026-2","name":"Math","teacher":"","classroom":"101","description":"","weeks":"[1]","weekday":1,"startSection":1,"endSection":2,"campus":"","number":"","credit":0,"hour":0,"type":"","category":"","department":""}]',

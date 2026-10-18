@@ -1,4 +1,5 @@
 import { initializeGallerySettings } from '../services/storage/GallerySettingsStore';
+import { publishScheduleWidgets } from '../services/schoolSchedule/ScheduleWidgetPublisher';
 import { initializeCredentialStore } from '../services/storage/CredentialStorePlatform';
 import { initializeAutomaticLogin } from '../services/auth/AutomaticLogin';
 import { AbilityConstant, ConfigurationConstant, UIAbility, Want } from '@kit.AbilityKit';
@@ -49,6 +50,8 @@ export default class EntryAbility extends UIAbility {
     AppStorage.setOrCreate('filesDir', this.context.filesDir);
     AppStorage.setOrCreate('cacheDir', this.context.cacheDir);
     AppStorage.setOrCreate('tempDir',  this.context.tempDir);
+    AppStorage.setOrCreate('isDebugBuild', isDebugBuild);
+    this.handleScheduleWant(want);
 
     initTokenStore(this.context);
     initializeCredentialStore(this.context);
@@ -117,6 +120,16 @@ export default class EntryAbility extends UIAbility {
     this.logger.info('Ability onDestroy');
   }
 
+  onNewWant(want: Want, _launchParam: AbilityConstant.LaunchParam): void {
+    this.handleScheduleWant(want);
+  }
+
+  private handleScheduleWant(want: Want): void {
+    if (want.parameters?.action === 'openSchedule') {
+      AppStorage.setOrCreate('openScheduleRequest', Date.now());
+    }
+  }
+
   onWindowStageCreate(windowStage: window.WindowStage): void {
     this.logger.info('Ability onWindowStageCreate');
 
@@ -174,6 +187,7 @@ export default class EntryAbility extends UIAbility {
 
   onForeground(): void {
     this.logger.info('Ability onForeground');
+    publishScheduleWidgets(this.context.filesDir);
   }
 
   onBackground(): void {

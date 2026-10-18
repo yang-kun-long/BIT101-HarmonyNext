@@ -43,11 +43,22 @@ struct Index {
   @StorageLink('pages_order') storagePages: PageShowOnNav[] = defaultPageSettings().order;
   @StorageLink('pages_hidden') @Watch('onNavigationChanged') storageHidden: PageShowOnNav[] = [];
   @StorageLink('home_page') homePage: PageShowOnNav = PageShowOnNav.Schedule;
+  @StorageLink('openScheduleRequest') @Watch('onScheduleRequested') openScheduleRequest: number = 0;
 
   aboutToAppear() {
     const params = uiGetParams(this.getUIContext()) as Record<string, Object>;
     const tabParam = params?.['tab'] as number | undefined;
-    this.goto(resolveStartupTab(this.homePage, tabParam) as TabKey, false);
+    if (this.openScheduleRequest > 0) {
+      this.onScheduleRequested();
+    } else {
+      this.goto(resolveStartupTab(this.homePage, tabParam) as TabKey, false);
+    }
+  }
+
+  private onScheduleRequested(): void {
+    if (this.openScheduleRequest <= 0) return;
+    this.goto(TabKey.Schedule, false);
+    this.openScheduleRequest = 0;
   }
 
   private onNavigationChanged(): void {

@@ -16,6 +16,7 @@ import BitSsoSession from '../lexue/BitSsoSession';
 import { syncUserCalendar } from '../lexue/CalendarService';
 import { LoginSessionState, TokenStore } from '../storage/tokenStore';
 import { LexueCookieStore } from '../storage/LexueCookieStore';
+import { SchoolCookieStore } from '../storage/SchoolCookieStore';
 import { prepareFreeClassroomSession } from '../jw/freeClassroomSession';
 import {
   globalSmsChallengeCoordinator,
@@ -128,15 +129,23 @@ class DefaultLoginCoordinatorDeps implements LoginCoordinatorDeps {
   async commitCoreSession(stage: LoginCoordinatorStage): Promise<void> {
     const previousTokens: LoginSessionState = await this.tokenStore.getLoginSessionState();
     const lexueStore = new LexueCookieStore(stage.mode);
+    const schoolStore = new SchoolCookieStore(stage.mode);
     const previousLexue: CookieDump | null = await lexueStore.loadCookieDump();
+    const previousSchool: CookieDump | null = await schoolStore.loadCookieDump();
     const nextTokens: LoginSessionState = this.buildTokenState(stage);
 
     try {
       await lexueStore.replaceCookieDump(stage.lexueCookieDump);
+      // Keep the same authenticated dump available to teaching-center,
+      // classroom and exam repositories. They intentionally do not depend
+      // on the Lexue store name even though the SSO session is shared.
+      await schoolStore.replaceCookieDump(stage.lexueCookieDump);
       await this.tokenStore.replaceLoginSession(nextTokens);
+      await this.tokenStore.saveSchoolLoginMode(stage.mode);
     } catch (error) {
       try {
         await lexueStore.replaceCookieDump(previousLexue);
+        await schoolStore.replaceCookieDump(previousSchool);
         await this.tokenStore.replaceLoginSession(previousTokens);
       } catch (rollbackError) {
         this.logger.error('Core login rollback failed', rollbackError);

@@ -3,6 +3,7 @@ import messageTest from '../../../test/Message.test';
 import followListTest from '../../../test/FollowList.test';
 import userProfileTest from '../../../test/UserProfile.test';
 import loginCoordinatorTest from '../../../test/LoginCoordinator.test';
+import bit101LoginFlowTest from '../../../test/Bit101LoginFlow.test';
 import smsChallengeCoordinatorTest from '../../../test/SmsChallengeCoordinator.test';
 import webSessionModelTest from '../../../test/WebSessionModel.test';
 import webNavigationTest from '../../../test/WebNavigation.test';
@@ -17,6 +18,7 @@ import themeSettingsTest from '../../../test/ThemeSettings.test';
 export default function testsuite() {
   abilityTest();
   loginCoordinatorTest();
+  bit101LoginFlowTest();
   smsChallengeCoordinatorTest();
   userProfileTest();
   messageTest();

@@ -22,11 +22,11 @@
     },
     {
       "name": "widget_desc",
-      "value": "This is a service widget."
+      "value": "优先显示正在上或即将上的课程，上下滑动翻看课程卡片，点击打开课表。"
     },
     {
       "name": "widget_display_name",
-      "value": "widget"
+      "value": "课程卡片"
     },
     {
       "name": "reason_write_image",
@@ -42,3 +42,4 @@
     }
   ]
 }
+
