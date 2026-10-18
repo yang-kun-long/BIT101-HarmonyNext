@@ -43,6 +43,19 @@ class FollowSource implements FollowListSource {
 
 export default function followListTest() {
   describe('Follow list', () => {
+    it('distinguishes an empty list from empty or unauthorized responses', 0, async () => {
+      const http = new FollowHttpClient();
+      const repo = new UserRepository({ httpClient: http, tokenStore: new FollowTokenStore() });
+      expect((await repo.getFollowers(0)).length).assertEqual(0);
+      expect((await repo.getFollowings(1)).length).assertEqual(0);
+      for (const status of [200, 204, 401, 503]) {
+        http.response = { status, headers: {}, text: '' };
+        let failures = 0;
+        try { await repo.getFollowers(); } catch (_) { failures++; }
+        try { await repo.getFollowings(); } catch (_) { failures++; }
+        expect(failures).assertEqual(2);
+      }
+    });
     it('requests the Android array contract with explicit page and session header', 0, async () => {
       const http = new FollowHttpClient();
       const repo = new UserRepository({ httpClient: http, tokenStore: new FollowTokenStore() });

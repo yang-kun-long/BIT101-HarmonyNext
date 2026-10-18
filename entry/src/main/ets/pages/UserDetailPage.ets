@@ -294,7 +294,7 @@ struct UserDetailPage {
         } else {
           Text("这个人很懒，什么都没有写")
             .fontSize(14)
-            .fontColor(Color.Gray)
+            .fontColor($r('sys.color.ohos_id_color_text_secondary'))
             .margin({ top: 4, bottom: 16 })
         }
 
@@ -320,9 +320,9 @@ struct UserDetailPage {
     Row() {
       if (this.isPostersLoading) {
         LoadingProgress().width(20).height(20).margin({ right: 8 })
-        Text("正在加载...").fontSize(14).fontColor(Color.Gray)
+        Text("正在加载...").fontSize(14).fontColor($r('sys.color.ohos_id_color_text_secondary'))
       } else if (!this.hasMore && this.posters.length > 0) {
-        Text("没有更多了 -").fontSize(12).fontColor(Color.Gray)
+        Text("没有更多了 -").fontSize(12).fontColor($r('sys.color.ohos_id_color_text_tertiary'))
       }
     }
     .width('100%')
@@ -367,7 +367,7 @@ struct UserDetailPage {
               .width('100%')
               .textAlign(TextAlign.Center)
               .padding(40)
-              .fontColor(Color.Gray)
+              .fontColor($r('sys.color.ohos_id_color_text_secondary'))
           }
         }
 

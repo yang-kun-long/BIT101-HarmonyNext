@@ -18,6 +18,24 @@ class GalleryHttpFixture implements PosterHttpSource {
 
 export default function galleryFilterTest() {
   describe('Gallery filtering and request contract', () => {
+    it('requests user post pages zero and one explicitly and surfaces failed responses', 0, async () => {
+      const source = new GalleryHttpFixture();
+      const repo = new PosterRepository(source, async () => 'fixture', () => defaultGallerySettings());
+      expect((await repo.getPostersOfUser(42, 0)).length).assertEqual(0);
+      expect(source.options.query!['page']).assertEqual(0);
+      await repo.getPostersOfUser(42, 1);
+      expect(source.options.query!['page']).assertEqual(1);
+      expect(source.options.query!['uid']).assertEqual(42);
+      expect(source.options.headers!['fake-cookie']).assertEqual('fixture');
+      for (const body of ['', '{', '{}', '[{}]']) {
+        source.body = body; let failed = false;
+        try { await repo.getPostersOfUser(42, 2); } catch (_) { failed = true; }
+        expect(failed).assertTrue();
+      }
+      source.status = 503; source.body = '[]'; let failed = false;
+      try { await repo.getPostersOfUser(42, 2); } catch (_) { failed = true; }
+      expect(failed).assertTrue();
+    });
     it('filters UID and anonymous posts while preserving follow stream', 0, () => {
       const items: Poster[] = JSON.parse('[{"id":1,"user":{"id":"42"},"anonymous":false},{"id":2,"user":{"id":"3"},"anonymous":true},{"id":3,"user":{"id":"3"},"anonymous":false}]');
       const settings = defaultGallerySettings(); settings.hiddenUids = ['42']; settings.hideAnonymous = true;

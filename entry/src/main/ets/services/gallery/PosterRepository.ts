@@ -74,13 +74,9 @@ export class PosterRepository {
 
       const queryParams: Record<string, string | number> = {
         uid: uid,
-        mode: 'search'
+        mode: 'search',
+        page: page
       };
-
-      // 策略：第一页不传 page 参数，完全依赖后端默认行为
-      if (page > 1) {
-        queryParams['page'] = page;
-      }
 
       logger.info(`发起请求: uid=${uid}, page=${page}, params=${JSON.stringify(queryParams)}`);
 
@@ -89,31 +85,7 @@ export class PosterRepository {
         query: queryParams
       });
 
-      if (response.statusCode !== 200) {
-        logger.error(`请求失败: code=${response.statusCode}, body部分=${response.bodyText.substring(0, 200)}`);
-        return [];
-      }
-
-      let rawList: PosterApiRaw[] = [];
-      try {
-        const json = JSON.parse(response.bodyText);
-
-        // 🔍 调试关键点：打印原始数据结构类型
-        if (Array.isArray(json)) {
-          logger.info(`解析成功: 根数组模式, 长度=${json.length}`);
-          rawList = json;
-        } else if (json && Array.isArray(json.data)) {
-          logger.info(`解析成功: data包装模式, 长度=${json.data.length}`);
-          rawList = json.data;
-        } else {
-          logger.warn(`数据格式异常: 既不是数组也不是{data:[]}. Body前100字: ${response.bodyText.substring(0, 100)}`);
-        }
-      } catch (e) {
-        logger.error('JSON解析失败', e);
-        return [];
-      }
-
-      return rawList.map(item => this.mapApiToModel(item));
+      return this.handleResponse(response);
 
     } catch (err) {
       logger.error('网络层异常', err);

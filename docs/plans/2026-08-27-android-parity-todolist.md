@@ -442,6 +442,8 @@
 
 **编辑/举报主题进展（2026-10-17）:** 发帖/编辑的标签、输入提示、创作者声明及标签弹窗，举报的正文、加载/错误、类型选择、输入区和页头/页尾，以及更多评论的警示颜色改用系统语义资源。举报类型选中圆点改为圆角 Row 背景，移除 API 26 Shape.fill 兼容警告。debug 签名构建在最后一轮输入/警示颜色调整前通过，最终 release 签名构建通过，Huawei_Phone 模拟器覆盖安装启动成功，未发现应用崩溃日志。证据见 entry/build/editor-theme-debug.log、editor-theme-release.log、editor-theme-run.log、editor-theme-crash.log。仅颜色与选中指示器适配，没有新增单元测试；发帖/举报真实后端行为和深浅色交互仍待验收，Task 11 全量适配继续保留。
 
+**主题收尾进展（2026-10-18）:** 将“我”和用户详情的空态/加载/分页提示、游客说明，以及课表和空教室设置弹窗的错误提示，从固定灰色/红色改为系统主题语义颜色；`devecocli build` 和本地 311 项测试均通过。仍有其他页面及图片/遮罩等刻意使用的固定颜色，Task 11 的全量主题适配继续保留。
+
 **Acceptance:** 将“图”设为主页后冷启动进入地图；主题和旋转设置重启后保留并真正改变窗口行为；现有页面配置可迁移不丢失。
 
 **Commit:** `fix(settings): apply page and theme preferences`
@@ -488,7 +490,9 @@
 
 ### Task 13 [P2]: 建立跨域回归门禁
 
-**Status:** 自动化门禁持续建设中；模拟器优先形成可重复证据，真实账号、校园网络和系统联动真机后置。
+**Status:** 已建立本地测试、debug/release 签名构建、模拟器 fixture/UI 和 release 冷启动/日志分享门禁；全任务的账号交互与真实网络验收继续按下表收口。
+
+**Task 13 执行步骤（2026-10-18）:** 在本任务内继续维护唯一 Todo。先补消息/关注列表的空数组与空正文、更新空响应、用户帖子分页/失败的 fixture；本地入口必须注册全部测试文件。再将认证、资料、消息、关注、话廊、Web、更新、日志及设置测试复用于 `entry/src/ohosTest/ets/test/List.test.ets`，补齐 TestRunner 和不依赖账号的导航冒烟。扩展 `scripts/Test-Parity.ps1`，依次执行本地报告校验、devecocli debug/release 构建、可选模拟器测试与 release 冷启动日志检查，结果写入 `entry/build/parity/`。设备测试安装/aa test/UI 操作为 CLI 未提供能力时的 hdc 回退；构建、主应用部署和日志仍用 devecocli。最终核对测试、构建、模拟器证据后更新勾选状态，真实账号与系统联动继续保留后置。
 
 **Files:**
 
@@ -503,14 +507,35 @@
 **Todo:**
 
 - [ ] 每个 repository 先用 fixture 覆盖字段映射、分页、空响应和非 2xx，再接 UI。
+- [x] 本批核心路径：资料更新、消息及分类未读、关注/粉丝、帖子/评论、版本解析已覆盖主要请求/响应契约；补齐空数组与空正文的区别、用户帖子第 0/1 页和失败响应、短信取消及错误验证码后重试。历史 repository 和真实头像上传仍不声明全覆盖。
 - [x] 运行本地测试：`& 'D:\Software\Huawei\DevEco Studio\tools\hvigor\bin\hvigorw.bat' test --no-daemon`。
-- [ ] 运行构建：`devecocli build`；P0 合并前再运行 `devecocli build --build-mode release`。
+- [x] 运行构建：`devecocli build`；P0 合并前再运行 `devecocli build --build-mode release`。
 - [ ] 优先用 `devecocli run --module entry --device <emulator-serial>` 做登录替身、Web、资料修改、消息、关注、话廊设置、更新和日志分享模拟器冒烟；真实账号、校园网络和系统联动统一真机后置。
-- [ ] 优先用模拟器日志检查异常；真机后置时再用 `devecocli log --device <serial> --bundle-name <official-bundle-name> --level E --from 10m --tail 300` 做最终回归。
+- [x] 本轮模拟器冷启动日志与崩溃记录检查已完成；正式包名和真机日志回归继续后置，使用 `devecocli log --device <serial> --bundle-name <official-bundle-name> --level E --from 10m --tail 300`。
 - [x] 每个 DebugCase 结束后恢复 `CURRENT_DEBUG_TARGET = NONE`；在测试中把该要求变成硬门禁。
-- [ ] 在本文件维护完成证据：commit、测试结果、设备型号、日期和关键日志，不再维护第二份平行 Todo。
+- [x] 在本文件维护完成证据：commit、测试结果、设备型号、日期和关键日志，不再维护第二份平行 Todo。
+
+**可重复执行入口（2026-10-18）:** `./scripts/Test-Parity.ps1` 运行本地门禁；`./scripts/Test-Parity.ps1 -Build` 加 debug/release 构建；`./scripts/Test-Parity.ps1 -Device 127.0.0.1:5555` 再执行设备 fixture/UI、release 冷启动、进程存活、无 DebugCase、系统日志分享打开/取消/重试和崩溃记录检查。可传 `-DevEcoPath` 与 `-BundleName`，设备 UI 套件要求游客状态且“我”入口可见，不自动清理已有登录数据。每次生成独立 `entry/build/parity/<时间戳>/` 证据目录和 result.json，latest.json 指向最近结果；记录起止时间、基线 commit、工作区是否有改动、每阶段退出码及日志。缺报告、陈旧报告、零用例、失败/错误/跳过及未全部通过均拒绝；`scripts/Test-ParityContract.ps1` 用 10 个报告验证点检查判定，包括工具返回成功但测试失败的情况。设备测试复用本地 fixture；TestRunner 在 onRun 动态加载套件，避免 UiTest 在 AbilityDelegator 就绪前初始化。系统分享通过普通启动的 release 包验证，避免 Hypium 进程环境影响。
+
+**本轮发现并修复:** `PosterRepository.getPostersOfUser()` 的 page=0/1 原来都省略页码，且 HTTP/解析错误会伪装空页；现在显式传递页码并复用严格响应处理。话廊设置通过按值传参的 Builder 绘制开关，原值被捕获导致持久化成功但界面没有立即更新；改为带 @Prop 的组件同步选中/可用状态，并在模拟器验证全部五个开关的即时变化、重新进入保留和恢复原值。
+
+| 跨域路径 | 本轮自动化证据 | 仍需后续验收 |
+| --- | --- | --- |
+| 登录/短信 | staging、失败不提交、互斥、短信取消不提交、错误码后重试；游客登录页往返 | 实际短信与校园 inner/WebVPN 网络 |
+| 资料 | PUT 三字段、鉴权、2xx 空正文、网络/HTTP 失败 fixture | 真实头像上传和服务端资料跨进程一致性 |
+| 消息/关注 | 四类消息、未读、cursor/page、空数组/坏响应、重复请求及过期态 fixture | 已登录 UI 入口布局、真实消息与跳转 |
+| 话廊 | 过滤/评论/请求映射 fixture；五开关立即更新及重新进入恢复 UI | 真实帖子、屏蔽用户、图片评论和横滑交互 |
+| Web/地图 | 复用 Web 会话/导航 fixture；既有地图缓存本地测试 | WebView 历史/滚动、文件选择、外链下载、实际离线瓦片 |
+| 更新/日志 | 版本通道/强制更新/空响应 fixture；脱敏和 UTF-8 fixture；release 分享面板打开/取消/重试 | 正式鸿蒙更新通道、真实分享接收端及系统联动 |
+| 发布门禁 | 本地测试、签名构建、模拟器覆盖安装、冷启动进程/日志/崩溃检查 | 正式 bundleName/version/profile 与集中真机回归 |
 
 **回归门禁进展（2026-10-17）:** 功能批次已提交为 ecefd13。新增 scripts/Test-Parity.ps1，可通过 -DevEcoPath 指定 DevEco 安装目录（本机实际为 D:/Huawei/DevEco Studio，旧文档 D:/Software/Huawei 路径已不可用）。脚本检查 CURRENT_DEBUG_TARGET=NONE，执行本地测试并验证报告为本次生成、用例非空、失败/错误/跳过均为零且全部通过；运行后恢复进程环境变量，不修改签名配置。实际执行通过：286 项成功，Failure=0、Error=0、Ignore=0，日志为 entry/build/parity-gate.log。现有 DebugRunnerContract 测试继续覆盖默认 NONE 和 release 禁用调试。此批次复用上一轮 debug/release 签名构建及模拟器启动证据；跨域设备交互和真实账号回归仍待完成。
+
+**回归门禁结果（2026-10-18）:** 基于 `14d1e45` 的本轮工作区改动，未创建新 commit。完整执行 `./scripts/Test-Parity.ps1 -Device 127.0.0.1:5555`，结果 `passed`：本地 311 项、设备 97 项，Failure=0、Error=0、Ignore=0；脚本报告判定的 10 个验证点亦通过。Huawei_Phone（127.0.0.1:5555，HarmonyOS 5.1.1 API 19）完成 debug/release 覆盖安装；debug/release 以及 ohosTest HAP 的 CompileArkTS、PackageHap、PackingCheck、SignHap 均成功。设备 97 项包含 94 项跨域 fixture 和 3 项 UI 测试：设置/账号/话廊/外观/关于往返，游客登录页往返，五个话廊开关立即改变并重新进入恢复，测试后恢复原值。release 冷启动进程存活，日志无 DebugRunner START/SUMMARY，按包名查询无崩溃记录；系统日志分享面板连续两次打开并取消成功，没有发送给接收端。构建仍有既有 getContext 等弃用告警。
+
+**关键证据:** `entry/build/parity/20261018-005722-749/result.json`（完整阶段记录）、`local-test-result.txt`（311 项）、`device-tests.log`（97 项）、`debug-build.log`、`release-build.log`、`device-test-build.log`（签名构建）、`device-info.log`、`release-run.log`、`release-process.log`、`release-log.log`、`release-share.log`、`release-crash.log`；最近结果索引为 `entry/build/parity/latest.json`。失败用例与修复过程中证据保留在此前批次目录，不冒用作最终通过结果。Task 13 的自动化门禁已建立；未勾选的全 repository 覆盖和全部跨域 UI 验收继续按上表补齐，因此里程碑不整体勾选。
+
+**补充设备证据:** 同一 release 包手动将“允许横向滑动”设为 false、强制停止并冷启动，重新进入话廊设置仍为 false；完成后恢复原值 true，并恢复本轮调试临时改变的 hideBot=false。证据为上述目录下 `gallery-coldstart.log`、`gallery-coldstart-run.log` 和 `gallery.png`。最后 10 分钟的 E 级日志保存为 `final-errors.log`，未发现 BIT101 模块错误、JSERROR、Uncaught 或 Fatal；保留模拟器图形/系统层噪声，不将其宣称为零 E 日志。
 
 **Acceptance:** 本地测试、ArkTS 编译/打包/包检查和模拟器可运行路径通过；P0/P1 主路径先形成模拟器或 fixture 证据，真机证据集中后置；release 冷启动无 DebugCase。
 

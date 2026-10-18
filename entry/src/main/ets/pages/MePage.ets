@@ -265,7 +265,7 @@ export default struct MePage {
         } else {
           Text("这个人很懒，什么都没有写")
             .fontSize(14)
-            .fontColor(Color.Gray)
+            .fontColor($r('sys.color.ohos_id_color_text_secondary'))
             .margin({ top: 4, bottom: 16 })
         }
 
@@ -292,9 +292,9 @@ export default struct MePage {
     Row() {
       if (this.isPostersLoading) {
         LoadingProgress().width(20).height(20).margin({ right: 8 })
-        Text("正在加载...").fontSize(14).fontColor(Color.Gray)
+        Text("正在加载...").fontSize(14).fontColor($r('sys.color.ohos_id_color_text_secondary'))
       } else if (!this.hasMore && this.posters.length > 0) {
-        Text("没有更多了 -").fontSize(12).fontColor(Color.Gray)
+        Text("没有更多了 -").fontSize(12).fontColor($r('sys.color.ohos_id_color_text_tertiary'))
       }
     }
     .width('100%')
@@ -319,7 +319,7 @@ export default struct MePage {
         Text('游客').fontSize(22).fontWeight(FontWeight.Bold)
         Text('登录后可访问完整个人主页与动态')
           .fontSize(13)
-          .fontColor('#666666')
+          .fontColor($r('sys.color.ohos_id_color_text_secondary'))
 
         Button('去登录')
           .type(ButtonType.Capsule)
@@ -402,7 +402,7 @@ export default struct MePage {
                 .width('100%')
                 .textAlign(TextAlign.Center)
                 .padding(40)
-                .fontColor(Color.Gray)
+                .fontColor($r('sys.color.ohos_id_color_text_secondary'))
             }
           }
 
@@ -445,7 +445,7 @@ export default struct MePage {
     // 5. 兜底
     else {
       Column() {
-        Text('暂无数据').fontSize(14).fontColor('#666666')
+        Text('暂无数据').fontSize(14).fontColor($r('sys.color.ohos_id_color_text_secondary'))
       }
       .width('100%')
       .height('100%')

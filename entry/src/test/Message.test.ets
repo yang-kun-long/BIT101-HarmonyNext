@@ -27,6 +27,19 @@ class Source implements MessageSource {
 }
 export default function messageTest() {
   describe('Message center', () => {
+    it('accepts empty arrays but rejects empty bodies and HTTP errors for every endpoint', 0, async () => {
+      const http = new TestHttp();
+      const repo = new MessageRepository(http, new Tokens());
+      expect((await repo.getMessages('system')).length).assertEqual(0);
+      for (const status of [200, 204, 401, 503]) {
+        http.response = { status, headers: {}, text: '' };
+        let failures = 0;
+        try { await repo.getMessages('like'); } catch (_) { failures++; }
+        try { await repo.getUnreadTotal(); } catch (_) { failures++; }
+        try { await repo.getUnreadCounts(); } catch (_) { failures++; }
+        expect(failures).assertEqual(3);
+      }
+    });
     it('requests authenticated snake_case contracts and cursor', 0, async () => {
       const http = new TestHttp(); const repo = new MessageRepository(http, new Tokens());
       http.response.text = JSON.stringify([message(10)]);

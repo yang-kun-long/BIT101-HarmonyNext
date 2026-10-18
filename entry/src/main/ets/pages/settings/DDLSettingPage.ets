@@ -333,7 +333,7 @@ struct InputNumberDialog {
       if (this.errorMessage) {
         Text(this.errorMessage)
           .fontSize(12)
-          .fontColor(Color.Red)
+          .fontColor($r('sys.color.ohos_id_color_warning'))
           .padding({ left: 24, bottom: 8 })
           .width('100%')
       } else {

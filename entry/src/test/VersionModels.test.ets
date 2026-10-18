@@ -44,6 +44,16 @@ class ResponseVersionClient implements VersionHttpClient {
 
 export default function versionModelsTest() {
   describe('Version models', () => {
+    it('never reports up to date for an empty or malformed successful response', 0, async () => {
+      const http = new ResponseVersionClient();
+      const service = new VersionService({ httpClient: http });
+      for (const body of ['', 'null', '{}', '{']) {
+        http.response.text = body;
+        let failed = false;
+        try { await service.check(6); } catch (_) { failed = true; }
+        expect(failed).assertTrue();
+      }
+    });
     it('falls back to the project for absent, unsafe or Android update URLs', 0, () => {
       expect(resolveUpdateUrl('')).assertEqual(HARMONY_PROJECT_URL);
       expect(resolveUpdateUrl('javascript:alert(1)')).assertEqual(HARMONY_PROJECT_URL);

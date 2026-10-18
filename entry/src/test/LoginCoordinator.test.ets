@@ -14,11 +14,13 @@ import {
 import { AuthFlowError, AuthFailureKind } from '../main/ets/services/auth/AuthFailure';
 import { VerifyResult } from '../main/ets/services/auth/authRepository';
 import { BitSsoLoginMode } from '../main/ets/services/lexue/BitSsoAuto';
+import { SmsChallengeCoordinator, SmsCodeHandler } from '../main/ets/services/auth/SmsChallengeCoordinator';
 
 class FakeSso implements LoginCoordinatorSso {
   readonly calls: string[];
   ready: boolean = true;
   loginError: AuthFlowError | null = null;
+  smsHandler: SmsCodeHandler | null = null;
 
   constructor(calls: string[]) {
     this.calls = calls;
@@ -26,6 +28,10 @@ class FakeSso implements LoginCoordinatorSso {
 
   async loginToLexue(username: string, password: string): Promise<void> {
     this.calls.push('sso.loginToLexue:' + username + ':' + password);
+    if (this.smsHandler) {
+      const code = await this.smsHandler({ phone: '13800000000', maskedPhone: '138****0000', purpose: 'password_second_factor' });
+      if (code !== '123456') throw new AuthFlowError('sms_required', '短信验证码错误，请重试');
+    }
     if (this.loginError) {
       throw this.loginError;
     }
@@ -130,6 +136,41 @@ async function captureFailureKind(action: () => Promise<void>): Promise<AuthFail
 
 export default function loginCoordinatorTest() {
   describe('LoginCoordinator', () => {
+    it('cancels an SMS login without committing any domain or starting optional work', 0, async () => {
+      const deps = new FakeDeps();
+      const sms = new SmsChallengeCoordinator();
+      deps.sso.smsHandler = sms.createHandler({ timeoutMs: 0 });
+      const stop = sms.subscribe(pending => { if (pending) sms.cancel(pending.id); });
+      try {
+        const kind = await captureFailureKind(async () => {
+          await new LoginCoordinator(deps).login({ sid: 'fixture', password: 'fixture' });
+        });
+        expect(kind).assertEqual('interaction_cancelled');
+        expect(deps.commitCount).assertEqual(0);
+        expect(deps.calls.some(call => call.startsWith('freeClassroom:') || call.startsWith('syncCalendar:'))).assertFalse();
+        expect(sms.getPending()).assertNull();
+      } finally { stop(); }
+    });
+
+    it('reports an incorrect SMS code and safely retries with a new challenge', 0, async () => {
+      const deps = new FakeDeps();
+      const sms = new SmsChallengeCoordinator();
+      deps.sso.smsHandler = sms.createHandler({ timeoutMs: 0 });
+      let code = '000000';
+      const stop = sms.subscribe(pending => { if (pending) sms.submit(pending.id, code); });
+      const coordinator = new LoginCoordinator(deps);
+      try {
+        const kind = await captureFailureKind(async () => {
+          await coordinator.login({ sid: 'fixture', password: 'fixture' });
+        });
+        expect(kind).assertEqual('sms_required');
+        expect(deps.commitCount).assertEqual(0);
+        code = '123456';
+        expect((await coordinator.login({ sid: 'fixture', password: 'fixture' })).ok).assertTrue();
+        expect(deps.commitCount).assertEqual(1);
+        expect(sms.getPending()).assertNull();
+      } finally { stop(); }
+    });
     it('commits staged BIT101 and school state once before optional post-login work', 0, async () => {
       const deps = new FakeDeps();
       const coordinator = new LoginCoordinator(deps);
